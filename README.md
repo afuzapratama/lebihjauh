@@ -87,7 +87,9 @@ ADMIN_EMAIL=admin@contoh.com ADMIN_PASSWORD='password-minimal-8' npm run bootstr
 npm run dev
 ```
 
-Login ada di `/admin/login`; pengelolaan trip dan jadwal ada di `/admin/trips`.
+Login ada di `/admin/login`; akun berikutnya dikelola lewat `/admin/accounts`,
+sedangkan ganti password akun sendiri tersedia di `/admin/profile`.
+Pengelolaan trip dan jadwal ada di `/admin/trips`.
 Panduan batas data dan langkah uji ada di [fase 4C](docs/phase-4c/README.md).
 
 ## Deploy preview statis ke VPS / aaPanel

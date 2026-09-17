@@ -18,10 +18,20 @@ function createAuth() {
     throw new Error('BETTER_AUTH_SECRET environment variable is required');
 
   return betterAuth({
-    // Signup publik dinonaktifkan; admin hanya dibuat via bootstrap script
+    // Signup publik dinonaktifkan; akun hanya dibuat lewat bootstrap atau admin aktif.
     emailAndPassword: {
       enabled: true,
       disableSignUp: true,
+    },
+    user: {
+      additionalFields: {
+        isActive: {
+          type: 'boolean',
+          required: false,
+          defaultValue: true,
+          input: false,
+        },
+      },
     },
     database: drizzleAdapter(getDb(), {
       provider: 'pg',
@@ -35,6 +45,33 @@ function createAuth() {
     baseURL,
     trustedOrigins,
     secret,
+    // Aktif juga di development agar perilaku pengamanan login konsisten.
+    // Better Auth memberi batas lebih ketat otomatis untuk sign-in dan ganti password.
+    rateLimit: {
+      enabled: true,
+      window: 60,
+      max: 100,
+    },
+    databaseHooks: {
+      session: {
+        create: {
+          async before(session, context) {
+            // Operasi internal Better Auth tertentu tidak membawa request context.
+            // Pemeriksaan request admin tetap dilakukan lagi oleh middleware.
+            if (!context) return;
+            const sessionUser =
+              await context.context.internalAdapter.findUserById(
+                session.userId,
+              );
+            const isActive = (
+              sessionUser as
+                (typeof sessionUser & { isActive?: boolean }) | null
+            )?.isActive;
+            if (!sessionUser || isActive === false) return false;
+          },
+        },
+      },
+    },
     session: {
       cookieCache: {
         enabled: true,

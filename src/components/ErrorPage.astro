@@ -1,0 +1,567 @@
+---
+import Icon from './Icon.astro';
+import SiteHeader from './SiteHeader.astro';
+
+interface Props {
+  code: '404' | '500';
+  eyebrow: string;
+  title: string;
+  accent: string;
+  description: string;
+  fieldNote: string;
+}
+
+const { code, eyebrow, title, accent, description, fieldNote } = Astro.props;
+const isMissing = code === '404';
+---
+
+<SiteHeader />
+
+<main id="main" class="error-page">
+  <section class="error-shell section" aria-labelledby="error-title">
+    <div class="error-copy">
+      <p class="eyebrow">
+        <span></span>
+        {eyebrow}
+      </p>
+      <p class="error-kicker" aria-hidden="true">
+        WELL, THIS IS AWKWARD.
+      </p>
+      <h1 id="error-title">
+        {title}
+        <br />
+        <span>{accent}</span>
+      </h1>
+      <p class="error-description">{description}</p>
+
+      <div class="error-actions">
+        <a class="button button-dark" href="/">
+          Kembali ke basecamp <Icon name="arrow-up" size={17} />
+        </a>
+        <a class="error-text-link" href="/trip">
+          Lihat open trip <Icon name="arrow" size={16} />
+        </a>
+      </div>
+
+      <div class="error-coordinate" aria-label="Catatan status">
+        <span>REF. LJ/{code}/00</span>
+        <span>{fieldNote}</span>
+      </div>
+    </div>
+
+    <div class="error-map" aria-hidden="true">
+      <div class="error-number">{code}</div>
+      <span class="map-label map-label-top">UNMAPPED TERRITORY</span>
+      <span class="map-label map-label-side">06°12′S — 106°49′E</span>
+
+      <svg
+        class="contour-map"
+        viewBox="0 0 660 620"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+      >
+        <path
+          d="M41 368C67 330 92 353 116 319C144 280 119 245 161 226C196 210 208 174 247 178C288 183 309 139 351 156C392 173 402 218 443 223C485 229 508 199 542 230C577 262 553 297 594 323C624 342 625 376 608 405"
+          class="contour contour-outer"
+        />
+        <path
+          d="M77 382C99 347 128 363 150 329C174 293 153 264 187 244C219 225 229 197 263 202C300 207 319 170 352 183C390 198 396 237 434 246C472 255 492 229 520 256C548 283 528 312 561 337C586 356 585 382 572 407"
+          class="contour"
+        />
+        <path
+          d="M119 397C137 369 159 378 177 348C195 318 181 292 209 275C236 258 247 233 275 238C307 243 321 213 350 222C383 232 388 266 420 275C451 284 468 260 491 283C515 307 497 333 524 352C545 368 543 391 531 412"
+          class="contour"
+        />
+        <path
+          d="M166 413C180 390 197 396 211 372C226 348 215 327 238 313C259 300 268 280 291 284C316 289 328 264 351 272C377 280 380 308 407 316C432 323 445 305 464 323C483 342 470 363 491 378C507 390 505 407 496 424"
+          class="contour"
+        />
+        <path
+          d="M214 429C224 412 237 417 248 399C259 380 251 364 268 354C284 344 291 329 308 332C327 335 336 317 353 323C373 330 375 350 395 356C414 361 424 347 438 361C452 375 442 391 458 402C470 412 469 425 462 437"
+          class="contour"
+        />
+        <path
+          d="M53 476C91 448 117 470 153 455C191 439 203 409 241 418C281 427 297 466 338 458C377 451 399 420 438 432C474 443 490 473 527 464C556 456 582 466 607 489"
+          class="contour contour-low"
+        />
+        <path
+          d="M93 510C127 487 153 505 186 493C219 480 234 456 266 464C299 472 313 500 348 494C383 488 400 463 433 473C465 483 478 508 511 502C535 497 558 505 579 523"
+          class="contour contour-low"
+        />
+
+        <path
+          d={
+            isMissing
+              ? 'M74 500C129 472 126 416 180 398C230 381 247 423 292 390C333 360 318 312 364 294C406 278 432 313 463 285'
+              : 'M76 500C132 468 149 421 201 406C247 393 271 415 310 383C344 355 345 323 378 304'
+          }
+          class="trail"
+        />
+        <circle cx="74" cy="500" r="6" class="trail-start" />
+        <circle
+          cx={isMissing ? '463' : '378'}
+          cy={isMissing ? '285' : '304'}
+          r="11"
+          class="trail-end-ring"
+        />
+        <path
+          d={
+            isMissing
+              ? 'M453 275L473 295M473 275L453 295'
+              : 'M368 294L388 314M388 294L368 314'
+          }
+          class="trail-cross"
+        />
+
+        <g class="mountain-mark">
+          <path d="M226 468L252 422L271 455L284 435L304 468H226Z" />
+          <path d="M244 438L252 447L260 439" />
+        </g>
+      </svg>
+
+      <div class="compass">
+        <span>N</span>
+        <i></i>
+        <span>S</span>
+      </div>
+
+      <div class="lost-note">
+        <span>{isMissing ? 'TRAIL ENDS HERE' : 'BASECAMP OFFLINE'}</span>
+        <strong>{isMissing ? 'Kok sepi?' : 'Sebentar, ya.'}</strong>
+        <span class="lost-note-arrow" aria-hidden="true">
+          <Icon name="arrow-down-left" />
+        </span>
+      </div>
+
+      <div class="error-stamp">
+        <span>LEBIHJAUH</span>
+        <strong>?</strong>
+        <span>ROUTE CHECK</span>
+      </div>
+    </div>
+  </section>
+
+  <div class="error-marquee" aria-hidden="true">
+    <div>
+      <span>TURN AROUND</span>
+      <b>
+        <Icon name="asterisk" />
+      </b>
+      <span>FIND ANOTHER TRAIL</span>
+      <b>
+        <Icon name="asterisk" />
+      </b>
+      <span>KEEP GOING</span>
+      <b>
+        <Icon name="asterisk" />
+      </b>
+      <span>TURN AROUND</span>
+      <b>
+        <Icon name="asterisk" />
+      </b>
+      <span>FIND ANOTHER TRAIL</span>
+    </div>
+  </div>
+</main>
+
+<style>
+  .error-page {
+    overflow: hidden;
+  }
+  .error-shell {
+    display: grid;
+    grid-template-columns: minmax(390px, 0.88fr) minmax(480px, 1.12fr);
+    align-items: center;
+    gap: clamp(30px, 5vw, 82px);
+    min-height: min(735px, calc(100svh - 100px));
+    padding-block: 50px 66px;
+  }
+  .error-copy {
+    position: relative;
+    z-index: 2;
+  }
+  .error-copy .eyebrow {
+    margin-bottom: 45px;
+  }
+  .error-kicker {
+    margin-bottom: 9px;
+    color: var(--muted);
+    font-size: 8px;
+    font-weight: 600;
+    letter-spacing: 1.7px;
+  }
+  h1 {
+    max-width: 610px;
+    font-family: var(--display);
+    font-size: clamp(68px, 7.7vw, 108px);
+    font-weight: 700;
+    letter-spacing: -2px;
+    line-height: 0.83;
+    text-transform: uppercase;
+  }
+  h1 span {
+    display: inline-block;
+    color: var(--orange-text);
+    font-family: var(--hand);
+    font-size: 0.85em;
+    letter-spacing: -3px;
+    line-height: 0.8;
+    text-transform: none;
+    transform: rotate(-3deg) translateY(8px);
+  }
+  .error-description {
+    max-width: 455px;
+    margin-top: 33px;
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.9;
+  }
+  .error-actions {
+    display: flex;
+    align-items: center;
+    gap: 27px;
+    margin-top: 30px;
+  }
+  .error-actions .button {
+    gap: 30px;
+    font-size: 10px;
+  }
+  .error-text-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    padding-block: 11px;
+    border-bottom: 1px solid var(--ink);
+    font-size: 10px;
+    font-weight: 600;
+  }
+  .error-text-link:hover {
+    color: var(--orange-text);
+    border-color: var(--orange-text);
+  }
+  .error-coordinate {
+    display: flex;
+    gap: 19px;
+    margin-top: 52px;
+    color: #686b62;
+    font-family: monospace;
+    font-size: 7px;
+    letter-spacing: 0.8px;
+  }
+  .error-coordinate span + span {
+    padding-left: 19px;
+    border-left: 1px solid var(--line);
+  }
+  .error-map {
+    position: relative;
+    width: 100%;
+    min-height: 580px;
+    background: #ecebe3;
+    border: 1px solid #d8d9cf;
+    isolation: isolate;
+  }
+  .error-map::before,
+  .error-map::after {
+    position: absolute;
+    z-index: 2;
+    width: 13px;
+    height: 13px;
+    content: '';
+  }
+  .error-map::before {
+    top: 17px;
+    left: 17px;
+    border-top: 1px solid #909487;
+    border-left: 1px solid #909487;
+  }
+  .error-map::after {
+    right: 17px;
+    bottom: 17px;
+    border-right: 1px solid #909487;
+    border-bottom: 1px solid #909487;
+  }
+  .error-number {
+    position: absolute;
+    top: -32px;
+    left: 50%;
+    z-index: -1;
+    color: #dedfd6;
+    font-family: var(--display);
+    font-size: clamp(270px, 29vw, 430px);
+    font-weight: 800;
+    letter-spacing: -24px;
+    line-height: 1;
+    transform: translateX(-52%);
+    white-space: nowrap;
+  }
+  .map-label {
+    position: absolute;
+    z-index: 3;
+    font-size: 7px;
+    font-weight: 600;
+    letter-spacing: 1.5px;
+  }
+  .map-label-top {
+    top: 26px;
+    right: 28px;
+  }
+  .map-label-side {
+    right: -42px;
+    bottom: 91px;
+    transform: rotate(-90deg);
+  }
+  .contour-map {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    width: 100%;
+    height: 100%;
+  }
+  .contour {
+    stroke: #aeb2a6;
+    stroke-width: 1.1;
+  }
+  .contour-outer {
+    stroke-width: 1.4;
+  }
+  .contour-low {
+    opacity: 0.55;
+  }
+  .trail {
+    stroke: var(--orange);
+    stroke-width: 4;
+    stroke-linecap: round;
+    stroke-dasharray: 2 11;
+  }
+  .trail-start {
+    fill: var(--olive);
+  }
+  .trail-end-ring {
+    fill: #ecebe3;
+    stroke: var(--orange);
+    stroke-width: 2;
+  }
+  .trail-cross {
+    stroke: var(--orange);
+    stroke-width: 3;
+  }
+  .mountain-mark {
+    fill: none;
+    stroke: var(--ink);
+    stroke-width: 1.5;
+  }
+  .compass {
+    position: absolute;
+    top: 53px;
+    left: 36px;
+    z-index: 3;
+    display: grid;
+    justify-items: center;
+    gap: 6px;
+    color: #5e6259;
+    font-size: 7px;
+    font-weight: 700;
+  }
+  .compass i {
+    position: relative;
+    display: block;
+    width: 1px;
+    height: 48px;
+    background: #777c70;
+  }
+  .compass i::before {
+    position: absolute;
+    top: -1px;
+    left: -4px;
+    width: 9px;
+    height: 15px;
+    background: var(--orange);
+    clip-path: polygon(50% 0, 100% 100%, 50% 70%, 0 100%);
+    content: '';
+  }
+  .lost-note {
+    position: absolute;
+    right: 13%;
+    bottom: 60px;
+    z-index: 4;
+    display: grid;
+    width: 156px;
+    padding: 15px 17px 18px;
+    background: #f8f6ea;
+    box-shadow: 5px 7px 15px #25281f1c;
+    transform: rotate(6deg);
+  }
+  .lost-note::before {
+    position: absolute;
+    top: -11px;
+    left: 44px;
+    width: 70px;
+    height: 23px;
+    background: #c9c0aa8c;
+    content: '';
+    transform: rotate(-5deg);
+  }
+  .lost-note > span:first-child {
+    margin-bottom: 8px;
+    color: var(--muted);
+    font-size: 6px;
+    letter-spacing: 1px;
+  }
+  .lost-note strong {
+    font-family: var(--hand);
+    font-size: 26px;
+    font-weight: 700;
+  }
+  .lost-note-arrow {
+    justify-self: end;
+    color: var(--orange-text);
+    font-size: 38px;
+    line-height: 0.7;
+  }
+  .lost-note-arrow svg {
+    width: 1em;
+    height: 1em;
+  }
+  .error-stamp {
+    position: absolute;
+    bottom: 42px;
+    left: 36px;
+    z-index: 3;
+    display: flex;
+    width: 110px;
+    height: 110px;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    border: 1px solid var(--olive);
+    border-radius: 50%;
+    color: var(--olive);
+    outline: 1px dashed var(--olive);
+    outline-offset: -7px;
+    transform: rotate(-13deg);
+  }
+  .error-stamp span {
+    font-size: 6px;
+    font-weight: 700;
+    letter-spacing: 1.4px;
+  }
+  .error-stamp strong {
+    font-family: var(--display);
+    font-size: 44px;
+    line-height: 0.85;
+  }
+  .error-marquee {
+    overflow: hidden;
+    border-top: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+  }
+  .error-marquee > div {
+    display: flex;
+    width: max-content;
+    min-width: 100%;
+    align-items: center;
+    justify-content: space-around;
+    gap: 32px;
+    padding: 22px 28px;
+    font-family: var(--display);
+    font-size: 21px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .error-marquee b {
+    color: var(--orange);
+    font-family: var(--sans);
+    font-size: 24px;
+  }
+  .error-marquee b svg {
+    width: 1em;
+    height: 1em;
+  }
+
+  @media (max-width: 900px) {
+    .error-shell {
+      grid-template-columns: minmax(300px, 0.85fr) minmax(380px, 1.15fr);
+      min-height: 680px;
+      gap: 25px;
+    }
+    .error-map {
+      min-height: 515px;
+    }
+    h1 {
+      font-size: clamp(62px, 9vw, 84px);
+    }
+    .error-copy .eyebrow {
+      margin-bottom: 35px;
+    }
+  }
+
+  @media (max-width: 760px) {
+    .error-shell {
+      grid-template-columns: 1fr;
+      gap: 45px;
+      padding-block: 36px 50px;
+    }
+    .error-copy {
+      padding-top: 8px;
+    }
+    .error-copy .eyebrow {
+      margin-bottom: 30px;
+    }
+    h1 {
+      max-width: 560px;
+      font-size: clamp(64px, 17vw, 90px);
+    }
+    .error-description {
+      margin-top: 27px;
+    }
+    .error-coordinate {
+      margin-top: 37px;
+    }
+    .error-map {
+      min-height: min(530px, 132vw);
+    }
+    .error-number {
+      top: -14px;
+      font-size: clamp(230px, 71vw, 360px);
+    }
+  }
+
+  @media (max-width: 480px) {
+    .error-actions {
+      align-items: flex-start;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .error-coordinate {
+      align-items: flex-start;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .error-coordinate span + span {
+      padding-left: 0;
+      border-left: 0;
+    }
+    .error-map {
+      min-height: 455px;
+    }
+    .lost-note {
+      right: 7%;
+      bottom: 38px;
+      width: 138px;
+    }
+    .error-stamp {
+      bottom: 31px;
+      left: 20px;
+      width: 88px;
+      height: 88px;
+    }
+    .map-label-side {
+      right: -53px;
+    }
+    .error-marquee > div {
+      justify-content: flex-start;
+      font-size: 18px;
+    }
+  }
+</style>

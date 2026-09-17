@@ -1,97 +1,514 @@
 ---
 import AdminLayout from '../../layouts/AdminLayout.astro';
+
 const user = Astro.locals.user;
-const upcoming = [
-  {
-    name: 'Booking & order',
-    description: 'Pesanan, detail peserta, dan invoice dalam satu tempat.',
-  },
-  {
-    name: 'Pembayaran',
-    description: 'Pemeriksaan transfer, down payment, dan pelunasan.',
-  },
-  {
-    name: 'Private Trip',
-    description: 'Request perjalanan, penawaran, dan kesepakatan rombongan.',
-  },
-  {
-    name: 'Konten & galeri',
-    description: 'Foto perjalanan, cerita, dan kabar terbaru.',
-  },
-];
+const firstName = (user?.name ?? 'Admin').trim().split(/\s+/)[0] || 'Admin';
 ---
 
 <AdminLayout title="Dashboard" active="dashboard">
-  <div class="page-title">
+  <div class="dashboard-heading">
     <div>
-      <p class="eyebrow">00 / RUANG KELOLA PERJALANAN</p>
+      <p class="eyebrow">00 / RINGKASAN OPERASIONAL</p>
       <h1>
-        Perjalanan baik.
+        Selamat datang,
         <br />
-        Dimulai dari sini.
+        {firstName}.
       </h1>
       <p class="muted">
-        Selamat datang, {user?.name ?? 'Admin'}. Siapkan cerita perjalanan
-        berikutnya.
+        Lihat yang perlu dibereskan hari ini, sebelum perjalanan dimulai.
       </p>
     </div>
-    <span class="stamp" aria-hidden="true">
-      PLAN IT.
-      <br />
-      MAKE IT HAPPEN. ↗
-    </span>
-  </div>
-  <div class="layout">
-    <section class="panel dashboard-feature">
-      <div class="panel-head">
-        <h2>Trip &amp; jadwal</h2>
-        <span class="pill olive">Tersedia</span>
-      </div>
-      <p>
-        Kelola cerita, fasilitas, dan keberangkatan. Satu paket bisa punya
-        banyak jadwal dengan harga, kuota, dan aturan down payment
-        masing-masing.
-      </p>
-      <a class="primary" href="/admin/trips">
-        Kelola trip &amp; jadwal <span aria-hidden="true">↗</span>
-      </a>
-    </section>
-    <section class="panel">
-      <p class="eyebrow">DARI RENCANA KE PERJALANAN</p>
-      <h2>Siapkan tiga hal ini.</h2>
-      <ol class="dashboard-steps">
-        <li>
-          <div>
-            <strong>Ceritakan paketnya</strong>
-            <p>Isi deskripsi, foto, fasilitas, dan itinerary.</p>
-          </div>
-        </li>
-        <li>
-          <div>
-            <strong>Atur keberangkatannya</strong>
-            <p>Tentukan tanggal, harga, kuota, dan tenggat.</p>
-          </div>
-        </li>
-        <li>
-          <div>
-            <strong>Periksa sebelum dibuka</strong>
-            <p>Pastikan detail dan ketentuan siap untuk peserta.</p>
-          </div>
-        </li>
-      </ol>
-    </section>
-  </div>
-  <section aria-labelledby="upcoming-title" class="list-panel">
-    <p class="eyebrow">RUANG YANG AKAN DATANG</p>
-    <h2 id="upcoming-title">Satu tempat untuk mengelola semuanya.</h2>
-    <div class="upcoming-grid">
-      {upcoming.map((item) => (
-        <article class="panel">
-          <span class="pill">Segera hadir</span>
-          <h3>{item.name}</h3>
-          <p class="muted">{item.description}</p>
-        </article>
-      ))}
+    <div class="dashboard-date" aria-label="Tanggal hari ini">
+      <span id="dashboard-day">—</span>
+      <strong id="dashboard-date">Memuat tanggal…</strong>
+      <small>WAKTU INDONESIA BARAT</small>
     </div>
+  </div>
+
+  <p
+    class="notice dashboard-error"
+    id="dashboard-error"
+    data-type="error"
+    role="alert"
+    hidden
+  >
+    Ringkasan belum dapat dimuat.
+    <button class="link-button" id="dashboard-retry" type="button">
+      Coba lagi
+    </button>
+  </p>
+
+  <section
+    class="dashboard-metrics"
+    aria-label="Ringkasan bisnis"
+    id="dashboard-metrics"
+    aria-busy="true"
+  >
+    <a class="dashboard-metric revenue" href="/admin/payments/revenue">
+      <span>PEMASUKAN BULAN INI</span>
+      <strong data-metric="monthlyRevenue">—</strong>
+      <small data-metric-note="monthlyRevenue">pembayaran terverifikasi</small>
+      <i aria-hidden="true">↗</i>
+    </a>
+    <a class="dashboard-metric attention" href="/admin/payments">
+      <span>PERLU VERIFIKASI</span>
+      <strong data-metric="pendingPaymentCount">—</strong>
+      <small data-metric-note="pendingPaymentCount">pembayaran masuk</small>
+      <i aria-hidden="true">↗</i>
+    </a>
+    <a class="dashboard-metric" href="/admin/orders?state=awaiting_payment">
+      <span>BOOKING DALAM PROSES</span>
+      <strong data-metric="awaitingBookingCount">—</strong>
+      <small data-metric-note="awaitingBookingCount">menunggu pembayaran</small>
+      <i aria-hidden="true">↗</i>
+    </a>
+    <a class="dashboard-metric" href="/admin/trips">
+      <span>JADWAL KE DEPAN</span>
+      <strong data-metric="upcomingDepartureCount">—</strong>
+      <small data-metric-note="upcomingDepartureCount">
+        keberangkatan tersimpan
+      </small>
+      <i aria-hidden="true">↗</i>
+    </a>
   </section>
+
+  <div class="dashboard-main-grid">
+    <section
+      class="dashboard-section dashboard-departures"
+      aria-labelledby="departure-title"
+    >
+      <div class="dashboard-section-head">
+        <div>
+          <p class="eyebrow">PERJALANAN BERIKUTNYA</p>
+          <h2 id="departure-title">Keberangkatan terdekat</h2>
+        </div>
+        <a class="button-link" href="/admin/trips">
+          Semua jadwal ↗
+        </a>
+      </div>
+      <div
+        class="dashboard-list-loading"
+        id="departures-loading"
+        aria-hidden="true"
+      >
+        <span></span>
+        <span></span>
+        <span></span>
+      </div>
+      <div class="departure-dashboard-list" id="departure-list"></div>
+      <div class="dashboard-empty" id="departures-empty" hidden>
+        <span aria-hidden="true">⌁</span>
+        <h3>Belum ada jadwal mendatang.</h3>
+        <p>Buat jadwal baru agar perjalanan mulai terlihat di sini.</p>
+        <a class="primary" href="/admin/trips">
+          Atur jadwal ↗
+        </a>
+      </div>
+    </section>
+
+    <aside class="dashboard-priority" aria-labelledby="priority-title">
+      <div class="dashboard-priority-head">
+        <span class="dashboard-priority-mark" aria-hidden="true">
+          !
+        </span>
+        <div>
+          <p class="eyebrow">FOKUS HARI INI</p>
+          <h2 id="priority-title">Yang perlu ditangani</h2>
+        </div>
+      </div>
+      <p class="dashboard-priority-intro" id="priority-intro">
+        Memeriksa antrean operasional…
+      </p>
+      <div
+        class="dashboard-list-loading compact"
+        id="priorities-loading"
+        aria-hidden="true"
+      >
+        <span></span>
+        <span></span>
+        <span></span>
+      </div>
+      <div class="dashboard-priority-list" id="priority-list"></div>
+      <div class="dashboard-clear" id="priority-clear" hidden>
+        <span aria-hidden="true">✓</span>
+        <strong>Semua aman.</strong>
+        <p>Tidak ada antrean mendesak untuk saat ini.</p>
+      </div>
+    </aside>
+  </div>
+
+  <div class="dashboard-lower-grid">
+    <section
+      class="dashboard-section dashboard-orders"
+      aria-labelledby="recent-order-title"
+    >
+      <div class="dashboard-section-head">
+        <div>
+          <p class="eyebrow">AKTIVITAS TERBARU</p>
+          <h2 id="recent-order-title">Booking terbaru</h2>
+        </div>
+        <a class="button-link" href="/admin/orders">
+          Lihat semua ↗
+        </a>
+      </div>
+      <div
+        class="dashboard-list-loading"
+        id="orders-loading"
+        aria-hidden="true"
+      >
+        <span></span>
+        <span></span>
+        <span></span>
+      </div>
+      <div class="dashboard-order-list" id="recent-order-list"></div>
+      <p class="dashboard-inline-empty" id="orders-empty" hidden>
+        Belum ada booking yang masuk.
+      </p>
+    </section>
+
+    <section class="dashboard-quick" aria-labelledby="quick-title">
+      <div>
+        <p class="eyebrow">PINTASAN</p>
+        <h2 id="quick-title">Mulai pekerjaan.</h2>
+        <p>Satu langkah lebih dekat ke perjalanan berikutnya.</p>
+      </div>
+      <nav class="dashboard-quick-links" aria-label="Tindakan cepat">
+        <a href="/admin/trips/new">
+          <span>
+            <b>01</b> Buat Open Trip
+          </span>
+          <i aria-hidden="true">↗</i>
+        </a>
+        <a href="/admin/orders">
+          <span>
+            <b>02</b> Cari booking
+          </span>
+          <i aria-hidden="true">↗</i>
+        </a>
+        <a href="/admin/private-trips">
+          <span>
+            <b>03</b> Tinjau Private Trip
+          </span>
+          <i aria-hidden="true">↗</i>
+        </a>
+        <a href="/admin/content">
+          <span>
+            <b>04</b> Terbitkan cerita
+          </span>
+          <i aria-hidden="true">↗</i>
+        </a>
+      </nav>
+    </section>
+  </div>
+
+  <script>
+    type DashboardSummary = {
+      monthlyRevenue: string;
+      monthlyRevenueCount: number;
+      pendingPaymentCount: number;
+      pendingPaymentAmount: string;
+      awaitingBookingCount: number;
+      upcomingDepartureCount: number;
+    };
+    type DashboardPriority = {
+      key: string;
+      count: number;
+      label: string;
+      description: string;
+      href: string;
+      tone: 'urgent' | 'warning' | 'neutral';
+    };
+    type DashboardDeparture = {
+      id: string;
+      tripName: string;
+      startAt: string;
+      endAt: string;
+      publicationState: string;
+      capacity: number;
+      allocatedPax: number;
+    };
+    type DashboardBooking = {
+      id: string;
+      number: string;
+      tripName: string;
+      picName: string;
+      pax: number;
+      state: string;
+      createdAt: string;
+      total: string;
+    };
+    type DashboardData = {
+      summary: DashboardSummary;
+      priorities: DashboardPriority[];
+      departures: DashboardDeparture[];
+      recentBookings: DashboardBooking[];
+    };
+
+    const money = new Intl.NumberFormat('id-ID');
+    const date = new Intl.DateTimeFormat('id-ID', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+      timeZone: 'Asia/Jakarta',
+    });
+    const dateTime = new Intl.DateTimeFormat('id-ID', {
+      day: 'numeric',
+      month: 'short',
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZone: 'Asia/Jakarta',
+    });
+    const relativeTime = new Intl.RelativeTimeFormat('id-ID', {
+      numeric: 'auto',
+    });
+    const today = new Date();
+    const dayLabel = new Intl.DateTimeFormat('id-ID', {
+      weekday: 'long',
+      timeZone: 'Asia/Jakarta',
+    }).format(today);
+    const fullDateLabel = new Intl.DateTimeFormat('id-ID', {
+      day: '2-digit',
+      month: 'long',
+      year: 'numeric',
+      timeZone: 'Asia/Jakarta',
+    }).format(today);
+    const dayElement = document.querySelector<HTMLElement>('#dashboard-day');
+    const dateElement = document.querySelector<HTMLElement>('#dashboard-date');
+    if (dayElement) dayElement.textContent = dayLabel;
+    if (dateElement) dateElement.textContent = fullDateLabel;
+
+    const dashboard = document.querySelector<HTMLElement>('#dashboard-metrics');
+    const errorNotice = document.querySelector<HTMLElement>('#dashboard-error');
+    const departureList =
+      document.querySelector<HTMLElement>('#departure-list');
+    const priorityList = document.querySelector<HTMLElement>('#priority-list');
+    const recentOrderList =
+      document.querySelector<HTMLElement>('#recent-order-list');
+
+    const text = (tag: string, className: string, value: string) => {
+      const node = document.createElement(tag);
+      node.className = className;
+      node.textContent = value;
+      return node;
+    };
+    const setHidden = (id: string, hidden: boolean) => {
+      const element = document.querySelector<HTMLElement>(`#${id}`);
+      if (element) element.hidden = hidden;
+    };
+    const rupiah = (value: string) => `Rp${money.format(Number(value))}`;
+    const bookingLabels: Record<string, string> = {
+      awaiting_payment: 'Menunggu pembayaran',
+      confirmed: 'Terkonfirmasi',
+      expired: 'Kedaluwarsa',
+      cancelled: 'Dibatalkan',
+      completed: 'Selesai',
+    };
+    const departureLabels: Record<string, string> = {
+      draft: 'Draft',
+      open: 'Buka',
+      closed: 'Tutup',
+    };
+
+    function setMetrics(summary: DashboardSummary) {
+      const values: Record<string, string> = {
+        monthlyRevenue: rupiah(summary.monthlyRevenue),
+        pendingPaymentCount: String(summary.pendingPaymentCount),
+        awaitingBookingCount: String(summary.awaitingBookingCount),
+        upcomingDepartureCount: String(summary.upcomingDepartureCount),
+      };
+      for (const [key, value] of Object.entries(values)) {
+        const element = document.querySelector<HTMLElement>(
+          `[data-metric="${key}"]`,
+        );
+        if (element) element.textContent = value;
+      }
+      const revenueNote = document.querySelector<HTMLElement>(
+        '[data-metric-note="monthlyRevenue"]',
+      );
+      if (revenueNote)
+        revenueNote.textContent = `${summary.monthlyRevenueCount} pembayaran terverifikasi`;
+      const paymentNote = document.querySelector<HTMLElement>(
+        '[data-metric-note="pendingPaymentCount"]',
+      );
+      if (paymentNote)
+        paymentNote.textContent = summary.pendingPaymentCount
+          ? `${rupiah(summary.pendingPaymentAmount)} belum diperiksa`
+          : 'antrean verifikasi bersih';
+    }
+
+    function renderPriorities(items: DashboardPriority[]) {
+      priorityList?.replaceChildren();
+      setHidden('priorities-loading', true);
+      const intro = document.querySelector<HTMLElement>('#priority-intro');
+      if (intro)
+        intro.textContent = items.length
+          ? `${items.reduce((total, item) => total + item.count, 0)} hal menunggu perhatianmu.`
+          : 'Operasional saat ini terkendali.';
+      setHidden('priority-clear', items.length > 0);
+      for (const item of items) {
+        const link = document.createElement('a');
+        link.className = `dashboard-priority-item ${item.tone}`;
+        link.href = item.href;
+        const copy = document.createElement('span');
+        copy.append(
+          text('b', '', item.label),
+          text('small', '', item.description),
+        );
+        link.append(
+          text('strong', '', String(item.count)),
+          copy,
+          text('i', '', '↗'),
+        );
+        priorityList?.append(link);
+      }
+    }
+
+    function renderDepartures(items: DashboardDeparture[]) {
+      departureList?.replaceChildren();
+      setHidden('departures-loading', true);
+      setHidden('departures-empty', items.length > 0);
+      for (const item of items) {
+        const start = new Date(item.startAt);
+        const days = Math.ceil((start.getTime() - Date.now()) / 86_400_000);
+        const row = document.createElement('article');
+        row.className = 'departure-dashboard-row';
+        const when = document.createElement('div');
+        when.className = 'departure-dashboard-date';
+        when.append(
+          text(
+            'strong',
+            '',
+            new Intl.DateTimeFormat('id-ID', {
+              day: '2-digit',
+              timeZone: 'Asia/Jakarta',
+            }).format(start),
+          ),
+          text(
+            'span',
+            '',
+            new Intl.DateTimeFormat('id-ID', {
+              month: 'short',
+              timeZone: 'Asia/Jakarta',
+            }).format(start),
+          ),
+        );
+        const details = document.createElement('div');
+        details.className = 'departure-dashboard-copy';
+        const occupancy = document.createElement('div');
+        occupancy.className = 'departure-occupancy';
+        const meter = document.createElement('meter');
+        meter.min = 0;
+        meter.max = Math.max(item.capacity, 1);
+        meter.value = Math.min(item.allocatedPax, item.capacity);
+        meter.setAttribute(
+          'aria-label',
+          `${item.allocatedPax} dari ${item.capacity} kursi terisi`,
+        );
+        occupancy.append(
+          meter,
+          text('span', '', `${item.allocatedPax}/${item.capacity} pax`),
+        );
+        details.append(
+          text('h3', '', item.tripName),
+          text(
+            'p',
+            '',
+            `${days <= 0 ? 'Hari ini' : relativeTime.format(days, 'day')} · ${date.format(start)}`,
+          ),
+          occupancy,
+        );
+        const action = document.createElement('div');
+        action.className = 'departure-dashboard-action';
+        action.append(
+          text(
+            'span',
+            `state ${item.publicationState}`,
+            departureLabels[item.publicationState] ?? item.publicationState,
+          ),
+        );
+        const open = document.createElement('a');
+        open.className = 'button-link';
+        open.href = `/admin/departures/${item.id}`;
+        open.textContent = 'Kelola ↗';
+        action.append(open);
+        row.append(when, details, action);
+        departureList?.append(row);
+      }
+    }
+
+    function renderRecentBookings(items: DashboardBooking[]) {
+      recentOrderList?.replaceChildren();
+      setHidden('orders-loading', true);
+      setHidden('orders-empty', items.length > 0);
+      for (const item of items) {
+        const link = document.createElement('a');
+        link.className = 'dashboard-order-row';
+        link.href = `/admin/orders/${item.id}`;
+        const identity = document.createElement('span');
+        identity.className = 'dashboard-order-identity';
+        identity.append(
+          text('strong', '', item.number),
+          text('small', '', `${item.picName} · ${item.pax} pax`),
+        );
+        const trip = document.createElement('span');
+        trip.className = 'dashboard-order-trip';
+        trip.append(
+          text('strong', '', item.tripName),
+          text(
+            'small',
+            '',
+            `Masuk ${dateTime.format(new Date(item.createdAt))}`,
+          ),
+        );
+        const amount = document.createElement('span');
+        amount.className = 'dashboard-order-amount';
+        amount.append(
+          text('strong', '', rupiah(item.total)),
+          text(
+            'span',
+            `state booking-${item.state}`,
+            bookingLabels[item.state] ?? item.state,
+          ),
+        );
+        link.append(identity, trip, amount, text('i', '', '↗'));
+        recentOrderList?.append(link);
+      }
+    }
+
+    async function loadDashboard() {
+      dashboard?.setAttribute('aria-busy', 'true');
+      if (errorNotice) errorNotice.hidden = true;
+      try {
+        const response = await fetch('/api/admin/dashboard', {
+          headers: { Accept: 'application/json' },
+        });
+        const body = await response.json();
+        if (!response.ok)
+          throw new Error(body.message ?? 'Gagal memuat dashboard.');
+        const data = body as DashboardData;
+        setMetrics(data.summary);
+        renderPriorities(data.priorities);
+        renderDepartures(data.departures);
+        renderRecentBookings(data.recentBookings);
+      } catch (error) {
+        if (errorNotice) {
+          errorNotice.childNodes[0].textContent =
+            error instanceof Error
+              ? `${error.message} `
+              : 'Ringkasan belum dapat dimuat. ';
+          errorNotice.hidden = false;
+        }
+        setHidden('departures-loading', true);
+        setHidden('priorities-loading', true);
+        setHidden('orders-loading', true);
+      } finally {
+        dashboard?.setAttribute('aria-busy', 'false');
+      }
+    }
+
+    document
+      .querySelector('#dashboard-retry')
+      ?.addEventListener('click', loadDashboard);
+    loadDashboard();
+  </script>
 </AdminLayout>

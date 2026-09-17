@@ -33,7 +33,8 @@ sesi. Library menyediakan jalur integrasi Astro dan adapter Drizzle.
 [adapter Drizzle](https://better-auth.com/docs/adapters/drizzle).
 
 Rancangan aplikasi: email/password admin, signup publik dinonaktifkan, admin pertama
-dibuat lewat prosedur bootstrap aman pada 4B. Membership admin diperiksa di setiap
+dibuat lewat prosedur bootstrap aman pada 4B, dan admin berikutnya dibuat oleh admin
+aktif melalui Management Akun. Membership admin diperiksa di setiap
 mutation/halaman sensitif, bukan hanya menyembunyikan menu. Cookies secure/httpOnly
 di produksi, CSRF/origin checks, sesi persisten, serta pencabutan akses staf wajib
 dikonfigurasi dan diuji pada implementasi. Tidak ada password default dalam source.

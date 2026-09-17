@@ -1,5 +1,6 @@
 ---
 import Layout from '../layouts/Layout.astro';
+import Icon from '../components/Icon.astro';
 import SiteHeader from '../components/SiteHeader.astro';
 ---
 
@@ -132,7 +133,7 @@ import SiteHeader from '../components/SiteHeader.astro';
             class="button button-orange"
             type="submit"
           >
-            Kirim permintaan <span aria-hidden="true">↗</span>
+            Kirim permintaan <Icon name="arrow-up" size={16} />
           </button>
         </form>
         <aside class="booking-summary">
@@ -186,7 +187,7 @@ import SiteHeader from '../components/SiteHeader.astro';
         form.replaceWith(
           Object.assign(document.createElement('div'), {
             className: 'private-success',
-            innerHTML: `<p class="eyebrow"><span></span> PERMINTAAN TERSIMPAN</p><h2>Terima kasih.</h2><p>Nomor referensi <strong>${result.request.number}</strong>. Admin akan menyiapkan penawaran berdasarkan kebutuhanmu.</p><a class="button button-dark" href="https://wa.me/?text=${encodeURIComponent(`Halo Admin LebihJauh, saya baru mengirim permintaan Private Trip ${result.request.number}.`)}" target="_blank" rel="noopener">Teruskan ke WhatsApp <span>↗</span></a>`,
+            innerHTML: `<p class="eyebrow"><span></span> PERMINTAAN TERSIMPAN</p><h2>Terima kasih.</h2><p>Nomor referensi <strong>${result.request.number}</strong>. Admin akan menyiapkan penawaran berdasarkan kebutuhanmu.</p><a class="button button-dark" href="https://wa.me/?text=${encodeURIComponent(`Halo Admin LebihJauh, saya baru mengirim permintaan Private Trip ${result.request.number}.`)}" target="_blank" rel="noopener">Teruskan ke WhatsApp <span>\u2197\uFE0E</span></a>`,
           }),
         );
       } catch (cause) {
@@ -196,7 +197,8 @@ import SiteHeader from '../components/SiteHeader.astro';
             : 'Permintaan belum dapat dikirim.';
         error.hidden = false;
         submit.disabled = false;
-        submit.innerHTML = 'Kirim permintaan <span aria-hidden="true">↗</span>';
+        submit.innerHTML =
+          'Kirim permintaan <span aria-hidden="true">\u2197\uFE0E</span>';
       }
     });
   </script>

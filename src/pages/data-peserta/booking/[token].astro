@@ -1,6 +1,7 @@
 ---
 import Layout from '../../../layouts/Layout.astro';
 import FileUploadControl from '../../../components/FileUploadControl.astro';
+import Icon from '../../../components/Icon.astro';
 import SiteHeader from '../../../components/SiteHeader.astro';
 import { getBookingParticipantDataAccess } from '../../../lib/participant-safety';
 
@@ -364,7 +365,7 @@ const date = new Intl.DateTimeFormat('id-ID', {
                   id="booking-submit"
                   type="submit"
                 >
-                  Simpan data keselamatan ↗
+                  Simpan data keselamatan <Icon name="arrow-up" size={16} />
                 </button>
                 <button
                   class="button button-dark"

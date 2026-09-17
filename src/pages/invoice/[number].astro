@@ -1,6 +1,7 @@
 ---
 import Layout from '../../layouts/Layout.astro';
 import FileUploadControl from '../../components/FileUploadControl.astro';
+import Icon from '../../components/Icon.astro';
 import SiteHeader from '../../components/SiteHeader.astro';
 import { getCookie, getGuestScope } from '../../lib/booking-security';
 import { getPublicInvoice } from '../../lib/booking-service';
@@ -203,7 +204,8 @@ const paymentHelpHref =
               target="_blank"
               rel="noopener"
             >
-              Buka lokasi meeting point di peta ↗
+              Buka lokasi meeting point di peta{' '}
+              <Icon name="arrow-up" size={12} />
             </a>
           )}
           <aside class="invoice-security-note">
@@ -233,7 +235,7 @@ const paymentHelpHref =
                 </div>
                 <div class="invoice-payment-next-actions">
                   <a class="button button-dark" href="/pembayaran">
-                    Lihat metode pembayaran ↗
+                    Lihat metode pembayaran <Icon name="arrow-up" size={16} />
                   </a>
                   {paymentHelpHref && (
                     <a
@@ -242,7 +244,8 @@ const paymentHelpHref =
                       target="_blank"
                       rel="noopener"
                     >
-                      Hubungi admin via WhatsApp ↗
+                      Hubungi admin via WhatsApp{' '}
+                      <Icon name="arrow-up" size={12} />
                     </a>
                   )}
                 </div>
@@ -361,7 +364,7 @@ const paymentHelpHref =
                       hidden
                     ></p>
                     <button class="button button-orange" type="submit">
-                      Kirim bukti pembayaran ↗
+                      Kirim bukti pembayaran <Icon name="arrow-up" size={16} />
                     </button>
                   </form>
                 )}

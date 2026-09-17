@@ -1,5 +1,8 @@
 ---
 import AdminLayout from '../../layouts/AdminLayout.astro';
+import { eq } from 'drizzle-orm';
+import { getDb } from '../../db/client';
+import { user } from '../../db/schema';
 import { auth } from '../../lib/auth';
 
 const requestedRedirect = Astro.url.searchParams.get('redirect') ?? '/admin';
@@ -14,7 +17,17 @@ const redirectTo =
     ? destination.pathname + destination.search
     : '/admin';
 const session = await auth.api.getSession({ headers: Astro.request.headers });
-if (session) return Astro.redirect(redirectTo, 302);
+let sessionIsActive = false;
+if (session) {
+  const [currentUser] = await getDb()
+    .select({ isActive: user.isActive })
+    .from(user)
+    .where(eq(user.id, session.user.id))
+    .limit(1);
+  sessionIsActive = currentUser?.isActive === true;
+}
+if (sessionIsActive) return Astro.redirect(redirectTo, 302);
+const inactive = Astro.url.searchParams.get('inactive') === '1';
 ---
 
 <AdminLayout title="Login" guest>
@@ -56,6 +69,12 @@ if (session) return Astro.redirect(redirectTo, 302);
         <p class="muted">
           Gunakan akun admin untuk mengelola perjalanan LebihJauh.
         </p>
+        {inactive && (
+          <p class="notice" data-type="error" role="alert">
+            Akun ini sedang dinonaktifkan. Hubungi admin lain untuk membuka
+            akses.
+          </p>
+        )}
         <form id="login-form">
           <label for="email">
             Email
@@ -125,11 +144,13 @@ if (session) return Astro.redirect(redirectTo, 302);
 
       const data = await res.json().catch(() => ({}));
       const msg =
-        res.status === 401 || data.code === 'INVALID_EMAIL_OR_PASSWORD'
-          ? 'Email atau password salah.'
-          : data.code === 'INVALID_ORIGIN'
-            ? 'Alamat website ini belum diizinkan untuk login. Periksa konfigurasi origin admin.'
-            : 'Login belum berhasil. Silakan coba lagi.';
+        res.status === 429
+          ? 'Terlalu banyak percobaan. Tunggu sebentar lalu coba lagi.'
+          : res.status === 401 || data.code === 'INVALID_EMAIL_OR_PASSWORD'
+            ? 'Email atau password salah.'
+            : data.code === 'INVALID_ORIGIN'
+              ? 'Alamat website ini belum diizinkan untuk login. Periksa konfigurasi origin admin.'
+              : 'Login belum berhasil. Silakan coba lagi.';
 
       errorEl.textContent = msg;
       errorEl.style.display = 'block';

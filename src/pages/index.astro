@@ -56,7 +56,10 @@ const categories = [...new Set(liveTrips.map((item) => String(item.category)))];
       <div class="hero-shade"></div>
       <div class="hero-topline">
         <span>
-          <span class="tiny-star">✳</span> {content.hero.topline}
+          <span class="tiny-star" aria-hidden="true">
+            <Icon name="asterisk" size={24} />
+          </span>{' '}
+          {content.hero.topline}
         </span>
         <span class="hero-edition">{content.hero.edition}</span>
       </div>
@@ -87,7 +90,9 @@ const categories = [...new Set(liveTrips.map((item) => String(item.category)))];
             <br />
           </>
         ))}
-        <span>↗</span>
+        <span>
+          <Icon name="arrow-up" />
+        </span>
       </div>
       <div class="hero-bottom">
         <a href="#open-trip">
@@ -104,7 +109,7 @@ const categories = [...new Set(liveTrips.map((item) => String(item.category)))];
                   target="_blank"
                   rel="noreferrer"
                 >
-                  {content.hero.image.credit} ↗
+                  {content.hero.image.credit} <Icon name="arrow-up" size={8} />
                 </a>
               ) : (
                 content.hero.image.credit
@@ -121,13 +126,13 @@ const categories = [...new Set(liveTrips.map((item) => String(item.category)))];
     >
       <span>{content.manifesto.items[0]}</span>
       <span class="strip-star" aria-hidden="true">
-        ✳
+        <Icon name="asterisk" size={34} />
       </span>
       <span>{content.manifesto.items[1]}</span>
       <Icon name="mountain" size={34} />
       <span>{content.manifesto.items[2]}</span>
       <span class="strip-star" aria-hidden="true">
-        ✳
+        <Icon name="asterisk" size={34} />
       </span>
       <span>
         {content.manifesto.items[3]} <Icon name="arrow" size={34} />
@@ -243,7 +248,8 @@ const categories = [...new Set(liveTrips.map((item) => String(item.category)))];
                     target="_blank"
                     rel="noreferrer"
                   >
-                    {content.story.image.credit} ↗
+                    {content.story.image.credit}{' '}
+                    <Icon name="arrow-up" size={12} />
                   </a>
                 ) : (
                   content.story.image.credit
@@ -291,7 +297,10 @@ const categories = [...new Set(liveTrips.map((item) => String(item.category)))];
           </span>
         </div>
         <span class="story-signature">
-          {content.story.signature} <span>↗</span>
+          {content.story.signature}{' '}
+          <span>
+            <Icon name="arrow-up" />
+          </span>
         </span>
       </div>
     </section>
@@ -536,7 +545,7 @@ const categories = [...new Set(liveTrips.map((item) => String(item.category)))];
           <br />
           <span>{content.closing.titleLine2}</span>
           <span class="closing-asterisk" aria-hidden="true">
-            ✳
+            <Icon name="asterisk" />
           </span>
         </h2>
         <a class="button button-dark" href="#open-trip">
@@ -570,7 +579,7 @@ const categories = [...new Set(liveTrips.map((item) => String(item.category)))];
             target="_blank"
             rel="noopener"
           >
-            Postingan asli ↗
+            Postingan asli <Icon name="arrow-up" size={12} />
           </a>
         )}
       </div>

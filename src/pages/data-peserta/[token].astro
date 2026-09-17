@@ -1,6 +1,7 @@
 ---
 import Layout from '../../layouts/Layout.astro';
 import FileUploadControl from '../../components/FileUploadControl.astro';
+import Icon from '../../components/Icon.astro';
 import SiteHeader from '../../components/SiteHeader.astro';
 import { getParticipantDataAccess } from '../../lib/participant-safety';
 
@@ -310,7 +311,7 @@ const date = new Intl.DateTimeFormat('id-ID', {
                 id="participant-data-submit"
                 type="submit"
               >
-                Simpan data keselamatan ↗
+                Simpan data keselamatan <Icon name="arrow-up" size={16} />
               </button>
             </div>
           </form>
@@ -491,7 +492,7 @@ const date = new Intl.DateTimeFormat('id-ID', {
             'Data belum dapat disimpan. Isianmu tetap ada, coba lagi.',
         );
         submit.disabled = false;
-        submit.textContent = 'Simpan data keselamatan ↗';
+        submit.textContent = 'Simpan data keselamatan \u2197\uFE0E';
       }
     });
   </script>}

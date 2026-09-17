@@ -1664,6 +1664,15 @@ summary::-webkit-details-marker {
   font-weight: 400;
   transform: rotate(20deg);
 }
+.hero-handwriting > span > svg,
+.story-signature > span > svg,
+.footer-tagline > span > svg,
+.closing-asterisk > svg,
+.about-asterisk > svg,
+.about-outro-mark > svg {
+  width: 1em;
+  height: 1em;
+}
 .hero-bottom {
   position: absolute;
   bottom: 26px;
@@ -1721,6 +1730,13 @@ summary::-webkit-details-marker {
 .strip-star {
   font-size: 34px;
   color: var(--orange);
+}
+.tiny-star > svg,
+.strip-star > svg,
+.footer-star > svg,
+.booking-lookup-security > span > svg {
+  width: 1em;
+  height: 1em;
 }
 
 .trips-section {

@@ -1,5 +1,6 @@
 ---
 import Layout from '../../layouts/Layout.astro';
+import Icon from '../../components/Icon.astro';
 import SiteHeader from '../../components/SiteHeader.astro';
 import { getCheckoutDeparture } from '../../lib/booking-service';
 
@@ -183,7 +184,7 @@ const date = new Intl.DateTimeFormat('id-ID', {
               type="submit"
               disabled
             >
-              Buat booking aman <span aria-hidden="true">↗</span>
+              Buat booking aman <Icon name="arrow-up" size={16} />
             </button>
           </form>
 
@@ -428,7 +429,7 @@ const date = new Intl.DateTimeFormat('id-ID', {
         } else {
           submit.disabled = false;
         }
-        submit.textContent = 'Buat booking aman ↗';
+        submit.textContent = 'Buat booking aman \u2197\uFE0E';
       }
     });
     buildParticipants();

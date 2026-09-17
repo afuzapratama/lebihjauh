@@ -52,7 +52,11 @@ const container = await Container.create({
           (name) =>
             name.startsWith('TripEditor.astro_') && name.endsWith('.js'),
         )
-      : null;
+      : id.includes('/pages/admin/index.astro?')
+        ? assetNames.find(
+            (name) => name.startsWith('index.astro_') && name.endsWith('.js'),
+          )
+        : null;
     return `/_astro/${compiled || layoutScript}`;
   },
 });
@@ -137,6 +141,76 @@ const fixture = {
     },
   ],
 };
+const dashboardFixture = {
+  summary: {
+    monthlyRevenue: '18750000',
+    monthlyRevenueCount: 8,
+    pendingPaymentCount: 3,
+    pendingPaymentAmount: '4200000',
+    awaitingBookingCount: 6,
+    upcomingDepartureCount: 4,
+  },
+  priorities: [
+    {
+      key: 'payments',
+      count: 3,
+      label: 'Pembayaran perlu diverifikasi',
+      description: 'Rp4.200.000 menunggu pemeriksaan',
+      href: '/admin/payments',
+      tone: 'urgent',
+    },
+    {
+      key: 'private-trips',
+      count: 2,
+      label: 'Permintaan Private Trip baru',
+      description: 'Belum dihubungi oleh tim',
+      href: '/admin/private-trips?state=new',
+      tone: 'neutral',
+    },
+  ],
+  departures: [
+    {
+      id: 'departure-fixture',
+      tripName: 'Labuan Bajo',
+      startAt: '2026-10-18T01:00:00.000Z',
+      endAt: '2026-10-25T10:00:00.000Z',
+      publicationState: 'open',
+      capacity: 20,
+      allocatedPax: 13,
+    },
+    {
+      id: 'departure-rinjani',
+      tripName: 'Pendakian Rinjani',
+      startAt: '2026-11-03T23:00:00.000Z',
+      endAt: '2026-11-07T10:00:00.000Z',
+      publicationState: 'draft',
+      capacity: 14,
+      allocatedPax: 4,
+    },
+  ],
+  recentBookings: [
+    {
+      id: 'booking-fixture',
+      number: 'LJ-OT-000142',
+      tripName: 'Labuan Bajo',
+      picName: 'Nadira Putri',
+      pax: 3,
+      state: 'awaiting_payment',
+      createdAt: '2026-09-18T03:30:00.000Z',
+      total: '7500000',
+    },
+    {
+      id: 'booking-confirmed',
+      number: 'LJ-OT-000141',
+      tripName: 'Pendakian Rinjani',
+      picName: 'Bagas Pratama',
+      pax: 2,
+      state: 'confirmed',
+      createdAt: '2026-09-17T08:20:00.000Z',
+      total: '4600000',
+    },
+  ],
+};
 const browser = await chromium.launch();
 try {
   const devices = [
@@ -180,6 +254,8 @@ try {
       }
       if (path === '/api/admin/trips' && request.method() === 'GET')
         return route.fulfill({ json: { trips: empty ? [] : [fixture] } });
+      if (path === '/api/admin/dashboard' && request.method() === 'GET')
+        return route.fulfill({ json: dashboardFixture });
       if (path.endsWith('/pickup-points') && request.method() === 'GET')
         return route.fulfill({
           json: {
@@ -275,6 +351,14 @@ try {
           .getByRole('heading', { name: 'Labuan Bajo', exact: true })
           .waitFor();
       if (path === '/admin') {
+        await page
+          .getByRole('heading', { name: 'Labuan Bajo', exact: true })
+          .waitFor();
+        assert.equal(
+          await page.locator('[data-metric="monthlyRevenue"]').textContent(),
+          'Rp18.750.000',
+          `${device}: dashboard loads financial summary`,
+        );
         await page.evaluate(() => {
           const trigger = document.createElement('button');
           trigger.type = 'button';

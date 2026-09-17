@@ -54,7 +54,8 @@ const valueIcons = ['people', 'mountain', 'sun'] as const;
                 target="_blank"
                 rel="noreferrer"
               >
-                FOTO: {content.hero.image.credit} ↗
+                FOTO: {content.hero.image.credit}{' '}
+                <Icon name="arrow-up" size={9} />
               </a>
             ) : (
               <span>FOTO: {content.hero.image.credit}</span>
@@ -85,7 +86,9 @@ const valueIcons = ['people', 'mountain', 'sun'] as const;
       aria-labelledby="about-intro-title"
     >
       <div class="about-intro-kicker">
-        <span class="about-asterisk">✳</span>
+        <span class="about-asterisk" aria-hidden="true">
+          <Icon name="asterisk" />
+        </span>
         <p>
           {content.intro.kicker.split('\n').map((line) => (
             <>
@@ -131,7 +134,8 @@ const valueIcons = ['people', 'mountain', 'sun'] as const;
                   target="_blank"
                   rel="noreferrer"
                 >
-                  {content.story.mainImage.credit} ↗
+                  {content.story.mainImage.credit}{' '}
+                  <Icon name="arrow-up" size={9} />
                 </a>
               ) : (
                 <span>{content.story.mainImage.credit}</span>
@@ -156,7 +160,8 @@ const valueIcons = ['people', 'mountain', 'sun'] as const;
                   target="_blank"
                   rel="noreferrer"
                 >
-                  {content.story.secondaryImage.credit} ↗
+                  {content.story.secondaryImage.credit}{' '}
+                  <Icon name="arrow-up" size={9} />
                 </a>
               ) : (
                 <span>{content.story.secondaryImage.credit}</span>
@@ -229,7 +234,8 @@ const valueIcons = ['people', 'mountain', 'sun'] as const;
                 target="_blank"
                 rel="noreferrer"
               >
-                FOTO: {content.outro.image.credit} ↗
+                FOTO: {content.outro.image.credit}{' '}
+                <Icon name="arrow-up" size={9} />
               </a>
             ) : (
               <span>FOTO: {content.outro.image.credit}</span>
@@ -238,7 +244,7 @@ const valueIcons = ['people', 'mountain', 'sun'] as const;
       </figure>
       <div class="about-outro-copy">
         <span class="about-outro-mark" aria-hidden="true">
-          ↗
+          <Icon name="arrow-up" />
         </span>
         <p class="eyebrow">
           <span></span> {content.outro.eyebrow}

@@ -1,0 +1,265 @@
+---
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import { listAdminAccounts } from '../../lib/admin-accounts';
+
+export const prerender = false;
+const accounts = await listAdminAccounts();
+const currentUserId = Astro.locals.user?.id;
+const dateFormatter = new Intl.DateTimeFormat('id-ID', {
+  day: '2-digit',
+  month: 'short',
+  year: 'numeric',
+  timeZone: 'Asia/Jakarta',
+});
+---
+
+<AdminLayout title="Management Akun" active="accounts">
+  <div class="page-title account-page-title">
+    <div>
+      <p class="eyebrow">06 / MANAGEMENT AKUN</p>
+      <h1>
+        Admin yang tepat.
+        <br />
+        Akses yang terjaga.
+      </h1>
+      <p class="muted">
+        Tambahkan admin seperlunya dan nonaktifkan akses yang sudah tidak
+        dipakai.
+      </p>
+    </div>
+  </div>
+
+  <div class="account-management-grid">
+    <section
+      class="panel account-create-panel"
+      aria-labelledby="create-admin-title"
+    >
+      <p class="eyebrow">ADMIN BARU</p>
+      <h2 id="create-admin-title">Tambah akun admin.</h2>
+      <p class="muted">
+        Akun baru langsung aktif dan dapat masuk ke seluruh ruang admin.
+      </p>
+      <form id="create-admin-form" class="account-form">
+        <label>
+          Nama admin
+          <input
+            name="name"
+            required
+            minlength="2"
+            maxlength="80"
+            autocomplete="off"
+          />
+        </label>
+        <label>
+          Email
+          <input
+            name="email"
+            type="email"
+            required
+            maxlength="254"
+            autocomplete="off"
+          />
+        </label>
+        <label>
+          Password awal
+          <input
+            name="password"
+            type="password"
+            required
+            minlength="8"
+            autocomplete="new-password"
+            aria-describedby="password-hint"
+          />
+          <small id="password-hint">
+            Minimal 8 karakter. Kirimkan password melalui jalur yang aman.
+          </small>
+        </label>
+        <label>
+          Ulangi password
+          <input
+            name="confirmPassword"
+            type="password"
+            required
+            minlength="8"
+            autocomplete="new-password"
+          />
+        </label>
+        <p class="error-msg" id="create-admin-error" role="alert" hidden></p>
+        <button class="primary" id="create-admin-submit" type="submit">
+          Buat akun admin ↗
+        </button>
+      </form>
+    </section>
+
+    <section
+      class="panel account-list-panel"
+      aria-labelledby="admin-list-title"
+    >
+      <div class="panel-head">
+        <div>
+          <p class="eyebrow">AKSES ADMIN</p>
+          <h2 id="admin-list-title">{accounts.length} akun tersimpan</h2>
+        </div>
+        <span class="account-security-note">SESSION TERJAGA</span>
+      </div>
+      <div class="admin-account-list">
+        {accounts.map((account) => {
+          const isCurrent = account.id === currentUserId;
+          return (
+            <article
+              class:list={[
+                'admin-account-card',
+                { inactive: !account.isActive },
+              ]}
+            >
+              <div class="admin-account-avatar" aria-hidden="true">
+                {account.name.trim().charAt(0).toUpperCase() || 'A'}
+              </div>
+              <div class="admin-account-identity">
+                <div>
+                  <strong>{account.name}</strong>
+                  {isCurrent && <span class="current-account-badge">ANDA</span>}
+                </div>
+                <span>{account.email}</span>
+                <small>
+                  Dibuat {dateFormatter.format(account.createdAt)} ·{' '}
+                  {account.activeSessionCount} session aktif
+                </small>
+              </div>
+              <div class="admin-account-state">
+                <span
+                  class:list={[
+                    'state',
+                    account.isActive ? 'published' : 'cancelled',
+                  ]}
+                >
+                  {account.isActive ? 'Aktif' : 'Nonaktif'}
+                </span>
+                {!isCurrent && (
+                  <button
+                    class:list={
+                      account.isActive ? 'quiet-danger-button' : 'button-link'
+                    }
+                    type="button"
+                    data-account-toggle
+                    data-user-id={account.id}
+                    data-user-name={account.name}
+                    data-next-active={String(!account.isActive)}
+                  >
+                    {account.isActive ? 'Nonaktifkan' : 'Aktifkan'}
+                  </button>
+                )}
+              </div>
+            </article>
+          );
+        })}
+      </div>
+    </section>
+  </div>
+
+  <script>
+    const createForm =
+      document.querySelector<HTMLFormElement>('#create-admin-form');
+    const createError = document.querySelector<HTMLElement>(
+      '#create-admin-error',
+    );
+    const createSubmit = document.querySelector<HTMLButtonElement>(
+      '#create-admin-submit',
+    );
+
+    const request = async (
+      method: 'POST' | 'PATCH',
+      body: Record<string, unknown>,
+    ) => {
+      const response = await fetch('/api/admin/accounts', {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok)
+        throw new Error(data.message ?? 'Permintaan belum berhasil.');
+      return data;
+    };
+
+    createForm?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      if (!createForm.reportValidity() || !createSubmit || !createError) return;
+      const values = new FormData(createForm);
+      const password = String(values.get('password') ?? '');
+      if (password !== String(values.get('confirmPassword') ?? '')) {
+        createError.textContent = 'Ulangi password dengan nilai yang sama.';
+        createError.hidden = false;
+        return;
+      }
+      createError.hidden = true;
+      createSubmit.disabled = true;
+      createSubmit.textContent = 'Membuat akun…';
+      try {
+        await request('POST', {
+          name: values.get('name'),
+          email: values.get('email'),
+          password,
+        });
+        sessionStorage.setItem(
+          'lebihjauh-admin-notification',
+          JSON.stringify({
+            message: 'Akun admin berhasil dibuat.',
+            type: 'success',
+          }),
+        );
+        window.location.reload();
+      } catch (error) {
+        createError.textContent =
+          error instanceof Error ? error.message : 'Akun belum dapat dibuat.';
+        createError.hidden = false;
+        createSubmit.disabled = false;
+        createSubmit.textContent = 'Buat akun admin ↗';
+      }
+    });
+
+    document
+      .querySelectorAll<HTMLButtonElement>('[data-account-toggle]')
+      .forEach((button) => {
+        button.addEventListener('click', async () => {
+          const nextActive = button.dataset.nextActive === 'true';
+          const userName = button.dataset.userName ?? 'admin ini';
+          const confirmed = await window.adminConfirm({
+            title: nextActive
+              ? 'Aktifkan akun admin?'
+              : 'Nonaktifkan akun admin?',
+            message: nextActive
+              ? `${userName} akan dapat masuk kembali ke ruang admin.`
+              : `${userName} akan langsung dikeluarkan dari seluruh session aktif.`,
+            confirmLabel: nextActive ? 'Aktifkan' : 'Nonaktifkan',
+            destructive: !nextActive,
+          });
+          if (!confirmed) return;
+          button.disabled = true;
+          try {
+            await request('PATCH', {
+              userId: button.dataset.userId,
+              isActive: nextActive,
+            });
+            sessionStorage.setItem(
+              'lebihjauh-admin-notification',
+              JSON.stringify({
+                message: `Akun ${userName} berhasil ${nextActive ? 'diaktifkan' : 'dinonaktifkan'}.`,
+                type: 'success',
+              }),
+            );
+            window.location.reload();
+          } catch (error) {
+            window.adminNotify({
+              message:
+                error instanceof Error
+                  ? error.message
+                  : 'Status akun belum dapat diubah.',
+              type: 'error',
+            });
+            button.disabled = false;
+          }
+        });
+      });
+  </script>
+</AdminLayout>

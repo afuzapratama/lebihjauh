@@ -1,5 +1,6 @@
 ---
 import Layout from '../../layouts/Layout.astro';
+import Icon from '../../components/Icon.astro';
 import SiteHeader from '../../components/SiteHeader.astro';
 import { getPublicPrivateOffer } from '../../lib/private-trip-service';
 
@@ -44,7 +45,7 @@ const wa = found
                 target="_blank"
                 rel="noopener"
               >
-                Tanya admin via WhatsApp ↗
+                Tanya admin via WhatsApp <Icon name="arrow-up" size={12} />
               </a>
             </p>
           </div>
@@ -136,7 +137,7 @@ const wa = found
                     type="submit"
                     data-state="accepted"
                   >
-                    Setujui penawaran ↗
+                    Setujui penawaran <Icon name="arrow-up" size={16} />
                   </button>
                 </div>
               </form>

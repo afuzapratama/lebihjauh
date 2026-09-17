@@ -1,5 +1,6 @@
 ---
 import Layout from '../../layouts/Layout.astro';
+import Icon from '../../components/Icon.astro';
 import SiteHeader from '../../components/SiteHeader.astro';
 import { getCookie, getGuestScope } from '../../lib/booking-security';
 import { getPublicInvoice } from '../../lib/booking-service';
@@ -91,7 +92,7 @@ const operationalWhatsApp = process.env.BOOKING_WHATSAPP_NUMBER?.replace(
             )}
             {snapshot?.pickup?.mapsUrl && (
               <a href={snapshot.pickup.mapsUrl} target="_blank" rel="noopener">
-                Buka lokasi di Google Maps ↗
+                Buka lokasi di Google Maps <Icon name="arrow-up" size={12} />
               </a>
             )}
           </section>
@@ -212,7 +213,8 @@ const operationalWhatsApp = process.env.BOOKING_WHATSAPP_NUMBER?.replace(
                 target="_blank"
                 rel="noopener"
               >
-                WhatsApp {operationalWhatsApp} ↗
+                WhatsApp {operationalWhatsApp}{' '}
+                <Icon name="arrow-up" size={12} />
               </a>
             ) : (
               <strong>Kontak admin melalui invoice perjalanan.</strong>

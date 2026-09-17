@@ -128,7 +128,8 @@ ditolak (403); login dengan kredensial nyata belum diuji pada sesi perubahan UI 
    ```
 
 4. Jalankan aplikasi (`npm run dev`), login melalui `/admin/login`, lalu buka
-   `/admin/trips`.
+   `/admin/trips`. Admin tambahan dapat dibuat oleh admin aktif melalui
+   `/admin/accounts`.
 5. Buat contoh “Labuan Bajo 18–25” dengan jadwal mulai 18 dan selesai 25 pada
    bulan/tahun yang benar, isi harga/kuota/down payment/tenggat, lalu pilih `Buka`. Ubah ke
    `Tutup`, muat ulang halaman, dan pastikan perubahan tetap tersimpan.

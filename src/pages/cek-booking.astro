@@ -1,5 +1,6 @@
 ---
 import Layout from '../layouts/Layout.astro';
+import Icon from '../components/Icon.astro';
 import SiteHeader from '../components/SiteHeader.astro';
 
 export const prerender = false;
@@ -26,7 +27,9 @@ export const prerender = false;
           ringkasan terbaru sebelum kamu membuka invoice.
         </p>
         <div class="booking-lookup-security">
-          <span aria-hidden="true">✳</span>
+          <span aria-hidden="true">
+            <Icon name="asterisk" />
+          </span>
           <div>
             <strong>Cepat dan tetap sesuai data.</strong>
             <p>
@@ -81,7 +84,7 @@ export const prerender = false;
             hidden
           ></p>
           <button class="button button-orange" type="submit">
-            Cek booking saya ↗
+            Cek booking saya <Icon name="arrow-up" size={16} />
           </button>
         </form>
 
@@ -139,7 +142,7 @@ export const prerender = false;
               class="button button-dark"
               href="/cek-booking"
             >
-              Buka invoice ↗
+              Buka invoice <Icon name="arrow-up" size={16} />
             </a>
             <button
               id="lookup-again"
@@ -248,7 +251,7 @@ export const prerender = false;
         error.hidden = false;
       } finally {
         submit.disabled = false;
-        submit.textContent = 'Cek booking saya ↗';
+        submit.textContent = 'Cek booking saya \u2197\uFE0E';
       }
     });
 

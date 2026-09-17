@@ -5,7 +5,7 @@
  *   node --env-file=.env --import=tsx/esm scripts/bootstrap-admin.ts
  *
  * Script ini akan gagal jika email sudah terdaftar.
- * Tidak ada signup publik; ini satu-satunya cara membuat admin.
+ * Setelah admin pertama tersedia, akun berikutnya dibuat lewat Management Akun.
  */
 
 import postgres from 'postgres';

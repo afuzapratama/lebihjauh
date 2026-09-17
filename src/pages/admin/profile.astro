@@ -1,0 +1,151 @@
+---
+import AdminLayout from '../../layouts/AdminLayout.astro';
+
+export const prerender = false;
+const user = Astro.locals.user;
+---
+
+<AdminLayout title="Profil Admin" active="profile">
+  <div class="page-title profile-page-title">
+    <div>
+      <p class="eyebrow">PROFIL ADMIN</p>
+      <h1>
+        Akun Anda.
+        <br />
+        Tetap aman.
+      </h1>
+      <p class="muted">Lihat identitas akun dan perbarui password dari sini.</p>
+    </div>
+  </div>
+
+  <div class="profile-admin-grid">
+    <section
+      class="panel profile-identity-panel"
+      aria-labelledby="identity-title"
+    >
+      <p class="eyebrow">IDENTITAS AKUN</p>
+      <div class="profile-admin-avatar" aria-hidden="true">
+        {(user?.name ?? 'A').trim().charAt(0).toUpperCase()}
+      </div>
+      <h2 id="identity-title">{user?.name ?? 'Admin'}</h2>
+      <p>{user?.email}</p>
+      <span class="state published">Admin aktif</span>
+      <small>Nama dan email akun ini juga tampil di Management Akun.</small>
+    </section>
+
+    <section
+      class="panel profile-password-panel"
+      aria-labelledby="password-title"
+    >
+      <p class="eyebrow">KEAMANAN</p>
+      <h2 id="password-title">Ganti password.</h2>
+      <p class="muted">
+        Setelah diganti, session lain akan dikeluarkan. Perangkat ini tetap
+        masuk.
+      </p>
+      <form id="password-form" class="account-form">
+        <label>
+          Password saat ini
+          <input
+            name="currentPassword"
+            type="password"
+            required
+            autocomplete="current-password"
+          />
+        </label>
+        <label>
+          Password baru
+          <input
+            name="newPassword"
+            type="password"
+            required
+            minlength="8"
+            autocomplete="new-password"
+          />
+          <small>Minimal 8 karakter. Gunakan password yang unik.</small>
+        </label>
+        <label>
+          Ulangi password baru
+          <input
+            name="confirmPassword"
+            type="password"
+            required
+            minlength="8"
+            autocomplete="new-password"
+          />
+        </label>
+        <p class="error-msg" id="password-error" role="alert" hidden></p>
+        <p
+          class="notice"
+          id="password-success"
+          data-type="success"
+          role="status"
+          hidden
+        >
+          Password berhasil diganti dan session lain sudah dikeluarkan.
+        </p>
+        <button class="primary" id="password-submit" type="submit">
+          Ganti password ↗
+        </button>
+      </form>
+    </section>
+  </div>
+
+  <script>
+    const form = document.querySelector<HTMLFormElement>('#password-form');
+    const error = document.querySelector<HTMLElement>('#password-error');
+    const success = document.querySelector<HTMLElement>('#password-success');
+    const submit =
+      document.querySelector<HTMLButtonElement>('#password-submit');
+    form?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      if (!form.reportValidity() || !error || !success || !submit) return;
+      const values = new FormData(form);
+      const newPassword = String(values.get('newPassword') ?? '');
+      if (newPassword !== String(values.get('confirmPassword') ?? '')) {
+        error.textContent = 'Ulangi password baru dengan nilai yang sama.';
+        error.hidden = false;
+        success.hidden = true;
+        return;
+      }
+      error.hidden = true;
+      success.hidden = true;
+      submit.disabled = true;
+      submit.textContent = 'Mengganti password…';
+      try {
+        const response = await fetch('/api/auth/change-password', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            currentPassword: values.get('currentPassword'),
+            newPassword,
+            revokeOtherSessions: true,
+          }),
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          const message =
+            response.status === 429
+              ? 'Terlalu banyak percobaan. Tunggu sebentar lalu coba lagi.'
+              : data.code === 'INVALID_PASSWORD'
+                ? 'Password saat ini tidak sesuai.'
+                : data.code === 'PASSWORD_TOO_SHORT'
+                  ? 'Password baru terlalu pendek.'
+                  : 'Password belum dapat diganti.';
+          throw new Error(message);
+        }
+        form.reset();
+        success.hidden = false;
+      } catch (caught) {
+        error.textContent =
+          caught instanceof Error
+            ? caught.message
+            : 'Password belum dapat diganti.';
+        error.hidden = false;
+      } finally {
+        submit.disabled = false;
+        submit.textContent = 'Ganti password ↗';
+      }
+    });
+  </script>
+</AdminLayout>

@@ -15,7 +15,9 @@ interface Props {
     | 'finance'
     | 'privateTrips'
     | 'content'
-    | 'website';
+    | 'website'
+    | 'accounts'
+    | 'profile';
   guest?: boolean;
 }
 const { title, active = 'dashboard', guest = false } = Astro.props;
@@ -196,6 +198,12 @@ const upcoming: string[] = [];
                   </a>
                 </div>
               </details>
+              <a
+                href="/admin/accounts"
+                aria-current={active === 'accounts' ? 'page' : undefined}
+              >
+                <span>06</span> Management Akun
+              </a>
               {upcoming.map((label, index) => (
                 <span class="nav-upcoming" aria-disabled="true">
                   <span>{String(index + 5).padStart(2, '0')}</span>
@@ -236,10 +244,20 @@ const upcoming: string[] = [];
                             ? 'KONTEN & GALERI'
                             : active === 'website'
                               ? 'TAMPILAN WEBSITE'
-                              : 'DASHBOARD'}
+                              : active === 'accounts'
+                                ? 'MANAGEMENT AKUN'
+                                : active === 'profile'
+                                  ? 'PROFIL ADMIN'
+                                  : 'DASHBOARD'}
             </span>
             <div class="admin-account">
-              <span>{user?.name ?? user?.email ?? 'Admin'}</span>
+              <a
+                class="admin-profile-link"
+                href="/admin/profile"
+                aria-current={active === 'profile' ? 'page' : undefined}
+              >
+                {user?.name ?? user?.email ?? 'Admin'}
+              </a>
               <button type="button" class="quiet-button" id="admin-logout">
                 Keluar ↗
               </button>

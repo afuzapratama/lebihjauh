@@ -1,5 +1,6 @@
 ---
 import Layout from '../../layouts/Layout.astro';
+import Icon from '../../components/Icon.astro';
 import SiteHeader from '../../components/SiteHeader.astro';
 import { publishedArticle } from '../../lib/public-content';
 export const prerender = false;
@@ -43,7 +44,7 @@ if (!article) Astro.response.status = 404;
               target="_blank"
               rel="noopener"
             >
-              Lihat postingan terkait ↗
+              Lihat postingan terkait <Icon name="arrow-up" size={12} />
             </a>
           )}
         </article>

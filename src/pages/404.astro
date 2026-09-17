@@ -1,0 +1,18 @@
+---
+import ErrorPage from '../components/ErrorPage.astro';
+import Layout from '../layouts/Layout.astro';
+---
+
+<Layout
+  title="Jalur Tidak Ditemukan — LebihJauh"
+  description="Halaman yang kamu cari tidak ditemukan. Kembali ke LebihJauh dan temukan perjalanan berikutnya."
+>
+  <ErrorPage
+    code="404"
+    eyebrow="KOORDINAT TIDAK DITEMUKAN / 404"
+    title="SEPERTINYA KAMU"
+    accent="salah jalur."
+    description="Tenang—bahkan perjalanan terbaik kadang dimulai dari belokan yang keliru. Halaman ini mungkin sudah pindah, atau memang belum pernah ada di peta."
+    fieldNote="JALUR INI BERHENTI DI SINI"
+  />
+</Layout>

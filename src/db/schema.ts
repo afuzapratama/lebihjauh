@@ -21,6 +21,9 @@ export const user = pgTable('user', {
   name: text('name').notNull(),
   email: text('email').notNull().unique(),
   emailVerified: boolean('email_verified').notNull().default(false),
+  // Semua akun di aplikasi ini adalah admin karena pendaftaran publik ditutup.
+  // Flag ini dipakai untuk mencabut akses tanpa menghapus jejak aktivitas lama.
+  isActive: boolean('is_active').notNull().default(true),
   image: text('image'),
   createdAt: timestamp('created_at', { withTimezone: true })
     .notNull()

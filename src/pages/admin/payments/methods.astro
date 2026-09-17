@@ -1,0 +1,184 @@
+---
+import { asc, isNull } from 'drizzle-orm';
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import { getDb } from '../../../db/client';
+import { paymentMethod } from '../../../db/schema';
+
+export const prerender = false;
+const methods = await getDb()
+  .select()
+  .from(paymentMethod)
+  .where(isNull(paymentMethod.archivedAt))
+  .orderBy(asc(paymentMethod.sortOrder), asc(paymentMethod.name));
+---
+
+<AdminLayout title="Metode pembayaran" active="paymentMethods">
+  <div class="page-title">
+    <div>
+      <p class="eyebrow">03 / PEMBAYARAN / METODE</p>
+      <h1>
+        Pembayaran jelas.
+        <br />
+        Admin lebih tenang.
+      </h1>
+      <p class="muted">
+        Metode aktif muncul di halaman publik <code>/pembayaran</code>. Jangan
+        menghapus metode yang pernah dipakai—nonaktifkan atau arsipkan.
+      </p>
+    </div>
+    <a class="button-link" href="/admin/payments">
+      ← Antrean pembayaran
+    </a>
+  </div>
+  <div class="layout">
+    <section class="panel">
+      <p class="eyebrow">TAMBAH METODE</p>
+      <h2>Rekening, e-wallet, atau QRIS.</h2>
+      <form id="payment-method-form">
+        <label>
+          Jenis metode
+          <select name="kind">
+            <option value="bank_transfer">Transfer bank</option>
+            <option value="ewallet">E-wallet</option>
+            <option value="qris">QRIS</option>
+          </select>
+        </label>
+        <label>
+          Nama metode
+          <input name="name" required placeholder="Contoh: BCA LebihJauh" />
+        </label>
+        <label>
+          Atas nama <small>Wajib untuk bank/e-wallet.</small>
+          <input name="accountName" />
+        </label>
+        <label>
+          Nomor rekening / akun <small>Wajib untuk bank/e-wallet.</small>
+          <input name="accountNumber" inputmode="numeric" />
+        </label>
+        <label>
+          URL gambar QRIS{' '}
+          <small>
+            Wajib bila jenis QRIS. Gunakan gambar QR yang sudah diunggah ke
+            media publik.
+          </small>
+          <input name="qrisImageUrl" type="url" />
+        </label>
+        <label>
+          Instruksi tambahan
+          <textarea
+            name="instructions"
+            placeholder="Contoh: Gunakan nomor invoice sebagai keterangan transfer."
+          ></textarea>
+        </label>
+        <label>
+          Urutan tampil
+          <input name="sortOrder" type="number" min="0" value="0" />
+        </label>
+        <p id="payment-method-error" class="error-msg" hidden></p>
+        <button class="primary" type="submit">
+          Simpan metode pembayaran
+        </button>
+      </form>
+    </section>
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <p class="eyebrow">METODE TERSEDIA</p>
+          <h2>{methods.length} metode tersimpan</h2>
+        </div>
+        <a class="button-link" href="/pembayaran" target="_blank">
+          Lihat halaman publik ↗
+        </a>
+      </div>
+      {methods.length ? (
+        <div class="payment-method-list">
+          {methods.map((method) => (
+            <article>
+              <div>
+                <span class="state">{method.kind.replace('_', ' ')}</span>
+                <strong>{method.name}</strong>
+                <small>
+                  {method.isActive ? 'Aktif di halaman publik' : 'Nonaktif'}
+                </small>
+              </div>
+              <div>
+                <button
+                  class="button-link archive-payment-method"
+                  data-id={method.id}
+                  data-name={method.name}
+                  type="button"
+                >
+                  Arsipkan
+                </button>
+              </div>
+            </article>
+          ))}
+        </div>
+      ) : (
+        <p class="muted">
+          Belum ada metode. Tambahkan metode pertama agar halaman pembayaran
+          publik dapat digunakan.
+        </p>
+      )}
+    </section>
+  </div>
+  <script>
+    const form = document.querySelector<HTMLFormElement>(
+      '#payment-method-form',
+    );
+    const error = document.querySelector<HTMLElement>('#payment-method-error');
+    form?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      if (!form.reportValidity()) return;
+      const response = await fetch('/api/admin/payment-methods', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(Object.fromEntries(new FormData(form))),
+      });
+      const result = await response.json();
+      if (!response.ok) {
+        if (error) {
+          error.hidden = false;
+          error.textContent = result.message;
+        }
+        return;
+      }
+      window.adminNotify({
+        type: 'success',
+        message: 'Metode pembayaran disimpan.',
+      });
+      window.location.reload();
+    });
+    document
+      .querySelectorAll<HTMLButtonElement>('.archive-payment-method')
+      .forEach((button) =>
+        button.addEventListener('click', async () => {
+          if (
+            !(await window.adminConfirm({
+              title: `Arsipkan ${button.dataset.name}?`,
+              message:
+                'Metode berhenti tampil di halaman publik. Riwayat pembayaran lama tetap aman.',
+              confirmLabel: 'Arsipkan metode',
+              destructive: true,
+            }))
+          )
+            return;
+          const response = await fetch('/api/admin/payment-methods', {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: button.dataset.id }),
+          });
+          const result = await response.json();
+          if (!response.ok) {
+            window.adminNotify({ type: 'error', message: result.message });
+            return;
+          }
+          window.adminNotify({
+            type: 'success',
+            message: 'Metode pembayaran diarsipkan.',
+          });
+          window.location.reload();
+        }),
+      );
+  </script>
+</AdminLayout>

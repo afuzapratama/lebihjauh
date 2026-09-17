@@ -1,0 +1,270 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import SiteHeader from '../../components/SiteHeader.astro';
+import { getCookie, getGuestScope } from '../../lib/booking-security';
+import { getPublicInvoice } from '../../lib/booking-service';
+import { itineraryStagesFrom } from '../../lib/trip-itinerary';
+
+export const prerender = false;
+
+const number = Astro.params.number ?? '';
+const guest = getGuestScope(Astro.request);
+if (guest.setCookie)
+  Astro.response.headers.append('Set-Cookie', guest.setCookie);
+Astro.response.headers.set('Cache-Control', 'private, no-store');
+Astro.response.headers.set('Referrer-Policy', 'no-referrer');
+const rundown = await getPublicInvoice(
+  number,
+  guest.hash,
+  getCookie(Astro.request, 'lj_invoice_access'),
+);
+if (!rundown) Astro.response.status = 404;
+
+const when = new Intl.DateTimeFormat('id-ID', {
+  dateStyle: 'full',
+  timeStyle: 'short',
+  timeZone: 'Asia/Jakarta',
+});
+const splitLines = (value: string) =>
+  value
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+const snapshot = rundown?.packageSnapshot as
+  | {
+      tripName?: string;
+      startAt?: string;
+      endAt?: string;
+      pickup?: {
+        zoneName?: string;
+        locationName?: string;
+        address?: string;
+        pickupAt?: string;
+        mapsUrl?: string | null;
+        instructions?: string;
+      };
+    }
+  | undefined;
+const stages = itineraryStagesFrom(rundown?.itineraryStages);
+const pickupStages = itineraryStagesFrom(rundown?.pickupRundownStages);
+const operationalWhatsApp = process.env.BOOKING_WHATSAPP_NUMBER?.replace(
+  /\D/g,
+  '',
+);
+---
+
+<Layout>
+  <SiteHeader active="trips" />
+  <main id="main" class="public-trip-page rundown-page">
+    <section class="section rundown-wrap">
+      {rundown ? (
+        <article class="rundown-sheet">
+          <header class="rundown-header">
+            <div>
+              <p class="eyebrow">
+                <span></span> RUNDOWN PERJALANAN
+              </p>
+              <h1>{snapshot?.tripName ?? 'Trip LebihJauh'}</h1>
+              <p>
+                Nomor booking {rundown.number} · {rundown.pax} peserta
+              </p>
+            </div>
+            <button class="button button-dark" type="button" id="print-rundown">
+              Cetak / simpan PDF
+            </button>
+          </header>
+
+          <section class="rundown-pickup">
+            <p class="eyebrow">TITIK KUMPUL PILIHANMU</p>
+            <h2>{snapshot?.pickup?.locationName ?? 'Titik kumpul menyusul'}</h2>
+            {snapshot?.pickup?.zoneName && (
+              <strong>{snapshot.pickup.zoneName}</strong>
+            )}
+            {snapshot?.pickup?.pickupAt && (
+              <p>
+                Waktu kumpul: {when.format(new Date(snapshot.pickup.pickupAt))}
+              </p>
+            )}
+            {snapshot?.pickup?.address && <p>{snapshot.pickup.address}</p>}
+            {snapshot?.pickup?.instructions && (
+              <p class="rundown-instruction">{snapshot.pickup.instructions}</p>
+            )}
+            {snapshot?.pickup?.mapsUrl && (
+              <a href={snapshot.pickup.mapsUrl} target="_blank" rel="noopener">
+                Buka lokasi di Google Maps ↗
+              </a>
+            )}
+          </section>
+
+          {pickupStages.length > 0 && (
+            <section class="rundown-itinerary rundown-pickup-route">
+              <p class="eyebrow">SEBELUM BERGABUNG</p>
+              <h2>Rundown penjemputan.</h2>
+              <ol>
+                {pickupStages.map((stage) => (
+                  <li>
+                    <div>
+                      <strong>{stage.title}</strong>
+                      <p class="rundown-stage-meta">{stage.day}</p>
+                      {stage.activities.map((activity) => (
+                        <p>
+                          <b>{activity.time}</b> {activity.activity}
+                          {activity.location && ` · ${activity.location}`}
+                        </p>
+                      ))}
+                      {stage.details && <p>{stage.details}</p>}
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            </section>
+          )}
+
+          <section class="rundown-itinerary">
+            <p class="eyebrow">ITINERARY INTI</p>
+            <h2>Supaya tahu ritmenya.</h2>
+            {stages.length ? (
+              <ol>
+                {stages.map((stage) => (
+                  <li>
+                    <div>
+                      <strong>{stage.title}</strong>
+                      <p class="rundown-stage-meta">{stage.day}</p>
+                      {stage.activities.map((activity) => (
+                        <p>
+                          <b>{activity.time}</b> {activity.activity}
+                          {activity.location && ` · ${activity.location}`}
+                        </p>
+                      ))}
+                      {stage.details && <p>{stage.details}</p>}
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            ) : rundown.itinerary ? (
+              <div class="rundown-legacy">
+                {splitLines(rundown.itinerary).map((line) => (
+                  <p>{line}</p>
+                ))}
+              </div>
+            ) : (
+              <p class="muted">
+                Rundown rinci sedang disiapkan oleh tim operasional.
+              </p>
+            )}
+          </section>
+
+          <div class="rundown-support-grid">
+            {rundown.included && (
+              <section>
+                <p class="eyebrow">SUDAH TERMASUK</p>
+                <ul>
+                  {splitLines(rundown.included).map((line) => (
+                    <li>{line}</li>
+                  ))}
+                </ul>
+              </section>
+            )}
+            {rundown.excluded && (
+              <section>
+                <p class="eyebrow">TIDAK TERMASUK</p>
+                <ul>
+                  {splitLines(rundown.excluded).map((line) => (
+                    <li>{line}</li>
+                  ))}
+                </ul>
+              </section>
+            )}
+            {rundown.preparation && (
+              <section>
+                <p class="eyebrow">PERSIAPAN</p>
+                <ul>
+                  {splitLines(rundown.preparation).map((line) => (
+                    <li>{line}</li>
+                  ))}
+                </ul>
+              </section>
+            )}
+            {rundown.terms && (
+              <section>
+                <p class="eyebrow">KETENTUAN</p>
+                <ul>
+                  {splitLines(rundown.terms).map((line) => (
+                    <li>{line}</li>
+                  ))}
+                </ul>
+              </section>
+            )}
+          </div>
+          <section class="rundown-contact">
+            <div>
+              <p class="eyebrow">KONTAK OPERASIONAL</p>
+              <h2>Butuh konfirmasi sebelum berangkat?</h2>
+              <p>
+                Hubungi admin LebihJauh dengan menyebut nomor booking{' '}
+                <strong>{rundown.number}</strong>.
+              </p>
+            </div>
+            {operationalWhatsApp ? (
+              <a
+                class="button button-dark"
+                href={`https://wa.me/${operationalWhatsApp}`}
+                target="_blank"
+                rel="noopener"
+              >
+                WhatsApp {operationalWhatsApp} ↗
+              </a>
+            ) : (
+              <strong>Kontak admin melalui invoice perjalanan.</strong>
+            )}
+          </section>
+          <footer>
+            Dokumen perjalanan peserta · Tidak memuat data identitas atau kontak
+            darurat.
+          </footer>
+        </article>
+      ) : (
+        <article class="rundown-sheet">
+          <h1>Rundown tidak dapat dibuka.</h1>
+          <p>Nomor booking tidak ditemukan. Periksa kembali nomor invoice.</p>
+        </article>
+      )}
+    </section>
+  </main>
+  <script is:inline>
+    document
+      .querySelector('#print-rundown')
+      ?.addEventListener('click', () => window.print());
+  </script>
+</Layout>
+
+<style>
+  .rundown-contact {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+    margin-top: 22px;
+    padding: 20px;
+    border-left: 3px solid var(--orange);
+    background: #f4f3ed;
+  }
+  .rundown-contact h2,
+  .rundown-contact p {
+    margin: 4px 0 0;
+  }
+  @media (max-width: 640px) {
+    .rundown-contact {
+      align-items: stretch;
+      flex-direction: column;
+    }
+  }
+  @media print {
+    .rundown-contact .button {
+      border: 0;
+      padding: 0;
+      background: transparent;
+      color: #161916;
+    }
+  }
+</style>

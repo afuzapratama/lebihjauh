@@ -1,0 +1,237 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1789216903994,
+      "tag": "0000_nebulous_yellow_claw",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1789225476329,
+      "tag": "0001_grey_eddie_brock",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1789225519748,
+      "tag": "0002_broken_eddie_brock",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1789261160560,
+      "tag": "0003_careful_vulture",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1789261218791,
+      "tag": "0004_far_terrax",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1789266028811,
+      "tag": "0005_funny_kid_colt",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1789267257253,
+      "tag": "0006_lethal_agent_brand",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1789269000000,
+      "tag": "0007_private_trip_requests",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1789269100000,
+      "tag": "0008_private_offer_conversion",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1789269200000,
+      "tag": "0009_content_foundation",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1789270000000,
+      "tag": "0010_departure_operations",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1789270500000,
+      "tag": "0011_private_manifest_drafts",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1789271000000,
+      "tag": "0012_private_manifest_pic_optional",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1789271500000,
+      "tag": "0013_payment_received_at",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1789272000000,
+      "tag": "0014_departure_pickup_options",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1789272500000,
+      "tag": "0015_participant_safety_data",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1789272600000,
+      "tag": "0016_participant_document_types",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1789340100000,
+      "tag": "0017_structured_itinerary",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1789341600000,
+      "tag": "0018_trip_pickup_point_catalog",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1789345200000,
+      "tag": "0019_pickup_rundown_variants",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1789353000000,
+      "tag": "0020_trip_expenses",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1789353600000,
+      "tag": "0021_booking_source",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1789360000000,
+      "tag": "0022_phase_4i_completion",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1789450000000,
+      "tag": "0023_phase_4j_itinerary_consolidation",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1789455000000,
+      "tag": "0024_phase_4j_itinerary_contract",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1789495200000,
+      "tag": "0025_private_participant_identity_pending",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1789497071308,
+      "tag": "0026_booking_participant_data_grant",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1789498000000,
+      "tag": "0027_booking_participant_data_drafts",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1789552800000,
+      "tag": "0028_trip_location_label",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1789556400000,
+      "tag": "0029_trip_activity_profile",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1789560000000,
+      "tag": "0030_sync_unbooked_departure_versions",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1789632000000,
+      "tag": "0031_trip_trail_map",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1789635600000,
+      "tag": "0032_site_page_content",
+      "breakpoints": true
+    }
+  ]
+}

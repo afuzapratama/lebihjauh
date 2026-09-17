@@ -1,0 +1,111 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Icon from '../components/Icon.astro';
+import PublicTripCard from '../components/PublicTripCard.astro';
+import SiteHeader from '../components/SiteHeader.astro';
+import { getPublicTrips } from '../lib/public-trips';
+
+export const prerender = false;
+const category = Astro.url.searchParams.get('jenis') ?? '';
+const query = (Astro.url.searchParams.get('q') ?? '').trim().slice(0, 80);
+const trips = await getPublicTrips(category || undefined, query || undefined);
+const allTrips = category || query ? await getPublicTrips() : trips;
+const categories = [
+  ...new Set(allTrips.map((item) => String(item.category))),
+].sort();
+const hasFilters = Boolean(category || query);
+---
+
+<Layout
+  title="Open Trip — LebihJauh"
+  description="Cari jadwal open trip LebihJauh berdasarkan nama, lokasi, atau jenis perjalanan."
+>
+  <SiteHeader active="trips" />
+  <main id="main" class="public-trip-page">
+    <section class="public-trip-hero section">
+      <p class="eyebrow">
+        <span></span> OPEN TRIP / JADWAL RESMI
+      </p>
+      <h1>
+        PERGI LEBIH JAUH.
+        <br />
+        <span class="handwritten">PILIH CERITAMU.</span>
+      </h1>
+      <p>Hanya jadwal yang sudah dibuka admin yang tampil di sini.</p>
+    </section>
+    <section class="section" aria-labelledby="catalog-title">
+      <div class="catalog-head">
+        <div>
+          <p class="eyebrow">KATALOG PERJALANAN</p>
+          <h2 id="catalog-title">
+            Trip yang
+            <br />
+            sedang <span class="handwritten">menunggu.</span>
+          </h2>
+        </div>
+        <span aria-live="polite">{trips.length} trip ditemukan</span>
+      </div>
+      <form class="public-filter" method="get" role="search">
+        <label class="public-search-field">
+          <span>Cari perjalanan</span>
+          <span class="public-search-control">
+            <Icon name="search" size={18} />
+            <input
+              type="search"
+              name="q"
+              value={query}
+              maxlength="80"
+              placeholder="Cari nama, lokasi, atau jenis trip"
+              autocomplete="off"
+            />
+          </span>
+        </label>
+        <label class="public-category-field">
+          <span>Jenis trip</span>
+          <select name="jenis">
+            <option value="">Semua jenis</option>
+            {categories.map((item) => (
+              <option value={item} selected={category === item}>
+                {item}
+              </option>
+            ))}
+          </select>
+        </label>
+        <button class="button button-dark" type="submit">
+          Cari trip <Icon name="arrow" size={17} />
+        </button>
+        {hasFilters && (
+          <a class="public-filter-reset" href="/trip">
+            Reset filter
+          </a>
+        )}
+      </form>
+      {trips.length ? (
+        <div class="trip-grid public-trip-grid">
+          {trips.map((item, index) => (
+            <PublicTripCard
+              item={item}
+              index={index}
+              loading={index < 2 ? 'eager' : 'lazy'}
+            />
+          ))}
+        </div>
+      ) : (
+        <div class="public-empty">
+          <p class="eyebrow">BELUM KETEMU</p>
+          <h2>Belum ada trip yang cocok.</h2>
+          <p>
+            {hasFilters
+              ? `Coba kata kunci atau jenis trip lain${query ? `—hasil untuk “${query}” masih kosong.` : '.'}`
+              : 'Jadwal baru sedang disiapkan. Silakan kembali lagi nanti.'}
+          </p>
+          {hasFilters && (
+            <a class="button button-dark" href="/trip">
+              Lihat semua trip
+            </a>
+          )}
+        </div>
+      )}
+    </section>
+  </main>
+</Layout>

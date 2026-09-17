@@ -1,0 +1,581 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Icon from '../components/Icon.astro';
+import PublicTripCard from '../components/PublicTripCard.astro';
+import SiteHeader from '../components/SiteHeader.astro';
+import { getPublicTrips } from '../lib/public-trips';
+import { publishedGallery, publishedNews } from '../lib/public-content';
+import { getSitePageContent } from '../lib/site-content';
+
+export const prerender = false;
+const isDraftPreview =
+  Astro.url.searchParams.get('preview') === 'draft' &&
+  Boolean(Astro.locals.user);
+const [liveTrips, allGallery, allNews, content] = await Promise.all([
+  getPublicTrips(),
+  publishedGallery(),
+  publishedNews(),
+  getSitePageContent('home', isDraftPreview),
+]);
+const featuredFirst = <T extends { id: string }>(
+  items: T[],
+  ids: string[],
+  limit: number,
+) => {
+  const byId = new Map(items.map((item) => [item.id, item]));
+  const featured = ids.flatMap((id) => (byId.has(id) ? [byId.get(id)!] : []));
+  return [...featured, ...items.filter((item) => !ids.includes(item.id))].slice(
+    0,
+    limit,
+  );
+};
+const homeTrips = featuredFirst(liveTrips, content.featured.tripIds, 3);
+const remainingTripCount = Math.max(0, liveTrips.length - homeTrips.length);
+const homeGallery = featuredFirst(allGallery, content.featured.galleryIds, 4);
+const homeNews = featuredFirst(allNews, content.featured.newsIds, 3);
+const categories = [...new Set(liveTrips.map((item) => String(item.category)))];
+---
+
+<Layout
+  title={content.seo.title}
+  description={content.seo.description}
+  image={content.seo.shareImageUrl || undefined}
+>
+  <SiteHeader active="home" />
+
+  <main id="main">
+    <section class="hero" aria-labelledby="hero-title">
+      <img
+        class="hero-image"
+        src={content.hero.image.imageUrl}
+        alt={content.hero.image.alt}
+        loading="eager"
+        fetchpriority="high"
+        style={`object-position:${content.hero.image.focalPoint}`}
+      />
+      <div class="hero-shade"></div>
+      <div class="hero-topline">
+        <span>
+          <span class="tiny-star">✳</span> {content.hero.topline}
+        </span>
+        <span class="hero-edition">{content.hero.edition}</span>
+      </div>
+      <div class="hero-content">
+        <h1 id="hero-title">
+          {content.hero.titleLine1}
+          <br />
+          {content.hero.titleLine2}
+          <br />
+          <span>{content.hero.titleAccent}</span>
+        </h1>
+        <p>
+          {content.hero.description.split('\n').map((line) => (
+            <>
+              {line}
+              <br />
+            </>
+          ))}
+        </p>
+        <a class="button button-orange hero-cta" href="/trip">
+          {content.hero.ctaLabel} <Icon name="arrow-up" />
+        </a>
+      </div>
+      <div class="hero-handwriting" aria-hidden="true">
+        {content.hero.handwriting.split('\n').map((line) => (
+          <>
+            {line}
+            <br />
+          </>
+        ))}
+        <span>↗</span>
+      </div>
+      <div class="hero-bottom">
+        <a href="#open-trip">
+          <span class="scroll-circle">↓</span> SCROLL UNTUK JELAJAH
+        </a>
+        <span>
+          <Icon name="pin" size={14} /> {content.hero.image.caption}{' '}
+          {content.hero.image.credit && (
+            <span class="hero-photo-credit">
+              /{' '}
+              {content.hero.image.sourceUrl ? (
+                <a
+                  href={content.hero.image.sourceUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  {content.hero.image.credit} ↗
+                </a>
+              ) : (
+                content.hero.image.credit
+              )}
+            </span>
+          )}
+        </span>
+      </div>
+    </section>
+
+    <div
+      class="manifesto-strip"
+      aria-label="More people. Farther places. Go further."
+    >
+      <span>{content.manifesto.items[0]}</span>
+      <span class="strip-star" aria-hidden="true">
+        ✳
+      </span>
+      <span>{content.manifesto.items[1]}</span>
+      <Icon name="mountain" size={34} />
+      <span>{content.manifesto.items[2]}</span>
+      <span class="strip-star" aria-hidden="true">
+        ✳
+      </span>
+      <span>
+        {content.manifesto.items[3]} <Icon name="arrow" size={34} />
+      </span>
+    </div>
+
+    <section
+      class="section trips-section"
+      id="open-trip"
+      aria-labelledby="trips-title"
+    >
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">
+            <span></span> {content.trips.eyebrow}
+          </p>
+          <h2 id="trips-title">
+            {content.trips.titleLine1}
+            <br />
+            {content.trips.titleLine2}{' '}
+            <span class="handwritten">{content.trips.titleAccent}</span>
+          </h2>
+        </div>
+        <p class="section-intro">
+          {content.trips.intro.split('\n').map((line, index) =>
+            index === 2 ? (
+              <span>{line}</span>
+            ) : (
+              <>
+                {line}
+                <br />
+              </>
+            ),
+          )}
+        </p>
+      </div>
+      <div class="trip-toolbar">
+        <nav class="trip-filters" aria-label="Jelajahi jenis trip">
+          <a class="filter-button active" href="/trip">
+            Semua Trip <span>{String(liveTrips.length).padStart(2, '0')}</span>
+          </a>
+          {categories.map((category) => (
+            <a
+              class="filter-button"
+              href={`/trip?jenis=${encodeURIComponent(category)}`}
+            >
+              {category}
+            </a>
+          ))}
+        </nav>
+        <span class="preview-label">
+          <span></span> JADWAL RESMI YANG DIBUKA
+        </span>
+      </div>
+      {homeTrips.length ? (
+        <>
+          <div class="trip-grid public-trip-grid home-trip-grid">
+            {homeTrips.map((trip, index) => (
+              <PublicTripCard item={trip} index={index} />
+            ))}
+          </div>
+          <div class="home-trip-more">
+            <div>
+              <span class="eyebrow">KATALOG OPEN TRIP</span>
+              <p>
+                {remainingTripCount
+                  ? `${remainingTripCount} perjalanan lainnya tersedia.`
+                  : content.trips.browseCopy}
+              </p>
+            </div>
+            <a class="home-trip-more-link" href="/trip">
+              <span>View all trips</span>
+              <span class="image-arrow" aria-hidden="true">
+                <Icon name="arrow-up" size={20} />
+              </span>
+            </a>
+          </div>
+        </>
+      ) : (
+        <div class="public-empty">
+          <h2>{content.trips.emptyTitle}</h2>
+          <p>{content.trips.emptyCopy}</p>
+          <a class="button button-dark" href="/private-trip">
+            Rencanakan Private Trip
+          </a>
+        </div>
+      )}
+    </section>
+
+    <section
+      class="story-section section"
+      id="tentang"
+      aria-labelledby="story-title"
+    >
+      <div class="story-visual">
+        <div class="story-photo">
+          <img
+            src={content.story.image.imageUrl}
+            alt={content.story.image.alt}
+            loading="lazy"
+            style={`object-position:${content.story.image.focalPoint}`}
+          />
+          <span class="photo-tape" aria-hidden="true"></span>
+          <span class="photo-caption">
+            {content.story.image.caption}
+            {content.story.image.credit && (
+              <>
+                {' '}
+                /{' '}
+                {content.story.image.sourceUrl ? (
+                  <a
+                    href={content.story.image.sourceUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    {content.story.image.credit} ↗
+                  </a>
+                ) : (
+                  content.story.image.credit
+                )}
+              </>
+            )}
+          </span>
+        </div>
+        <div class="round-stamp" aria-hidden="true">
+          <span>MORE PEOPLE</span>
+          <Icon name="mountain" size={45} />
+          <span>FARTHER PLACES</span>
+        </div>
+        <span class="story-coordinate">{content.story.fieldNote}</span>
+      </div>
+      <div class="story-copy">
+        <p class="eyebrow">
+          <span></span> {content.story.eyebrow}
+        </p>
+        <h2 id="story-title">
+          {content.story.titleLine1}
+          <br />
+          {content.story.titleLine2}{' '}
+          <span class="handwritten">{content.story.titleAccent}</span>
+        </h2>
+        <p class="story-lead">
+          {content.story.lead.split('\n').map((line, index) => (
+            <>
+              {index > 0 && <br class="desktop-break" />}
+              {line}
+            </>
+          ))}
+        </p>
+        <p>{content.story.body1}</p>
+        <p>{content.story.body2}</p>
+        <div class="brand-values">
+          <span>
+            <Icon name="people" /> {content.story.values[0]}
+          </span>
+          <span>
+            <Icon name="sun" /> {content.story.values[1]}
+          </span>
+          <span>
+            <Icon name="mountain" /> {content.story.values[2]}
+          </span>
+        </div>
+        <span class="story-signature">
+          {content.story.signature} <span>↗</span>
+        </span>
+      </div>
+    </section>
+
+    <section
+      class="private-section section"
+      id="private-trip"
+      aria-labelledby="private-title"
+    >
+      <div class="private-panel">
+        <div class="topography" aria-hidden="true"></div>
+        <div class="private-copy">
+          <p class="eyebrow light">
+            <span></span> {content.privateTrip.eyebrow}
+          </p>
+          <h2 id="private-title">
+            {content.privateTrip.title}
+            <br />
+            <span class="handwritten">{content.privateTrip.titleAccent}</span>
+          </h2>
+          <p>
+            {content.privateTrip.description.split('\n').map((line) => (
+              <>
+                {line}
+                <br />
+              </>
+            ))}
+          </p>
+          <a class="button button-cream" href="/private-trip">
+            {content.privateTrip.ctaLabel} <Icon name="arrow-up" />
+          </a>
+        </div>
+        <div class="private-ticket" aria-hidden="true">
+          <span class="ticket-hole"></span>
+          <div class="ticket-head">
+            LEBIHJAUH <Icon name="arrow-up" size={30} />
+          </div>
+          <div class="ticket-title">
+            LET'S
+            <br />
+            GO
+            <br />
+            PLACES.
+          </div>
+          <div class="ticket-bottom">
+            ONE TRIP. YOUR PEOPLE.<div class="barcode"></div>
+            <span>YOUR NEXT GOOD MEMORY →</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section
+      class="section gallery-section"
+      id="galeri"
+      aria-labelledby="gallery-title"
+    >
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">
+            <span></span> {content.gallery.eyebrow}
+          </p>
+          <h2 id="gallery-title">
+            {content.gallery.titleLine1}
+            <br />
+            {content.gallery.titleLine2}{' '}
+            <span class="handwritten">{content.gallery.titleAccent}</span>
+          </h2>
+        </div>
+        <p class="section-intro">
+          {content.gallery.intro.split('\n').map((line) => (
+            <>
+              {line}
+              <br />
+            </>
+          ))}
+          <span class="gallery-hint">
+            Klik foto untuk melihat lebih dekat <Icon name="arrow" size={16} />
+          </span>
+        </p>
+      </div>
+      {homeGallery.length ? (
+        <div class="gallery-grid">
+          {homeGallery.map((photo, index) => (
+            <button
+              class={`gallery-item gallery-item-${index}`}
+              data-dialog={`home-gallery-${photo.id}`}
+              aria-label={`Perbesar foto: ${photo.caption}`}
+            >
+              <div class="gallery-image">
+                <img src={photo.imageUrl} alt={photo.altText} loading="lazy" />
+                <span class="gallery-expand">
+                  <Icon name="plus" />
+                </span>
+              </div>
+              <span class="gallery-caption">
+                <span>0{index + 1}</span> {photo.caption}
+              </span>
+            </button>
+          ))}
+        </div>
+      ) : (
+        <div class="public-empty">
+          <h2>Galeri sedang disusun.</h2>
+          <p>Momen perjalanan akan hadir di sini setelah diterbitkan.</p>
+        </div>
+      )}
+      <div class="home-content-more">
+        <div>
+          <span class="eyebrow">ARSIP PERJALANAN</span>
+          <p>{content.gallery.archiveCopy}</p>
+        </div>
+        <a class="home-content-more-link" href="/galeri">
+          <span>{content.gallery.archiveLabel}</span>
+          <span class="image-arrow" aria-hidden="true">
+            <Icon name="arrow-up" size={20} />
+          </span>
+        </a>
+      </div>
+    </section>
+
+    <section class="journal-section" id="news" aria-labelledby="news-title">
+      <div class="section">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">
+              <span></span> {content.news.eyebrow}
+            </p>
+            <h2 id="news-title">
+              {content.news.titleLine1}
+              <br />
+              {content.news.titleLine2}{' '}
+              <span class="handwritten">{content.news.titleAccent}</span>
+            </h2>
+          </div>
+          <p class="section-intro">
+            {content.news.intro.split('\n').map((line) => (
+              <>
+                {line}
+                <br />
+              </>
+            ))}
+          </p>
+        </div>
+        {homeNews.length ? (
+          <div class="journal-grid">
+            {homeNews.map((story) => (
+              <article class="journal-card">
+                <a
+                  class="journal-image"
+                  href={`/news/${story.slug}`}
+                  aria-label={`Baca ${story.title}`}
+                >
+                  {story.coverImageUrl ? (
+                    <img
+                      src={story.coverImageUrl}
+                      alt={story.coverAltText || ''}
+                      loading="lazy"
+                    />
+                  ) : (
+                    <div class="public-image-placeholder">
+                      Cover cerita menyusul
+                    </div>
+                  )}
+                  <span>
+                    <Icon name="arrow-up" />
+                  </span>
+                </a>
+                <div class="journal-meta">
+                  <span>{story.category}</span>
+                  <span>CATATAN LEBIHJAUH</span>
+                </div>
+                <h3>
+                  <a href={`/news/${story.slug}`}>{story.title}</a>
+                </h3>
+                <p>{story.excerpt}</p>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <div class="public-empty">
+            <h2>Belum ada cerita diterbitkan.</h2>
+            <p>Artikel perjalanan berikutnya akan hadir di sini.</p>
+          </div>
+        )}
+        <div class="home-content-more">
+          <div>
+            <span class="eyebrow">CATATAN LEBIHJAUH</span>
+            <p>{content.news.archiveCopy}</p>
+          </div>
+          <a class="home-content-more-link" href="/news">
+            <span>{content.news.archiveLabel}</span>
+            <span class="image-arrow" aria-hidden="true">
+              <Icon name="arrow-up" size={20} />
+            </span>
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <section class="section faq-section" aria-labelledby="faq-title">
+      <div>
+        <p class="eyebrow">
+          <span></span> {content.faq.eyebrow}
+        </p>
+        <h2 id="faq-title">
+          {content.faq.title}
+          <br />
+          <span class="handwritten">{content.faq.titleAccent}</span>
+        </h2>
+        <p>
+          {content.faq.intro.split('\n').map((line) => (
+            <>
+              {line}
+              <br />
+            </>
+          ))}
+        </p>
+        <span class="faq-doodle" aria-hidden="true">
+          ↳
+        </span>
+      </div>
+      <div class="faq-list">
+        {content.faq.items.map((faq, index) => (
+          <details class="faq-item">
+            <summary>
+              <span class="faq-number">0{index + 1}</span>
+              <span>{faq.question}</span>
+              <Icon name="plus" size={21} />
+            </summary>
+            <p>{faq.answer}</p>
+          </details>
+        ))}
+      </div>
+    </section>
+
+    <section class="closing-section" aria-labelledby="closing-title">
+      <div>
+        <p class="eyebrow">{content.closing.eyebrow}</p>
+        <h2 id="closing-title">
+          {content.closing.titleLine1}
+          <br />
+          <span>{content.closing.titleLine2}</span>
+          <span class="closing-asterisk" aria-hidden="true">
+            ✳
+          </span>
+        </h2>
+        <a class="button button-dark" href="#open-trip">
+          {content.closing.ctaLabel} <Icon name="arrow-up" />
+        </a>
+        <p class="closing-note">{content.closing.note}</p>
+      </div>
+    </section>
+  </main>
+
+  {homeGallery.map((photo, index) => (
+    <dialog
+      class="gallery-dialog"
+      id={`home-gallery-${photo.id}`}
+      aria-labelledby={`home-gallery-caption-${photo.id}`}
+    >
+      <button class="dialog-close" data-close aria-label="Tutup foto">
+        <Icon name="close" />
+      </button>
+      <img src={photo.imageUrl} alt={photo.altText} loading="lazy" />
+      <div>
+        <p id={`home-gallery-caption-${photo.id}`}>{photo.caption}</p>
+        <span>
+          {String(index + 1).padStart(2, '0')} /{' '}
+          {String(homeGallery.length).padStart(2, '0')}
+        </span>
+        {photo.socialUrl && (
+          <a
+            class="text-button gallery-social-link"
+            href={photo.socialUrl}
+            target="_blank"
+            rel="noopener"
+          >
+            Postingan asli ↗
+          </a>
+        )}
+      </div>
+    </dialog>
+  ))}
+
+  <script src="../scripts/main.ts"></script>
+</Layout>

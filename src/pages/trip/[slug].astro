@@ -1,0 +1,702 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import Icon from '../../components/Icon.astro';
+import SiteHeader from '../../components/SiteHeader.astro';
+import { getPublicTrip } from '../../lib/public-trips';
+import {
+  itineraryStagesFrom,
+  legacyItineraryEntriesFrom,
+} from '../../lib/trip-itinerary';
+
+export const prerender = false;
+
+// 4J: departureId dari query param untuk URL stabil (?jadwal=<id>)
+const requestedDepartureId = Astro.url.searchParams.get('jadwal') ?? undefined;
+const item = await getPublicTrip(Astro.params.slug ?? '', requestedDepartureId);
+if (!item) Astro.response.status = 404;
+
+const money = new Intl.NumberFormat('id-ID');
+const date = new Intl.DateTimeFormat('id-ID', {
+  dateStyle: 'full',
+  timeZone: 'Asia/Jakarta',
+});
+const pickupDate = new Intl.DateTimeFormat('id-ID', {
+  dateStyle: 'medium',
+  timeStyle: 'short',
+  timeZone: 'Asia/Jakarta',
+});
+const compactDate = new Intl.DateTimeFormat('id-ID', {
+  day: 'numeric',
+  month: 'short',
+  year: 'numeric',
+  timeZone: 'Asia/Jakarta',
+});
+
+const splitLines = (value: unknown) =>
+  String(value ?? '')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+const readableLines = (value: unknown) =>
+  splitLines(value).map((line) =>
+    line.replace(/^(?:[-*•–—]|\d+[.)])\s*/, '').trim(),
+  );
+
+// 4J: selectedDeparture = jadwal aktif untuk halaman ini
+const selectedDeparture = item?.selectedDeparture;
+
+// 4J: resolvedItineraryStages dari jadwal terpilih (override atau itinerary paket)
+const resolvedStages = itineraryStagesFrom(
+  selectedDeparture?.resolvedItineraryStages,
+);
+
+// Fallback ke legacy text itinerary jika tidak ada stages
+const legacyItineraryEntries = resolvedStages.length
+  ? []
+  : legacyItineraryEntriesFrom(item?.itinerary);
+
+// 4J: pickup hanya dari jadwal yang dipilih — tidak campur semua jadwal
+const selectedPickups = selectedDeparture?.pickupOptions ?? [];
+
+// Semua jadwal untuk pemilih
+const allDepartures = item?.departures ?? [];
+const selectedPrice = selectedDeparture?.unitPrice;
+const number = new Intl.NumberFormat('id-ID', { maximumFractionDigits: 2 });
+const difficultyLabels: Record<string, { label: string; note: string }> = {
+  beginner: {
+    label: 'Beginner',
+    note: 'Ramah pemula dan tidak membutuhkan kemampuan teknis khusus.',
+  },
+  intermediate: {
+    label: 'Intermediate',
+    note: 'Membutuhkan kebugaran dasar untuk bagian curam atau tidak rata.',
+  },
+  advanced: {
+    label: 'Advanced',
+    note: 'Disarankan untuk peserta yang sudah berpengalaman.',
+  },
+  expert: {
+    label: 'Expert',
+    note: 'Membutuhkan pengalaman, kemampuan teknis, atau perlengkapan khusus.',
+  },
+};
+const difficulty = item?.difficultyLevel
+  ? difficultyLabels[item.difficultyLevel]
+  : undefined;
+const durationPart = (minutes: number) => {
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  return [hours ? `${hours} jam` : '', rest ? `${rest} menit` : '']
+    .filter(Boolean)
+    .join(' ');
+};
+const trekDuration = (() => {
+  const minimum = item?.trekDurationMinMinutes;
+  const maximum = item?.trekDurationMaxMinutes;
+  if (minimum == null && maximum == null) return '';
+  if (minimum != null && maximum != null)
+    return minimum === maximum
+      ? durationPart(minimum)
+      : `${durationPart(minimum)}–${durationPart(maximum)}`;
+  return minimum != null
+    ? `Mulai ${durationPart(minimum)}`
+    : `Maksimal ${durationPart(maximum!)}`;
+})();
+const hasProfileChips = Boolean(
+  difficulty || item?.elevationMeters || item?.locationLabel || item?.routeName,
+);
+const hasTrailDetails = Boolean(
+  item?.trailDistanceKm ||
+  item?.elevationGainMeters != null ||
+  trekDuration ||
+  item?.routeName ||
+  item?.terrainSummary,
+);
+const preparationItems = readableLines(item?.preparation);
+const termItems = readableLines(item?.terms);
+---
+
+<Layout
+  title={
+    item
+      ? `${item.name} — Open Trip LebihJauh`
+      : 'Trip tidak ditemukan — LebihJauh'
+  }
+  description={item?.description ?? 'Detail perjalanan open trip LebihJauh.'}
+>
+  <SiteHeader active="trips" />
+  <main
+    id="main"
+    class:list={[
+      'public-trip-page',
+      { 'has-mobile-booking-bar': Boolean(selectedDeparture) },
+    ]}
+  >
+    {item ? (
+      <>
+        <section class="trip-detail-hero">
+          {item.coverImageUrl ? (
+            <img src={String(item.coverImageUrl)} alt={`Foto ${item.name}`} />
+          ) : (
+            <div class="public-image-placeholder">Foto trip segera hadir</div>
+          )}
+          <div>
+            <p class="eyebrow">
+              <span></span> {item.category}
+            </p>
+            <h1>{item.name}</h1>
+            <p class="trip-detail-description">{item.description}</p>
+            {hasProfileChips && (
+              <div class="trip-profile-chips" aria-label="Profil perjalanan">
+                {difficulty && (
+                  <span class={`difficulty-${item.difficultyLevel}`}>
+                    {difficulty.label}
+                  </span>
+                )}
+                {item.elevationMeters && (
+                  <span>{number.format(item.elevationMeters)} mdpl</span>
+                )}
+                {item.locationLabel && <span>{item.locationLabel}</span>}
+                {item.routeName && <span>{item.routeName}</span>}
+              </div>
+            )}
+          </div>
+        </section>
+        <section class="trip-quickfacts section" aria-label="Ringkasan trip">
+          <article>
+            <span>Keberangkatan pilihan</span>
+            <strong>
+              {selectedDeparture
+                ? date.format(new Date(selectedDeparture.startAt))
+                : 'Segera diumumkan'}
+            </strong>
+          </article>
+          <article>
+            <span>Harga mulai</span>
+            <strong>
+              {selectedPrice !== undefined
+                ? `Rp${money.format(Number(selectedPrice))}/orang`
+                : 'Hubungi kami'}
+            </strong>
+          </article>
+          <article>
+            <span>Titik kumpul tersedia</span>
+            <strong>{selectedPickups.length || '—'}</strong>
+          </article>
+        </section>
+        {item.requestedDepartureUnavailable && (
+          <p class="section" role="status">
+            Jadwal dari tautan ini sudah tidak tersedia. Kami menampilkan
+            keberangkatan tersedia terdekat. Periksa tanggal sebelum
+            melanjutkan.
+          </p>
+        )}
+        <section class="trip-detail-layout section">
+          <article class="trip-detail-copy">
+            <h2>
+              Yang perlu
+              <br />
+              <span class="handwritten">kamu tahu.</span>
+            </h2>
+            {(hasTrailDetails || difficulty) && (
+              <section
+                class="trip-trail-profile"
+                aria-labelledby="trail-profile-title"
+              >
+                <div class="trip-trail-profile-head">
+                  <div>
+                    <p class="eyebrow">INFO TREK &amp; AKTIVITAS</p>
+                    <h3 id="trail-profile-title">Kenali medannya.</h3>
+                  </div>
+                  {difficulty && (
+                    <span
+                      class={`trip-difficulty-badge difficulty-${item.difficultyLevel}`}
+                    >
+                      {difficulty.label}
+                    </span>
+                  )}
+                </div>
+                <dl class="trip-trail-facts">
+                  {item.trailDistanceKm && (
+                    <div>
+                      <dt>Jarak trek</dt>
+                      <dd>{number.format(Number(item.trailDistanceKm))} km</dd>
+                    </div>
+                  )}
+                  {item.elevationGainMeters !== null &&
+                    item.elevationGainMeters !== undefined && (
+                      <div>
+                        <dt>Kenaikan elevasi</dt>
+                        <dd>{number.format(item.elevationGainMeters)} meter</dd>
+                      </div>
+                    )}
+                  {trekDuration && (
+                    <div>
+                      <dt>Estimasi trek</dt>
+                      <dd>{trekDuration}</dd>
+                    </div>
+                  )}
+                  {item.routeName && (
+                    <div>
+                      <dt>Jalur</dt>
+                      <dd>{item.routeName}</dd>
+                    </div>
+                  )}
+                </dl>
+                {difficulty && (
+                  <p class="trip-difficulty-note">{difficulty.note}</p>
+                )}
+                {item.terrainSummary && (
+                  <p class="trip-terrain-summary">
+                    <strong>Karakter medan</strong>
+                    <span>{item.terrainSummary}</span>
+                  </p>
+                )}
+              </section>
+            )}
+            <div class="detail-scan-grid">
+              {item.included && (
+                <section class="detail-card detail-card-included">
+                  <p class="eyebrow">01 / SUDAH TERMASUK</p>
+                  <h3>Datang, tinggal jalan.</h3>
+                  <ul>
+                    {splitLines(item.included).map((line) => (
+                      <li>{line}</li>
+                    ))}
+                  </ul>
+                </section>
+              )}
+              {item.excluded && (
+                <section class="detail-card detail-card-excluded">
+                  <p class="eyebrow">02 / SIAPKAN SENDIRI</p>
+                  <h3>Belum termasuk.</h3>
+                  <ul>
+                    {splitLines(item.excluded).map((line) => (
+                      <li>{line}</li>
+                    ))}
+                  </ul>
+                </section>
+              )}
+            </div>
+            {/* 4J: Itinerary inti satu kali — dari resolvedStages jadwal terpilih */}
+            {(resolvedStages.length > 0 ||
+              legacyItineraryEntries.length > 0) && (
+              <section class="detail-itinerary">
+                <p class="eyebrow">RENCANA PERJALANAN</p>
+                <h3>Biar tahu ritmenya.</h3>
+                <ol>
+                  {resolvedStages.length
+                    ? resolvedStages.map((entry) => (
+                        <li>
+                          <div>
+                            <strong>{entry.title}</strong>
+                            {entry.day && (
+                              <p class="itinerary-stage-meta">{entry.day}</p>
+                            )}
+                            {entry.activities.map((activity) => (
+                              <p>
+                                {activity.time && <b>{activity.time}</b>}{' '}
+                                {activity.activity}
+                                {activity.location && ` · ${activity.location}`}
+                              </p>
+                            ))}
+                            {entry.details && <p>{entry.details}</p>}
+                          </div>
+                        </li>
+                      ))
+                    : legacyItineraryEntries.map((entry) => (
+                        <li>
+                          <div>
+                            <strong>{entry.title}</strong>
+                            {entry.details.map((detail) => (
+                              <p>{detail}</p>
+                            ))}
+                          </div>
+                        </li>
+                      ))}
+                </ol>
+              </section>
+            )}
+            {/* 4J: Pickup hanya dari jadwal yang dipilih */}
+            {selectedPickups.length > 0 && (
+              <section
+                class="trip-pickup-pricing"
+                aria-labelledby="pickup-pricing-title"
+              >
+                <div class="trip-pickup-pricing-head">
+                  <div>
+                    <p class="eyebrow">TITIK KUMPUL JADWAL INI</p>
+                    <h3 id="pickup-pricing-title">Harga per meeting point.</h3>
+                  </div>
+                  <p>
+                    Harga final mengikuti titik jemput yang kamu pilih saat
+                    booking.
+                  </p>
+                </div>
+                <div
+                  class="trip-pickup-table-wrap"
+                  tabindex="0"
+                  aria-label="Tabel harga meeting point, geser untuk melihat seluruh kolom"
+                >
+                  <table class="trip-pickup-table">
+                    <thead>
+                      <tr>
+                        <th>Titik kumpul</th>
+                        <th>Informasi penjemputan</th>
+                        <th>Harga / pax</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {selectedPickups.map((pickup: any) => (
+                        <tr>
+                          <td>
+                            <strong>{pickup.zoneName}</strong>
+                            <span>{pickup.locationName}</span>
+                            {pickup.mapsUrl && (
+                              <a
+                                href={pickup.mapsUrl}
+                                target="_blank"
+                                rel="noopener"
+                              >
+                                Buka peta ↗
+                              </a>
+                            )}
+                          </td>
+                          <td>
+                            <strong>
+                              {pickup.pickupAt
+                                ? pickupDate.format(new Date(pickup.pickupAt))
+                                : 'Waktu final via WhatsApp'}
+                            </strong>
+                            {pickup.instructions && (
+                              <span>{pickup.instructions}</span>
+                            )}
+                          </td>
+                          <td>
+                            <strong>
+                              Rp{money.format(Number(pickup.pricePerPax))}
+                            </strong>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            )}
+            <section
+              class="detail-readiness"
+              aria-labelledby="trip-readiness-title"
+            >
+              <header class="detail-readiness-head">
+                <div>
+                  <p class="eyebrow">SEBELUM BERANGKAT</p>
+                  <h3 id="trip-readiness-title">Siap jalan, tanpa kejutan.</h3>
+                </div>
+                <p>
+                  Simpan checklist-nya, lalu baca aturan perjalanan sebelum
+                  mengamankan kursi.
+                </p>
+              </header>
+              <div class="detail-disclosures">
+                {item.preparation && (
+                  <details class="detail-disclosure-preparation" open>
+                    <summary>
+                      <span class="detail-summary-copy">
+                        <span class="detail-summary-icon" aria-hidden="true">
+                          <Icon name="backpack" size={20} />
+                        </span>
+                        <span>
+                          <strong>Yang perlu disiapkan</strong>
+                          <small>
+                            Checklist perlengkapan pribadi ·{' '}
+                            {preparationItems.length} item
+                          </small>
+                        </span>
+                      </span>
+                      <span
+                        class="detail-summary-toggle"
+                        aria-hidden="true"
+                      ></span>
+                    </summary>
+                    <div class="detail-disclosure-content">
+                      <p class="detail-disclosure-intro">
+                        Centang sendiri sebelum berangkat agar tidak ada barang
+                        penting yang tertinggal.
+                      </p>
+                      <ul class="detail-preparation-list">
+                        {preparationItems.map((line) => (
+                          <li>{line}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  </details>
+                )}
+                {item.terms && (
+                  <details class="detail-disclosure-terms">
+                    <summary>
+                      <span class="detail-summary-copy">
+                        <span class="detail-summary-icon" aria-hidden="true">
+                          <Icon name="clipboard-check" size={20} />
+                        </span>
+                        <span>
+                          <strong>Ketentuan perjalanan</strong>
+                          <small>
+                            {termItems.length} poin penting untuk dibaca
+                          </small>
+                        </span>
+                      </span>
+                      <span
+                        class="detail-summary-toggle"
+                        aria-hidden="true"
+                      ></span>
+                    </summary>
+                    <div class="detail-disclosure-content">
+                      <ol class="detail-terms-list">
+                        {termItems.map((line) => (
+                          <li>{line}</li>
+                        ))}
+                      </ol>
+                    </div>
+                  </details>
+                )}
+              </div>
+            </section>
+            {item.trailMapEmbedUrl && (
+              <section class="trip-trail-map" aria-labelledby="trail-map-title">
+                <header class="trip-trail-map-head">
+                  <div>
+                    <p class="eyebrow">PETA RUTE</p>
+                    <h3 id="trail-map-title">Jalur pendakian.</h3>
+                  </div>
+                  <p>Geser dan zoom untuk mengenali lintasan perjalanan.</p>
+                </header>
+                <div class="trip-trail-map-frame">
+                  <iframe
+                    src={item.trailMapEmbedUrl}
+                    title={`Peta jalur pendakian ${item.name}`}
+                    loading="lazy"
+                    referrerpolicy="strict-origin-when-cross-origin"
+                    allow="fullscreen"
+                    allowfullscreen
+                  ></iframe>
+                </div>
+                <footer class="trip-trail-map-note">
+                  <p>
+                    Peta adalah referensi. Kondisi jalur dapat berubah—tetap
+                    ikuti arahan guide selama perjalanan.
+                  </p>
+                  <a
+                    href={item.trailMapEmbedUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    Buka peta penuh ↗
+                  </a>
+                </footer>
+              </section>
+            )}
+          </article>
+          {/* 4J: Panel jadwal dengan pemilih berorientasi URL */}
+          <aside class="public-schedule-panel">
+            <p class="eyebrow">JADWAL YANG DIBUKA</p>
+            <h2>
+              Pilih
+              <br />
+              keberangkatan.
+            </h2>
+            {selectedPrice !== undefined && (
+              <p class="schedule-from-label">
+                Jadwal pilihan mulai Rp{money.format(Number(selectedPrice))}
+                /orang
+              </p>
+            )}
+            <nav
+              class="departure-selector"
+              aria-label="Pilih tanggal keberangkatan"
+            >
+              {allDepartures.map((schedule) => {
+                const isSelected = selectedDeparture?.id === schedule.id;
+                return (
+                  <a
+                    href={`?jadwal=${schedule.id}`}
+                    class:list={[
+                      'departure-option',
+                      { 'departure-option-active': isSelected },
+                    ]}
+                    aria-current={isSelected ? 'true' : undefined}
+                  >
+                    <strong>{date.format(new Date(schedule.startAt))}</strong>
+                    <span>Sampai {date.format(new Date(schedule.endAt))}</span>
+                    <span>
+                      Mulai Rp{money.format(Number(schedule.unitPrice))}
+                      /orang · Down payment{' '}
+                      {schedule.dpMode === 'percent'
+                        ? `${schedule.dpValue}%`
+                        : `Rp${money.format(Number(schedule.dpValue))}`}
+                    </span>
+                  </a>
+                );
+              })}
+            </nav>
+            {selectedDeparture && (
+              <div class="selected-departure-cta">
+                <p class="selected-departure-label">
+                  <strong>
+                    {date.format(new Date(selectedDeparture.startAt))}
+                  </strong>
+                  <span> — {selectedPickups.length} titik kumpul</span>
+                </p>
+                <a
+                  class="button button-orange"
+                  href={`/booking/${selectedDeparture.id}`}
+                >
+                  Cek meeting point &amp; booking
+                </a>
+              </div>
+            )}
+          </aside>
+        </section>
+        {selectedDeparture && (
+          <aside
+            class="mobile-booking-bar"
+            data-mobile-booking-bar
+            data-visible="false"
+            aria-label="Jadwal pilihan dan lanjut booking"
+          >
+            <div class="mobile-booking-copy">
+              <span>Jadwal pilihan</span>
+              <strong>
+                {compactDate.format(new Date(selectedDeparture.startAt))}
+              </strong>
+              <small>
+                Rp{money.format(Number(selectedDeparture.unitPrice))}/orang
+              </small>
+            </div>
+            <a
+              class="button button-orange"
+              href={`/booking/${selectedDeparture.id}`}
+            >
+              Cek meeting point &amp; booking <Icon name="arrow-up" size={16} />
+            </a>
+          </aside>
+        )}
+      </>
+    ) : (
+      <section class="section public-empty">
+        <h1>Trip tidak ditemukan.</h1>
+        <p>
+          Trip mungkin belum dibuka, sudah ditutup, atau alamatnya tidak lagi
+          tersedia.
+        </p>
+        <a class="button button-dark" href="/trip">
+          Kembali ke katalog
+        </a>
+      </section>
+    )}
+  </main>
+</Layout>
+
+<style>
+  /* 4J: departure selector */
+  .schedule-from-label {
+    font-size: 11px;
+    color: var(--muted);
+    margin: 4px 0 0;
+  }
+  .departure-selector {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin: 14px 0 16px;
+  }
+  .departure-option {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 14px 16px;
+    border: 1px solid var(--line);
+    background: white;
+    transition: border-color 0.15s;
+    text-decoration: none;
+  }
+  .departure-option:hover {
+    border-color: var(--orange);
+  }
+  .departure-option-active {
+    border-color: var(--orange);
+    border-width: 2px;
+  }
+  .departure-option strong {
+    font-size: 13px;
+  }
+  .departure-option span {
+    font-size: 11px;
+    color: var(--muted);
+  }
+  .selected-departure-cta {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 16px;
+    background: #f0efe8;
+    border: 1px solid var(--line);
+  }
+  .selected-departure-label {
+    font-size: 12px;
+  }
+  .selected-departure-label span {
+    color: var(--muted);
+  }
+  /* 4J: overflow containment — tabel boleh scroll, tapi tidak membesar container */
+  .trip-detail-layout {
+    overflow-x: clip;
+  }
+  .trip-pickup-table-wrap {
+    overflow-x: auto;
+    max-width: 100%;
+  }
+  .trip-pickup-table {
+    min-width: 480px;
+  }
+</style>
+
+<script>
+  const mobileBookingBar = document.querySelector<HTMLElement>(
+    '[data-mobile-booking-bar]',
+  );
+  const schedulePanel = document.querySelector<HTMLElement>(
+    '.public-schedule-panel',
+  );
+  const siteFooter = document.querySelector<HTMLElement>('.site-footer');
+
+  if (mobileBookingBar && schedulePanel) {
+    let bookingBarFrame = 0;
+
+    const syncMobileBookingBar = () => {
+      bookingBarFrame = 0;
+      const isMobile = window.matchMedia('(max-width: 800px)').matches;
+      const scheduleHasPassed =
+        schedulePanel.getBoundingClientRect().bottom < 90;
+      const footerHasEntered = siteFooter
+        ? siteFooter.getBoundingClientRect().top < window.innerHeight
+        : false;
+
+      mobileBookingBar.dataset.visible = String(
+        isMobile && scheduleHasPassed && !footerHasEntered,
+      );
+    };
+
+    const queueMobileBookingBarSync = () => {
+      if (bookingBarFrame) return;
+      bookingBarFrame = window.requestAnimationFrame(syncMobileBookingBar);
+    };
+
+    syncMobileBookingBar();
+    window.addEventListener('scroll', queueMobileBookingBarSync, {
+      passive: true,
+    });
+    window.addEventListener('resize', queueMobileBookingBarSync);
+  }
+</script>

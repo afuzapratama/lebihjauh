@@ -1,0 +1,264 @@
+---
+import Layout from '../layouts/Layout.astro';
+import SiteHeader from '../components/SiteHeader.astro';
+
+export const prerender = false;
+---
+
+<Layout
+  title="Cek Booking — LebihJauh"
+  description="Periksa status booking LebihJauh dengan nomor booking dan WhatsApp PIC, lalu buka invoice perjalananmu."
+>
+  <SiteHeader active="booking" />
+  <main id="main" class="public-trip-page booking-lookup-page">
+    <section class="section booking-lookup-shell">
+      <div class="booking-lookup-intro">
+        <p class="eyebrow">
+          <span></span> CEK BOOKING
+        </p>
+        <h1>
+          Temukan
+          <br />
+          <span class="handwritten">perjalananmu.</span>
+        </h1>
+        <p>
+          Masukkan nomor booking dan WhatsApp PIC. Kami akan menampilkan
+          ringkasan terbaru sebelum kamu membuka invoice.
+        </p>
+        <div class="booking-lookup-security">
+          <span aria-hidden="true">✳</span>
+          <div>
+            <strong>Cepat dan tetap sesuai data.</strong>
+            <p>
+              WhatsApp PIC dipakai untuk memastikan ringkasan yang ditampilkan
+              adalah booking milik rombonganmu.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div class="booking-lookup-panel">
+        <form id="booking-lookup-form" class="booking-lookup-form">
+          <div>
+            <p class="eyebrow">DATA PEMESANAN</p>
+            <h2>Cek status booking</h2>
+            <p>
+              Gunakan WhatsApp yang sama dengan saat booking. Format 08 dan +62
+              sama-sama bisa digunakan.
+            </p>
+          </div>
+          <label>
+            Nomor booking
+            <input
+              name="number"
+              placeholder="LJ-OT-000001"
+              autocomplete="off"
+              autocapitalize="characters"
+              maxlength="24"
+              required
+            />
+          </label>
+          <label>
+            WhatsApp PIC
+            <input
+              name="whatsapp"
+              type="tel"
+              inputmode="tel"
+              placeholder="08xx xxxx xxxx"
+              autocomplete="tel"
+              maxlength="24"
+              required
+            />
+          </label>
+          <p class="booking-lookup-privacy">
+            Data ini hanya dipakai untuk mencocokkan booking dan tidak
+            ditampilkan di hasil.
+          </p>
+          <p
+            id="booking-lookup-error"
+            class="booking-error"
+            role="alert"
+            hidden
+          ></p>
+          <button class="button button-orange" type="submit">
+            Cek booking saya ↗
+          </button>
+        </form>
+
+        <article
+          id="booking-lookup-result"
+          class="booking-lookup-result"
+          aria-live="polite"
+          tabindex="-1"
+          hidden
+        >
+          <div class="booking-lookup-result-head">
+            <div>
+              <p class="eyebrow">BOOKING DITEMUKAN</p>
+              <strong id="lookup-number"></strong>
+            </div>
+            <span id="lookup-state" class="invoice-state"></span>
+          </div>
+          <h2 id="lookup-trip"></h2>
+          <dl>
+            <div>
+              <dt>Keberangkatan</dt>
+              <dd id="lookup-start"></dd>
+            </div>
+            <div>
+              <dt>Meeting point</dt>
+              <dd id="lookup-pickup"></dd>
+            </div>
+            <div>
+              <dt>PIC</dt>
+              <dd id="lookup-pic"></dd>
+            </div>
+            <div>
+              <dt>Peserta</dt>
+              <dd id="lookup-pax"></dd>
+            </div>
+          </dl>
+          <div class="booking-lookup-payment">
+            <div>
+              <span>Status pembayaran</span>
+              <strong id="lookup-payment-state"></strong>
+            </div>
+            <div>
+              <span>Total booking</span>
+              <strong id="lookup-total"></strong>
+            </div>
+            <div>
+              <span>Sisa pembayaran</span>
+              <strong id="lookup-remaining"></strong>
+            </div>
+          </div>
+          <p id="lookup-access-note" class="booking-lookup-access-note"></p>
+          <div class="booking-lookup-actions">
+            <a
+              id="lookup-invoice-link"
+              class="button button-dark"
+              href="/cek-booking"
+            >
+              Buka invoice ↗
+            </a>
+            <button
+              id="lookup-again"
+              class="button button-outline"
+              type="button"
+            >
+              Cek booking lain
+            </button>
+          </div>
+        </article>
+      </div>
+    </section>
+  </main>
+  <script>
+    const form = document.querySelector<HTMLFormElement>(
+      '#booking-lookup-form',
+    );
+    const result = document.querySelector<HTMLElement>(
+      '#booking-lookup-result',
+    );
+    const error = document.querySelector<HTMLElement>('#booking-lookup-error');
+    const submit = form?.querySelector<HTMLButtonElement>(
+      'button[type="submit"]',
+    );
+    const byId = (id: string) => document.querySelector<HTMLElement>(`#${id}`);
+    const money = new Intl.NumberFormat('id-ID');
+    const when = new Intl.DateTimeFormat('id-ID', {
+      dateStyle: 'full',
+      timeStyle: 'short',
+      timeZone: 'Asia/Jakarta',
+    });
+    const stateLabels: Record<string, string> = {
+      awaiting_payment: 'MENUNGGU PEMBAYARAN',
+      confirmed: 'TERKONFIRMASI',
+      completed: 'SELESAI',
+      expired: 'KEDALUWARSA',
+      cancelled: 'DIBATALKAN',
+    };
+    const paymentLabels: Record<string, string> = {
+      unpaid: 'Belum terverifikasi',
+      dp: 'DP terverifikasi',
+      paid: 'Lunas',
+    };
+    const setText = (id: string, value: string) => {
+      const element = byId(id);
+      if (element) element.textContent = value;
+    };
+
+    form?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      if (!form.reportValidity() || !submit || !error || !result) return;
+      submit.disabled = true;
+      submit.textContent = 'Memeriksa…';
+      error.hidden = true;
+      result.hidden = true;
+      const data = new FormData(form);
+      try {
+        const response = await fetch('/api/booking-lookup', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            number: data.get('number'),
+            whatsapp: data.get('whatsapp'),
+          }),
+        });
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.message);
+        const booking = payload.booking;
+        setText('lookup-number', booking.number);
+        setText('lookup-state', stateLabels[booking.state] ?? booking.state);
+        setText('lookup-trip', booking.tripName);
+        setText(
+          'lookup-start',
+          booking.startAt ? when.format(new Date(booking.startAt)) : 'Menyusul',
+        );
+        setText('lookup-pickup', booking.pickup ?? 'Lihat detail di invoice');
+        setText('lookup-pic', booking.picName);
+        setText('lookup-pax', `${booking.pax} orang`);
+        setText(
+          'lookup-payment-state',
+          paymentLabels[booking.paymentState] ?? booking.paymentState,
+        );
+        setText('lookup-total', `Rp${money.format(Number(booking.total))}`);
+        setText(
+          'lookup-remaining',
+          `Rp${money.format(Number(booking.remaining))}`,
+        );
+        setText(
+          'lookup-access-note',
+          booking.state === 'awaiting_payment'
+            ? 'Buka invoice untuk melihat metode pembayaran atau mengirim bukti transfer.'
+            : 'Invoice siap dibuka. Status terbaru booking dan pembayaran tersedia di dalamnya.',
+        );
+        const link = document.querySelector<HTMLAnchorElement>(
+          '#lookup-invoice-link',
+        );
+        if (link) link.href = booking.invoicePath;
+        form.hidden = true;
+        result.hidden = false;
+        result.focus();
+      } catch (reason) {
+        error.textContent =
+          reason instanceof Error
+            ? reason.message
+            : 'Booking belum dapat diperiksa.';
+        error.hidden = false;
+      } finally {
+        submit.disabled = false;
+        submit.textContent = 'Cek booking saya ↗';
+      }
+    });
+
+    document.querySelector('#lookup-again')?.addEventListener('click', () => {
+      if (!form || !result || !error) return;
+      result.hidden = true;
+      form.hidden = false;
+      error.hidden = true;
+      form.reset();
+      form.querySelector<HTMLInputElement>('input')?.focus();
+    });
+  </script>
+</Layout>

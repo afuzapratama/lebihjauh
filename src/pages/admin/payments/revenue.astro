@@ -1,0 +1,939 @@
+---
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import FileUploadControl from '../../../components/FileUploadControl.astro';
+import { getRevenueReport, revenueFilters } from '../../../lib/revenue-report';
+
+export const prerender = false;
+
+const filters = revenueFilters(Astro.url.searchParams);
+const report = await getRevenueReport(filters);
+const money = new Intl.NumberFormat('id-ID');
+const monthFormatter = new Intl.DateTimeFormat('id-ID', {
+  month: 'long',
+  year: 'numeric',
+  timeZone: 'Asia/Jakarta',
+});
+const dateFormatter = new Intl.DateTimeFormat('id-ID', {
+  dateStyle: 'medium',
+  timeStyle: 'short',
+  timeZone: 'Asia/Jakarta',
+});
+const shortMonthFormatter = new Intl.DateTimeFormat('id-ID', {
+  month: 'short',
+  year: '2-digit',
+  timeZone: 'Asia/Jakarta',
+});
+const periodDate = new Date(Date.UTC(filters.year, filters.month - 1, 1));
+const currentMonthLabel = monthFormatter.format(periodDate);
+const previousDate = new Date(Date.UTC(filters.year, filters.month - 2, 1));
+const nextDate = new Date(Date.UTC(filters.year, filters.month, 1));
+const queryFor = (year: number, month: number) => {
+  const params = new URLSearchParams({
+    year: String(year),
+    month: String(month),
+  });
+  if (filters.tripName) params.set('trip', filters.tripName);
+  if (filters.paymentMethodId) params.set('method', filters.paymentMethodId);
+  if (filters.bookingSource) params.set('source', filters.bookingSource);
+  if (filters.departureId) params.set('departure', filters.departureId);
+  if (filters.pickupName) params.set('pickup', filters.pickupName);
+  return `/admin/payments/revenue?${params}`;
+};
+const bookingState = (state: string) =>
+  ({
+    awaiting_payment: 'Menunggu pembayaran',
+    confirmed: 'Terkonfirmasi',
+    completed: 'Selesai',
+    expired: 'Kedaluwarsa',
+    cancelled: 'Dibatalkan',
+  })[state] ?? state;
+const tripName = (value: unknown) =>
+  value &&
+  typeof value === 'object' &&
+  !Array.isArray(value) &&
+  typeof (value as Record<string, unknown>).tripName === 'string'
+    ? (value as Record<string, unknown>).tripName
+    : 'Trip LebihJauh';
+const methodName = (value: unknown) =>
+  value &&
+  typeof value === 'object' &&
+  !Array.isArray(value) &&
+  typeof (value as Record<string, unknown>).name === 'string'
+    ? (value as Record<string, unknown>).name
+    : 'Metode tidak tercatat';
+const signedMoney = (value: bigint) =>
+  value < 0n
+    ? `-Rp${money.format(Number(-value))}`
+    : `Rp${money.format(Number(value))}`;
+const expenseCategory = (value: string) =>
+  ({
+    transport: 'Transport',
+    guide: 'Guide',
+    porter: 'Porter',
+    simaksi: 'Simaksi',
+    logistik: 'Logistik',
+    penginapan: 'Penginapan',
+    sewa_alat: 'Sewa alat',
+    dokumentasi: 'Dokumentasi',
+    komisi: 'Komisi',
+    lainnya: 'Lainnya',
+  })[value] ?? value;
+---
+
+<AdminLayout title="Keuangan" active="finance">
+  <div class="page-title revenue-page-title">
+    <div>
+      <p class="eyebrow">04 / KEUANGAN</p>
+      <h1>
+        Masuk dan keluar.
+        <br />
+        Terlihat jelas.
+      </h1>
+      <p class="muted">
+        Dana masuk memakai pembayaran terverifikasi. Posisi kas mengurangi
+        pengeluaran aktif berdasarkan tanggal transaksi.
+      </p>
+    </div>
+    <div class="payment-page-actions">
+      <button class="primary" id="open-general-expense" type="button">
+        Catat biaya umum
+      </button>
+      <a class="button-link" href="/admin/payments">
+        ← Antrean pembayaran
+      </a>
+      <a class="button-link" href="/admin/payments/methods">
+        Atur metode ↗
+      </a>
+    </div>
+  </div>
+
+  <form class="revenue-filters" method="get">
+    <label>
+      Periode laporan
+      <div class="revenue-period-control">
+        <a
+          class="quiet-button"
+          href={queryFor(
+            previousDate.getUTCFullYear(),
+            previousDate.getUTCMonth() + 1,
+          )}
+          aria-label="Bulan sebelumnya"
+        >
+          ←
+        </a>
+        <select name="month" aria-label="Bulan">
+          {Array.from({ length: 12 }, (_, index) => index + 1).map((month) => (
+            <option value={month} selected={month === filters.month}>
+              {monthFormatter
+                .format(new Date(Date.UTC(2026, month - 1, 1)))
+                .replace('2026', '')
+                .trim()}
+            </option>
+          ))}
+        </select>
+        <select name="year" aria-label="Tahun">
+          {Array.from(
+            { length: 7 },
+            (_, index) => filters.year - 3 + index,
+          ).map((year) => (
+            <option value={year} selected={year === filters.year}>
+              {year}
+            </option>
+          ))}
+        </select>
+        <a
+          class="quiet-button"
+          href={queryFor(nextDate.getUTCFullYear(), nextDate.getUTCMonth() + 1)}
+          aria-label="Bulan berikutnya"
+        >
+          →
+        </a>
+      </div>
+    </label>
+    <label>
+      Trip
+      <select name="trip">
+        <option value="">Semua trip</option>
+        {report.trips.map((trip) => (
+          <option value={trip} selected={trip === filters.tripName}>
+            {trip}
+          </option>
+        ))}
+      </select>
+    </label>
+    <label>
+      Metode pembayaran
+      <select name="method">
+        <option value="">Semua metode</option>
+        {report.methods.map((method) => (
+          <option
+            value={method.id}
+            selected={method.id === filters.paymentMethodId}
+          >
+            {method.name}
+          </option>
+        ))}
+      </select>
+    </label>
+    <label>
+      Jenis booking
+      <select name="source">
+        <option value="">Open & Private</option>
+        <option
+          value="open_trip"
+          selected={filters.bookingSource === 'open_trip'}
+        >
+          Open Trip
+        </option>
+        <option
+          value="private_trip"
+          selected={filters.bookingSource === 'private_trip'}
+        >
+          Private Trip
+        </option>
+      </select>
+    </label>
+    <label>
+      Jadwal keberangkatan
+      <select name="departure">
+        <option value="">Semua jadwal</option>
+        {report.departures.map((item) => (
+          <option value={item.id} selected={item.id === filters.departureId}>
+            {item.label}
+          </option>
+        ))}
+      </select>
+    </label>
+    <label>
+      Meeting point
+      <select name="pickup">
+        <option value="">Semua meeting point</option>
+        {report.pickupPoints.map((item) => (
+          <option value={item} selected={item === filters.pickupName}>
+            {item}
+          </option>
+        ))}
+      </select>
+    </label>
+    <button class="primary" type="submit">
+      Terapkan laporan
+    </button>
+  </form>
+
+  <section
+    class="revenue-metrics"
+    aria-label={`Ringkasan pendapatan ${currentMonthLabel}`}
+  >
+    <article class="revenue-received">
+      <span>DANA MASUK TERVERIFIKASI</span>
+      <strong>Rp{money.format(Number(report.totalReceived))}</strong>
+      <small>
+        {report.verifiedCount} transaksi · {report.bookingCount} order
+      </small>
+    </article>
+    <article class="finance-expense-metric">
+      <span>PENGELUARAN AKTIF</span>
+      <strong>Rp{money.format(Number(report.totalExpenses))}</strong>
+      <small>{report.expenseCount} biaya tercatat pada periode ini</small>
+    </article>
+    <article
+      class:list={[
+        'finance-cash-metric',
+        { negative: report.cashPosition < 0n },
+      ]}
+    >
+      <span>POSISI KAS PERIODE</span>
+      <strong>{signedMoney(report.cashPosition)}</strong>
+      <small>
+        Rp{money.format(Number(report.cashReceived))} semua metode dikurangi
+        biaya dibayar
+      </small>
+    </article>
+    <article>
+      <span>NILAI ORDER BARU</span>
+      <strong>Rp{money.format(Number(report.newOrderAmount))}</strong>
+      <small>
+        {report.newOrderCount} invoice dibuat · belum tentu diterima
+      </small>
+    </article>
+    <article>
+      <span>PIUTANG BERJALAN</span>
+      <strong>Rp{money.format(Number(report.receivableAmount))}</strong>
+      <small>{report.receivableCount} invoice aktif belum lunas</small>
+    </article>
+    <article
+      class:list={['revenue-pending', { clear: report.pendingCount === 0 }]}
+    >
+      <span>
+        {report.pendingCount ? 'MENUNGGU VERIFIKASI' : 'ANTREAN BERSIH'}
+      </span>
+      <strong>Rp{money.format(Number(report.pendingAmount))}</strong>
+      <small>
+        {report.pendingCount
+          ? `${report.pendingCount} bukti belum dihitung sebagai pendapatan`
+          : 'Tidak ada bukti pembayaran pada periode ini'}
+      </small>
+    </article>
+  </section>
+
+  <p class="revenue-period-note">
+    Periode: <strong>{currentMonthLabel}</strong> · Berdasarkan tanggal dana
+    masuk pada mutasi dan tanggal biaya dibayar.
+  </p>
+
+  <section class="revenue-insights">
+    <article class="panel revenue-daily-panel">
+      <div class="panel-head">
+        <div>
+          <p class="eyebrow">ALUR DANA MASUK</p>
+          <h2>Per hari.</h2>
+        </div>
+        <span class="pill olive">{currentMonthLabel}</span>
+      </div>
+      {report.totalReceived > 0n ? (
+        <div class="revenue-bars" aria-label="Grafik dana masuk per hari">
+          {report.daily.map((item) => (
+            <div class="revenue-bar-item">
+              <span class="revenue-bar-value">
+                Rp{money.format(Number(item.amount))}
+              </span>
+              <i
+                style={`height: ${Math.max(3, Number((item.amount * 100n) / report.largestDay))}%`}
+                title={`Tanggal ${item.day}: Rp${money.format(Number(item.amount))}`}
+              ></i>
+              <b>{item.day}</b>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p class="revenue-empty-copy">
+          Belum ada dana masuk terverifikasi pada periode ini.
+        </p>
+      )}
+    </article>
+
+    <article class="panel revenue-method-panel">
+      <p class="eyebrow">SUMBER PEMBAYARAN</p>
+      <h2>Masuk dari mana.</h2>
+      {report.byMethod.length ? (
+        <ul class="revenue-breakdown-list">
+          {report.byMethod.map((item) => (
+            <li>
+              <div>
+                <strong>{item.name}</strong>
+                <small>{item.count} transaksi</small>
+              </div>
+              <b>Rp{money.format(Number(item.amount))}</b>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p class="revenue-empty-copy">
+          Belum ada metode yang tercatat pada periode ini.
+        </p>
+      )}
+    </article>
+  </section>
+
+  <section class="panel revenue-trip-panel">
+    <div class="panel-head">
+      <div>
+        <p class="eyebrow">PER TRIP</p>
+        <h2>Yang sudah menghasilkan.</h2>
+        <p class="muted">
+          Nominal di bawah adalah dana masuk, bukan harga paket atau total
+          invoice.
+        </p>
+      </div>
+    </div>
+    {report.byTrip.length ? (
+      <div class="revenue-trip-list">
+        {report.byTrip.map((item, index) => (
+          <article>
+            <span>{String(index + 1).padStart(2, '0')}</span>
+            <div>
+              <strong>{item.name}</strong>
+              <small>
+                {item.bookings} order · {item.pax} pax · {item.transactions}{' '}
+                transaksi
+              </small>
+            </div>
+            <b>Rp{money.format(Number(item.amount))}</b>
+          </article>
+        ))}
+      </div>
+    ) : (
+      <p class="revenue-empty-copy">
+        Belum ada dana masuk untuk trip pada periode ini.
+      </p>
+    )}
+  </section>
+
+  <section class="panel schedule-finance-panel">
+    <div class="panel-head">
+      <div>
+        <p class="eyebrow">PER JADWAL KEBERANGKATAN</p>
+        <h2>Nilai perjalanan.</h2>
+        <p class="muted">
+          Margin booking adalah nilai invoice dikurangi biaya tercatat, bukan
+          laba final. Posisi kas memakai uang yang sudah benar-benar diterima.
+        </p>
+      </div>
+    </div>
+    {report.scheduleFinance.length ? (
+      <div class="orders-table-wrap">
+        <table class="orders-table schedule-finance-table">
+          <thead>
+            <tr>
+              <th>Trip / jadwal</th>
+              <th>Order</th>
+              <th>Nilai invoice</th>
+              <th>Dana masuk</th>
+              <th>Piutang</th>
+              <th>Pengeluaran</th>
+              <th>Posisi kas</th>
+              <th>Margin booking</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {report.scheduleFinance.map((item) => (
+              <tr>
+                <td>
+                  <strong>{item.tripName}</strong>
+                  <small>{dateFormatter.format(item.startAt)}</small>
+                </td>
+                <td>
+                  {item.orderCount} · {item.pax} pax
+                </td>
+                <td>Rp{money.format(Number(item.invoiced))}</td>
+                <td>
+                  <strong>Rp{money.format(Number(item.verified))}</strong>
+                </td>
+                <td>Rp{money.format(Number(item.receivable))}</td>
+                <td>Rp{money.format(Number(item.expense))}</td>
+                <td class:list={{ negative: item.cashPosition < 0n }}>
+                  <strong>{signedMoney(item.cashPosition)}</strong>
+                </td>
+                <td class:list={{ negative: item.bookingMargin < 0n }}>
+                  <strong>{signedMoney(item.bookingMargin)}</strong>
+                </td>
+                <td>
+                  <a
+                    class="button-link"
+                    href={`/admin/departures/${item.departureId}`}
+                  >
+                    Buka jadwal ↗
+                  </a>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    ) : (
+      <p class="revenue-empty-copy">
+        Belum ada order aktif pada jadwal keberangkatan periode ini.
+      </p>
+    )}
+  </section>
+
+  <section class="list-panel orders-panel revenue-history">
+    <div class="panel-head">
+      <div>
+        <p class="eyebrow">RIWAYAT DANA MASUK</p>
+        <h2>
+          {report.rows.length
+            ? `${report.rows.length} transaksi terverifikasi`
+            : 'Belum ada transaksi terverifikasi'}
+        </h2>
+        <p class="muted">
+          Tidak menampilkan NIK, bukti pembayaran, atau data pribadi peserta.
+        </p>
+      </div>
+    </div>
+    {report.rows.length ? (
+      <div class="orders-table-wrap">
+        <table class="orders-table revenue-table">
+          <thead>
+            <tr>
+              <th>Dana masuk</th>
+              <th>Invoice / PIC</th>
+              <th>Trip</th>
+              <th>Metode</th>
+              <th>Referensi</th>
+              <th>Nominal</th>
+              <th>Diverifikasi</th>
+              <th>Status order</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {report.rows.map((item) => (
+              <tr>
+                <td>{dateFormatter.format(item.receivedAt)}</td>
+                <td>
+                  <strong>{item.bookingNumber}</strong>
+                  <small>
+                    {item.picName} · {item.pax} pax
+                  </small>
+                </td>
+                <td>{tripName(item.trip)}</td>
+                <td>{methodName(item.paymentMethodSnapshot)}</td>
+                <td>{item.reference ?? '—'}</td>
+                <td>
+                  <strong>Rp{money.format(Number(item.amount))}</strong>
+                </td>
+                <td>
+                  {item.reviewedAt ? (
+                    <>
+                      <strong>{item.reviewedByName ?? 'Admin'}</strong>
+                      <small>{dateFormatter.format(item.reviewedAt)}</small>
+                    </>
+                  ) : (
+                    '—'
+                  )}
+                </td>
+                <td>
+                  <span class:list={['state', `booking-${item.bookingState}`]}>
+                    {bookingState(item.bookingState)}
+                  </span>
+                </td>
+                <td>
+                  <a
+                    class="button-link"
+                    href={`/admin/orders/${item.bookingId}`}
+                  >
+                    Buka order ↗
+                  </a>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    ) : (
+      <div class="payment-history-empty">
+        <p>
+          Pembayaran muncul di sini setelah statusnya menjadi{' '}
+          <strong>Terverifikasi</strong>.
+        </p>
+        <a class="primary" href="/admin/payments">
+          Buka antrean pembayaran ↗
+        </a>
+      </div>
+    )}
+  </section>
+
+  <section class="list-panel orders-panel finance-expense-history">
+    <div class="panel-head">
+      <div>
+        <p class="eyebrow">RIWAYAT PENGELUARAN</p>
+        <h2>
+          {report.expenses.length
+            ? `${report.expenses.length} catatan biaya`
+            : 'Belum ada biaya pada periode ini'}
+        </h2>
+        <p class="muted">
+          Catatan dibatalkan tetap terlihat tetapi tidak dihitung pada posisi
+          kas.
+        </p>
+      </div>
+      {report.voidedExpenseCount > 0 && (
+        <span class="pill">{report.voidedExpenseCount} dibatalkan</span>
+      )}
+    </div>
+    {report.expenses.length ? (
+      <div class="orders-table-wrap">
+        <table class="orders-table revenue-table">
+          <thead>
+            <tr>
+              <th>Tanggal biaya</th>
+              <th>Trip / keberangkatan</th>
+              <th>Kategori</th>
+              <th>Vendor</th>
+              <th>Metode / referensi</th>
+              <th>Nominal</th>
+              <th>Status</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {report.expenses.map((expense) => (
+              <tr
+                class:list={{
+                  'expense-row-voided': expense.state === 'voided',
+                }}
+              >
+                <td>{dateFormatter.format(expense.paidAt)}</td>
+                <td>
+                  <strong>
+                    {expense.scope === 'general'
+                      ? 'Operasional umum'
+                      : expense.tripName}
+                  </strong>
+                  {expense.departureStartAt && (
+                    <small>
+                      {dateFormatter.format(expense.departureStartAt)}
+                    </small>
+                  )}
+                </td>
+                <td>{expenseCategory(expense.category)}</td>
+                <td>{expense.vendor}</td>
+                <td>
+                  {expense.method}
+                  {expense.reference && <small>{expense.reference}</small>}
+                </td>
+                <td>
+                  <strong>Rp{money.format(Number(expense.amount))}</strong>
+                </td>
+                <td>
+                  <span
+                    class:list={[
+                      'state',
+                      expense.state === 'active' ? 'open' : 'closed',
+                    ]}
+                  >
+                    {expense.state === 'active' ? 'Aktif' : 'Dibatalkan'}
+                  </span>
+                  {expense.voidReason && <small>{expense.voidReason}</small>}
+                </td>
+                <td>
+                  <div class="finance-expense-actions">
+                    {expense.departureId && (
+                      <a
+                        class="button-link"
+                        href={`/admin/departures/${expense.departureId}`}
+                      >
+                        Buka jadwal ↗
+                      </a>
+                    )}
+                    {expense.proofObjectKey && (
+                      <button
+                        class="button-link"
+                        type="button"
+                        data-admin-image-src={`/api/admin/expense-proofs/${expense.id}`}
+                        data-admin-image-eyebrow="BUKTI PENGELUARAN"
+                        data-admin-image-title={expense.vendor}
+                        data-admin-image-alt={`Bukti pengeluaran ${expense.vendor}`}
+                        data-admin-image-note="Bukti hanya digunakan untuk pemeriksaan dan pencatatan pengeluaran."
+                      >
+                        Bukti
+                      </button>
+                    )}
+                    {expense.scope === 'general' &&
+                      expense.state === 'active' && (
+                        <button
+                          class="danger-button void-general-expense"
+                          type="button"
+                          data-expense-id={expense.id}
+                          data-vendor={expense.vendor}
+                        >
+                          Batalkan
+                        </button>
+                      )}
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    ) : (
+      <p class="revenue-empty-copy">
+        Catat biaya dari halaman operasional jadwal agar arus kas dapat dibaca
+        bersama dana masuk.
+      </p>
+    )}
+  </section>
+
+  <section class="panel revenue-monthly-panel">
+    <div class="panel-head">
+      <div>
+        <p class="eyebrow">12 BULAN TERAKHIR</p>
+        <h2>Ritme pendapatan.</h2>
+      </div>
+    </div>
+    <div class="revenue-months">
+      {report.monthlyHistory.map((item) => (
+        <a
+          href={queryFor(item.year, item.month)}
+          class:list={{
+            current: item.year === filters.year && item.month === filters.month,
+          }}
+        >
+          <span>
+            {shortMonthFormatter.format(
+              new Date(Date.UTC(item.year, item.month - 1, 1)),
+            )}
+          </span>
+          <strong>Rp{money.format(Number(item.amount))}</strong>
+        </a>
+      ))}
+    </div>
+    <p class="revenue-footnote">
+      Posisi kas bukan laba final. Piutang, refund, dan biaya yang belum dicatat
+      tetap perlu diperiksa sebelum mengambil keputusan.
+    </p>
+  </section>
+
+  <dialog
+    id="general-expense-dialog"
+    class="admin-confirm-dialog finance-expense-dialog"
+  >
+    <form id="general-expense-form" class="confirm-dialog-content">
+      <p class="eyebrow">PENGELUARAN UMUM</p>
+      <h2>Catat biaya operasional.</h2>
+      <p class="muted">
+        Gunakan untuk biaya kantor yang tidak tepat dibebankan ke satu jadwal.
+        Catatan yang salah dibatalkan dengan alasan, bukan dihapus.
+      </p>
+      <div class="form-two-columns">
+        <label>
+          Tanggal biaya
+          <input name="paidAt" type="datetime-local" required />
+        </label>
+        <label>
+          Kategori
+          <select name="category" required>
+            <option value="transport">Transport</option>
+            <option value="logistik">Logistik</option>
+            <option value="sewa_alat">Sewa alat</option>
+            <option value="dokumentasi">Dokumentasi</option>
+            <option value="komisi">Komisi</option>
+            <option value="lainnya">Lainnya</option>
+          </select>
+        </label>
+        <label>
+          Vendor / penerima
+          <input name="vendor" maxlength="160" required />
+        </label>
+        <label>
+          Nominal
+          <input
+            name="amount"
+            class="money-input"
+            inputmode="numeric"
+            required
+          />
+        </label>
+        <label>
+          Metode pembayaran
+          <input
+            name="method"
+            maxlength="80"
+            placeholder="Transfer / tunai"
+            required
+          />
+        </label>
+        <label>
+          Referensi <small>Opsional</small>
+          <input name="reference" maxlength="500" />
+        </label>
+      </div>
+      <div class="general-expense-proof-field">
+        <span class="form-label">
+          Bukti biaya <small>Opsional</small>
+        </span>
+        <FileUploadControl
+          id="general-expense-proof"
+          title="Unggah bukti pengeluaran umum"
+          hint="Struk, nota, atau invoice · JPEG, PNG, atau WebP · maksimal 8 MB"
+          accept="image/jpeg,image/png,image/webp"
+          icon="receipt"
+          size="compact"
+          actionLabel="Pilih bukti"
+        />
+      </div>
+      <div class="confirm-dialog-actions">
+        <button class="button-link" id="close-general-expense" type="button">
+          Kembali
+        </button>
+        <button class="primary" type="submit">
+          Simpan pengeluaran
+        </button>
+      </div>
+    </form>
+  </dialog>
+  <dialog id="void-general-expense-dialog" class="admin-confirm-dialog">
+    <form id="void-general-expense-form" class="confirm-dialog-content">
+      <p class="eyebrow">PEMBATALAN BERJEJAK</p>
+      <h2>Batalkan biaya umum?</h2>
+      <p class="muted" id="void-general-expense-copy"></p>
+      <label>
+        Alasan pembatalan
+        <textarea
+          name="reason"
+          minlength="5"
+          maxlength="500"
+          rows="3"
+          required
+        ></textarea>
+      </label>
+      <div class="confirm-dialog-actions">
+        <button
+          class="button-link"
+          id="close-void-general-expense"
+          type="button"
+        >
+          Kembali
+        </button>
+        <button class="danger-button" type="submit">
+          Batalkan biaya
+        </button>
+      </div>
+    </form>
+  </dialog>
+
+  <script>
+    import { bindRupiahInput } from '../../../scripts/money-input';
+    const dialog = document.querySelector<HTMLDialogElement>(
+      '#general-expense-dialog',
+    );
+    const form = document.querySelector<HTMLFormElement>(
+      '#general-expense-form',
+    );
+    form
+      ?.querySelectorAll<HTMLInputElement>('.money-input')
+      .forEach((input) => bindRupiahInput(input));
+    document
+      .querySelector('#open-general-expense')
+      ?.addEventListener('click', () => {
+        const dateInput = form?.elements.namedItem(
+          'paidAt',
+        ) as HTMLInputElement | null;
+        if (dateInput && !dateInput.value) {
+          const now = new Date(Date.now() + 7 * 60 * 60 * 1000);
+          dateInput.value = now.toISOString().slice(0, 16);
+        }
+        dialog?.showModal();
+      });
+    document
+      .querySelector('#close-general-expense')
+      ?.addEventListener('click', () => dialog?.close());
+    form?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      if (!form.reportValidity()) return;
+      const submit = form.querySelector<HTMLButtonElement>(
+        'button[type="submit"]',
+      );
+      if (submit) submit.disabled = true;
+      try {
+        const file = document.querySelector<HTMLInputElement>(
+          '#general-expense-proof',
+        )?.files?.[0];
+        let proofObjectKey: string | null = null;
+        if (file) {
+          const presignResponse = await fetch(
+            '/api/admin/expense-proofs/presign',
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                fileName: file.name,
+                contentType: file.type,
+                size: file.size,
+              }),
+            },
+          );
+          const presign = await presignResponse.json();
+          if (!presignResponse.ok) throw new Error(presign.message);
+          const upload = await fetch(presign.uploadUrl, {
+            method: 'PUT',
+            headers: { 'Content-Type': file.type },
+            body: file,
+          });
+          if (!upload.ok) throw new Error('Bukti biaya belum dapat diunggah.');
+          proofObjectKey = presign.objectKey;
+        }
+        const values = Object.fromEntries(new FormData(form));
+        const response = await fetch('/api/admin/trip-expenses', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ...values,
+            scope: 'general',
+            amount: String(values.amount ?? '').replace(/\D/g, ''),
+            proofObjectKey,
+          }),
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.message);
+        sessionStorage.setItem(
+          'lebihjauh-admin-notification',
+          JSON.stringify({
+            type: 'success',
+            message: 'Pengeluaran umum tersimpan dan masuk laporan kas.',
+          }),
+        );
+        location.reload();
+      } catch (error) {
+        window.adminNotify({
+          type: 'error',
+          message:
+            error instanceof Error
+              ? error.message
+              : 'Pengeluaran belum dapat disimpan.',
+        });
+        if (submit) submit.disabled = false;
+      }
+    });
+    const voidDialog = document.querySelector<HTMLDialogElement>(
+      '#void-general-expense-dialog',
+    );
+    const voidForm = document.querySelector<HTMLFormElement>(
+      '#void-general-expense-form',
+    );
+    let selectedExpenseId = '';
+    document
+      .querySelectorAll<HTMLButtonElement>('.void-general-expense')
+      .forEach((button) =>
+        button.addEventListener('click', () => {
+          selectedExpenseId = button.dataset.expenseId ?? '';
+          const copy = document.querySelector('#void-general-expense-copy');
+          if (copy)
+            copy.textContent = `Catatan untuk ${button.dataset.vendor ?? 'vendor'} tetap tersimpan tetapi tidak lagi dihitung pada posisi kas.`;
+          voidForm?.reset();
+          voidDialog?.showModal();
+        }),
+      );
+    document
+      .querySelector('#close-void-general-expense')
+      ?.addEventListener('click', () => voidDialog?.close());
+    voidForm?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      if (!selectedExpenseId || !voidForm.reportValidity()) return;
+      const submit = voidForm.querySelector<HTMLButtonElement>(
+        'button[type="submit"]',
+      );
+      if (submit) submit.disabled = true;
+      try {
+        const reason = new FormData(voidForm).get('reason');
+        const response = await fetch('/api/admin/trip-expenses', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ expenseId: selectedExpenseId, reason }),
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.message);
+        sessionStorage.setItem(
+          'lebihjauh-admin-notification',
+          JSON.stringify({
+            type: 'success',
+            message: 'Pengeluaran dibatalkan dan jejak lama tetap tersimpan.',
+          }),
+        );
+        location.reload();
+      } catch (error) {
+        window.adminNotify({
+          type: 'error',
+          message:
+            error instanceof Error
+              ? error.message
+              : 'Pengeluaran belum dapat dibatalkan.',
+        });
+        if (submit) submit.disabled = false;
+      }
+    });
+  </script>
+</AdminLayout>

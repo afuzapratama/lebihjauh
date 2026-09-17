@@ -1,0 +1,51 @@
+---
+import Icon from './Icon.astro';
+import Wordmark from './Wordmark.astro';
+
+const year = new Date().getFullYear();
+---
+
+<footer class="site-footer">
+  <div class="footer-main section">
+    <div>
+      <Wordmark footer href="/" />
+      <p>
+        Rasa penasaran yang sama.
+        <br />
+        Tujuan yang berbeda. Cerita yang baru.
+      </p>
+    </div>
+    <div class="footer-links">
+      <span>JELAJAH</span>
+      <a href="/trip">Open Trip</a>
+      <a href="/private-trip">Private Trip</a>
+      <a href="/cek-booking">Cek Booking</a>
+      <a href="/#galeri">Galeri</a>
+    </div>
+    <div class="footer-links">
+      <span>LEBIH DEKAT</span>
+      <a href="/about">Tentang LebihJauh</a>
+      <a href="/#news">News & Cerita</a>
+      <a href="/private-trip">
+        Rencanakan perjalanan <Icon name="arrow-up" size={14} />
+      </a>
+    </div>
+    <div class="footer-tagline">
+      More people.
+      <br />
+      Farther places.<span>↗</span>
+    </div>
+  </div>
+  <div class="footer-bottom section">
+    <span>© {year} LebihJauh. Go further.</span>
+    <span>
+      INDONESIA & BEYOND <span class="footer-star">✳</span>
+    </span>
+    <span>
+      PREVIEW V.01 · FOTO DARI{' '}
+      <a href="https://unsplash.com" target="_blank" rel="noreferrer">
+        UNSPLASH ↗
+      </a>
+    </span>
+  </div>
+</footer>

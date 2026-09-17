@@ -1,0 +1,602 @@
+---
+import { desc } from 'drizzle-orm';
+import FileUploadControl from '../../components/FileUploadControl.astro';
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import { getDb } from '../../db/client';
+import { galleryItem, newsArticle } from '../../db/schema';
+export const prerender = false;
+const db = getDb();
+const gallery = await db
+  .select()
+  .from(galleryItem)
+  .orderBy(desc(galleryItem.createdAt))
+  .limit(8);
+const articles = await db
+  .select()
+  .from(newsArticle)
+  .orderBy(desc(newsArticle.createdAt))
+  .limit(8);
+---
+
+<AdminLayout title="Konten & galeri" active="content">
+  <div class="page-title">
+    <div>
+      <p class="eyebrow">05 / KONTEN & GALERI</p>
+      <h1>
+        Foto jadi rasa.
+        <br />
+        Cerita jadi arah.
+      </h1>
+      <p class="muted">
+        Simpan sebagai draf, lalu terbitkan setelah foto, caption, dan
+        konteksnya benar.
+      </p>
+    </div>
+    <div class="content-links">
+      <a class="button-link" href="/galeri" target="_blank">
+        Lihat Galeri ↗
+      </a>
+      <a class="button-link" href="/news" target="_blank">
+        Lihat News ↗
+      </a>
+    </div>
+  </div>
+  <div class="content-admin-grid">
+    <section class="panel">
+      <p class="eyebrow">TAMBAH FOTO</p>
+      <h2>Galeri perjalanan.</h2>
+      <form class="content-form" data-type="gallery">
+        <input name="id" type="hidden" />
+        <input name="imageUrl" type="hidden" />
+        <details open>
+          <summary>01 · Foto & cerita singkat</summary>
+          <div class="content-cover-field">
+            <span class="form-label">Foto galeri</span>
+            <div class="cover-upload">
+              <FileUploadControl
+                id="gallery-file"
+                inputClass="content-file"
+                title="Unggah foto galeri"
+                hint="Foto perjalanan · JPEG, PNG, atau WebP · maksimal 8 MB"
+                accept="image/jpeg,image/png,image/webp"
+                icon="photo"
+                size="large"
+                actionLabel="Pilih foto"
+                required
+              />
+              <div class="cover-preview content-preview" hidden>
+                <img alt="Pratinjau foto galeri" />
+                <div>
+                  <strong class="content-preview-name"></strong>
+                  <span class="content-preview-size"></span>
+                  <label class="link-button" for="gallery-file">
+                    Ganti foto
+                  </label>
+                </div>
+              </div>
+            </div>
+            <small class="field-note">
+              Foto akan diunggah ke media LebihJauh saat Anda menyimpan.
+            </small>
+          </div>
+          <label>
+            Caption
+            <input
+              name="caption"
+              maxlength="180"
+              required
+              placeholder="Contoh: Pagi yang layak ditunggu."
+            />
+          </label>
+          <label>
+            Deskripsi foto / alt text
+            <input
+              name="altText"
+              maxlength="180"
+              required
+              placeholder="Jelaskan isi foto untuk aksesibilitas."
+            />
+          </label>
+        </details>
+        <details>
+          <summary>02 · Publikasi & tautan</summary>
+          <label>
+            URL Instagram/TikTok <small>Opsional, hanya tautan resmi.</small>
+            <input name="socialUrl" type="url" />
+          </label>
+          <label>
+            Status
+            <select name="publicationState">
+              <option value="draft">Simpan sebagai draf</option>
+              <option value="published">Terbitkan di Galeri</option>
+            </select>
+          </label>
+        </details>
+        <p class="error-msg" hidden></p>
+        <button class="primary content-submit" type="submit">
+          Simpan foto ↗
+        </button>
+      </form>
+    </section>
+    <section class="panel">
+      <p class="eyebrow">TULIS ARTIKEL</p>
+      <h2>News & cerita.</h2>
+      <form class="content-form" data-type="news">
+        <input name="id" type="hidden" />
+        <input name="coverImageUrl" type="hidden" />
+        <details open>
+          <summary>01 · Cover & identitas artikel</summary>
+          <div class="content-cover-field">
+            <span class="form-label">
+              Foto cover <small>Opsional</small>
+            </span>
+            <div class="cover-upload">
+              <FileUploadControl
+                id="news-file"
+                inputClass="content-file"
+                title="Unggah cover artikel"
+                hint="Gambar header artikel · JPEG, PNG, atau WebP · maksimal 8 MB"
+                accept="image/jpeg,image/png,image/webp"
+                icon="photo"
+                size="large"
+                actionLabel="Pilih cover"
+              />
+              <div class="cover-preview content-preview" hidden>
+                <img alt="Pratinjau cover artikel" />
+                <div>
+                  <strong class="content-preview-name"></strong>
+                  <span class="content-preview-size"></span>
+                  <label class="link-button" for="news-file">
+                    Ganti foto
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+          <label>
+            Alt text cover
+            <input
+              name="coverAltText"
+              maxlength="180"
+              placeholder="Jelaskan isi cover untuk aksesibilitas."
+            />
+          </label>
+          <label>
+            Judul artikel
+            <input name="title" maxlength="180" required />
+          </label>
+          <label>
+            Kategori
+            <input
+              name="category"
+              maxlength="60"
+              required
+              placeholder="Contoh: Cerita perjalanan"
+            />
+          </label>
+        </details>
+        <details>
+          <summary>02 · Isi cerita</summary>
+          <label>
+            Teaser singkat
+            <textarea
+              name="excerpt"
+              maxlength="400"
+              rows="3"
+              required
+              placeholder="Ringkasan yang tampil pada kartu News."
+            ></textarea>
+          </label>
+          <label>
+            Isi artikel
+            <textarea
+              name="body"
+              maxlength="20000"
+              rows="8"
+              required
+              placeholder="Tulis paragraf baru pada baris baru agar enak dibaca."
+            ></textarea>
+          </label>
+        </details>
+        <details>
+          <summary>03 · Publikasi & tautan</summary>
+          <label>
+            URL Instagram/TikTok <small>Opsional</small>
+            <input name="socialUrl" type="url" />
+          </label>
+          <label>
+            Status
+            <select name="publicationState">
+              <option value="draft">Simpan sebagai draf</option>
+              <option value="published">Terbitkan di News</option>
+            </select>
+          </label>
+        </details>
+        <p class="error-msg" hidden></p>
+        <button class="primary content-submit" type="submit">
+          Simpan artikel ↗
+        </button>
+      </form>
+    </section>
+  </div>
+  <div class="content-admin-grid">
+    <section class="panel">
+      <p class="eyebrow">FOTO TERSIMPAN</p>
+      <h2>{gallery.length} foto terbaru</h2>
+      {gallery.length ? (
+        <div class="content-list">
+          {gallery.map((x) => (
+            <article>
+              <img src={x.imageUrl} alt="" />
+              <div>
+                <strong>{x.caption}</strong>
+                <small>
+                  {x.publicationState === 'published' ? 'Terbit' : 'Draf'} ·{' '}
+                  {x.socialUrl ? 'Ada tautan sosial' : 'Konten lokal'}
+                </small>
+              </div>
+              <div class="content-row-actions">
+                <button
+                  class="button-link content-edit"
+                  data-type="gallery"
+                  data-item={JSON.stringify(x)}
+                  type="button"
+                >
+                  Edit
+                </button>
+                <button
+                  class="button-link content-delete"
+                  data-type="gallery"
+                  data-id={x.id}
+                  data-label={x.caption}
+                  type="button"
+                >
+                  Hapus
+                </button>
+              </div>
+            </article>
+          ))}
+        </div>
+      ) : (
+        <p class="muted">Belum ada foto galeri.</p>
+      )}
+    </section>
+    <section class="panel">
+      <p class="eyebrow">ARTIKEL TERSIMPAN</p>
+      <h2>{articles.length} artikel terbaru</h2>
+      {articles.length ? (
+        <div class="content-list">
+          {articles.map((x) => (
+            <article>
+              {x.coverImageUrl && <img src={x.coverImageUrl} alt="" />}
+              <div>
+                <strong>{x.title}</strong>
+                <small>
+                  {x.category} ·{' '}
+                  {x.publicationState === 'published' ? 'Terbit' : 'Draf'}
+                </small>
+              </div>
+              <div class="content-row-actions">
+                <button
+                  class="button-link content-edit"
+                  data-type="news"
+                  data-item={JSON.stringify(x)}
+                  type="button"
+                >
+                  Edit
+                </button>
+                <button
+                  class="button-link content-delete"
+                  data-type="news"
+                  data-id={x.id}
+                  data-label={x.title}
+                  type="button"
+                >
+                  Hapus
+                </button>
+              </div>
+            </article>
+          ))}
+        </div>
+      ) : (
+        <p class="muted">Belum ada artikel.</p>
+      )}
+    </section>
+  </div>
+  <script>
+    async function upload(file: File, kind: string) {
+      const pre = await fetch('/api/admin/content-media/presign', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          kind,
+          fileName: file.name,
+          contentType: file.type,
+          size: file.size,
+        }),
+      });
+      const signed = await pre.json();
+      if (!pre.ok) throw new Error(signed.message);
+      const put = await fetch(signed.uploadUrl, {
+        method: 'PUT',
+        headers: { 'Content-Type': file.type },
+        body: file,
+      });
+      if (!put.ok) throw new Error('Foto belum dapat diunggah ke media.');
+      return signed.publicUrl as string;
+    }
+    document
+      .querySelectorAll<HTMLFormElement>('.content-form')
+      .forEach((form) =>
+        form.addEventListener('submit', async (event) => {
+          event.preventDefault();
+          const error = form.querySelector<HTMLElement>('.error-msg');
+          try {
+            const file =
+              form.querySelector<HTMLInputElement>('.content-file')?.files?.[0];
+            const url = form.querySelector<HTMLInputElement>(
+              '[name="imageUrl"],[name="coverImageUrl"]',
+            );
+            if (file && url)
+              url.value = await upload(file, form.dataset.type ?? 'gallery');
+            if (form.dataset.type === 'gallery' && !url?.value)
+              throw new Error('Foto wajib dipilih.');
+            const editing = Boolean(
+              form.querySelector<HTMLInputElement>('[name="id"]')?.value,
+            );
+            const response = await fetch('/api/admin/content', {
+              method: editing ? 'PATCH' : 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                ...Object.fromEntries(new FormData(form)),
+                type: form.dataset.type,
+              }),
+            });
+            const result = await response.json();
+            if (!response.ok) throw new Error(result.message);
+            sessionStorage.setItem(
+              'lebihjauh-admin-notification',
+              JSON.stringify({
+                type: 'success',
+                message: editing
+                  ? 'Perubahan konten disimpan.'
+                  : 'Konten disimpan.',
+              }),
+            );
+            location.reload();
+          } catch (cause) {
+            if (error) {
+              error.hidden = false;
+              error.textContent =
+                cause instanceof Error
+                  ? cause.message
+                  : 'Konten belum dapat disimpan.';
+            }
+          }
+        }),
+      );
+    document
+      .querySelectorAll<HTMLButtonElement>('.content-edit')
+      .forEach((button) =>
+        button.addEventListener('click', () => {
+          try {
+            const item = JSON.parse(button.dataset.item ?? '{}') as Record<
+              string,
+              string | null
+            >;
+            const form = document.querySelector<HTMLFormElement>(
+              `.content-form[data-type="${button.dataset.type}"]`,
+            );
+            if (!form) return;
+            Object.entries(item).forEach(([key, value]) => {
+              const field = form.elements.namedItem(key);
+              if (
+                field instanceof HTMLInputElement ||
+                field instanceof HTMLTextAreaElement ||
+                field instanceof HTMLSelectElement
+              )
+                field.value = value ?? '';
+            });
+            const image = item.imageUrl ?? item.coverImageUrl;
+            if (image) {
+              const preview =
+                form.querySelector<HTMLElement>('.content-preview');
+              const imageEl = preview?.querySelector<HTMLImageElement>('img');
+              const name = preview?.querySelector<HTMLElement>(
+                '.content-preview-name',
+              );
+              const size = preview?.querySelector<HTMLElement>(
+                '.content-preview-size',
+              );
+              if (preview && imageEl) {
+                imageEl.src = image;
+                preview.hidden = false;
+                if (name) name.textContent = 'Foto saat ini';
+                if (size)
+                  size.textContent = 'Pilih foto baru bila ingin mengganti.';
+              }
+            }
+            form
+              .querySelector<HTMLElement>('details')
+              ?.setAttribute('open', '');
+            form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            window.adminNotify({
+              type: 'info',
+              message:
+                'Mode edit aktif. Pilih foto baru hanya bila ingin mengganti foto saat ini.',
+            });
+          } catch {
+            window.adminNotify({
+              type: 'error',
+              message: 'Data konten tidak dapat dibuka untuk diedit.',
+            });
+          }
+        }),
+      );
+    document
+      .querySelectorAll<HTMLButtonElement>('.content-delete')
+      .forEach((button) =>
+        button.addEventListener('click', async () => {
+          if (
+            !(await window.adminConfirm({
+              title: `Hapus ${button.dataset.label}?`,
+              message:
+                'Konten akan hilang dari halaman publik. Foto di R2 tidak dihapus otomatis agar tidak menghapus media lain secara keliru.',
+              confirmLabel: 'Hapus konten',
+              destructive: true,
+            }))
+          )
+            return;
+          const response = await fetch('/api/admin/content', {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              type: button.dataset.type,
+              id: button.dataset.id,
+            }),
+          });
+          const result = await response.json();
+          if (!response.ok) {
+            window.adminNotify({ type: 'error', message: result.message });
+            return;
+          }
+          sessionStorage.setItem(
+            'lebihjauh-admin-notification',
+            JSON.stringify({ type: 'success', message: 'Konten dihapus.' }),
+          );
+          location.reload();
+        }),
+      );
+    document
+      .querySelectorAll<HTMLInputElement>('.content-file')
+      .forEach((input) =>
+        input.addEventListener('change', () => {
+          const preview = input
+            .closest('form')
+            ?.querySelector<HTMLElement>('.content-preview');
+          const image = preview?.querySelector<HTMLImageElement>('img');
+          const name = preview?.querySelector<HTMLElement>(
+            '.content-preview-name',
+          );
+          const size = preview?.querySelector<HTMLElement>(
+            '.content-preview-size',
+          );
+          const file = input.files?.[0];
+          if (!image || !preview || !file) return;
+          image.src = URL.createObjectURL(file);
+          if (name) name.textContent = file.name;
+          if (size)
+            size.textContent = `${(file.size / 1024 / 1024).toFixed(1)} MB`;
+          preview.hidden = false;
+        }),
+      );
+  </script>
+</AdminLayout>
+<style>
+  .content-admin-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin-top: 20px;
+  }
+  .content-form {
+    display: grid;
+    gap: 16px;
+  }
+  .content-form details {
+    padding: 0 0 18px;
+    border: 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .content-form summary {
+    cursor: pointer;
+    font:
+      700 17px/1.2 'Barlow Condensed',
+      sans-serif;
+    letter-spacing: 0.3px;
+    text-transform: uppercase;
+  }
+  .content-form summary::marker {
+    color: var(--orange);
+  }
+  .content-form details > :not(summary) {
+    margin-top: 16px;
+  }
+  .content-form label {
+    display: grid;
+    gap: 6px;
+    font-size: 12px;
+    font-weight: 700;
+  }
+  .content-form small {
+    font-weight: 400;
+    color: var(--muted);
+  }
+  .content-form :is(input, select, textarea) {
+    width: 100%;
+    min-height: 42px;
+    padding: 9px;
+    border: 1px solid var(--line);
+    background: #fffefa;
+    font: inherit;
+  }
+  .content-form textarea {
+    resize: vertical;
+  }
+  .content-preview {
+    grid-template-columns: 132px 1fr;
+  }
+  .content-preview img {
+    width: 132px;
+    height: 98px;
+  }
+  .content-cover-field {
+    display: grid;
+    gap: 8px;
+  }
+  .content-list {
+    display: grid;
+    gap: 10px;
+  }
+  .content-list article {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    border-top: 1px solid var(--line);
+    padding: 10px 0;
+  }
+  .content-row-actions {
+    display: flex;
+    gap: 10px;
+    margin-left: auto;
+  }
+  .content-delete {
+    color: #a52d25;
+    border-color: #a52d25;
+  }
+  .content-list img {
+    width: 65px;
+    height: 48px;
+    object-fit: cover;
+  }
+  .content-list div {
+    display: grid;
+    gap: 2px;
+  }
+  .content-list small {
+    color: var(--muted);
+    font-size: 11px;
+  }
+  .content-links {
+    display: flex;
+    gap: 10px;
+  }
+  @media (max-width: 800px) {
+    .content-admin-grid {
+      grid-template-columns: 1fr;
+    }
+    .content-links {
+      margin-top: 18px;
+    }
+  }
+</style>

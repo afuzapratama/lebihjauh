@@ -1,0 +1,18 @@
+---
+interface Props {
+  footer?: boolean;
+  href?: string;
+}
+const { footer = false, href = '#home' } = Astro.props;
+const logo = footer
+  ? '/brand/logo-stacked-light.svg'
+  : '/brand/logo-stacked-color.svg';
+---
+
+<a
+  class:list={['wordmark', { 'wordmark-footer': footer }]}
+  href={href}
+  aria-label="LebihJauh — kembali ke Home"
+>
+  <img src={logo} alt="LebihJauh — Go Further." width="170" height="220" />
+</a>

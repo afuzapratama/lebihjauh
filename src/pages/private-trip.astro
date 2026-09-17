@@ -1,0 +1,249 @@
+---
+import Layout from '../layouts/Layout.astro';
+import SiteHeader from '../components/SiteHeader.astro';
+---
+
+<Layout
+  title="Private Trip — LebihJauh"
+  description="Rencanakan private trip bersama LebihJauh sesuai destinasi, tanggal, dan kebutuhan rombonganmu."
+>
+  <SiteHeader active="private" />
+  <main id="main" class="public-trip-page booking-page private-request-page">
+    <section class="section booking-layout">
+      <div class="booking-heading">
+        <p class="eyebrow">
+          <span></span> PRIVATE TRIP
+        </p>
+        <h1>
+          Jalanmu.
+          <br />
+          <span class="handwritten">Atur sesukamu.</span>
+        </h1>
+        <p>
+          Ceritakan kebutuhan rombonganmu. Kami menyusun penawaran dulu—belum
+          ada tagihan atau kuota Open Trip yang ditahan pada tahap ini.
+        </p>
+      </div>
+      <div class="booking-flow">
+        <form id="private-trip-form" class="booking-form" novalidate>
+          <fieldset>
+            <legend>
+              <span>01</span> Rencana perjalanan
+            </legend>
+            <label>
+              Destinasi atau rute yang diinginkan
+              <input
+                name="destination"
+                maxlength="160"
+                required
+                placeholder="Contoh: Bromo, Malang, dan sekitarnya"
+              />
+            </label>
+            <div class="form-two-columns">
+              <label>
+                Tanggal berangkat
+                <input name="startDate" type="date" required />
+              </label>
+              <label>
+                Tanggal pulang <small>Boleh dikosongkan bila fleksibel</small>
+                <input name="endDate" type="date" />
+              </label>
+            </div>
+            <label>
+              Perkiraan jumlah peserta
+              <input
+                name="pax"
+                type="number"
+                min="1"
+                max="10000"
+                value="2"
+                required
+              />
+            </label>
+          </fieldset>
+          <fieldset>
+            <legend>
+              <span>02</span> PIC rombongan
+            </legend>
+            <div class="form-two-columns">
+              <label>
+                Nama lengkap PIC
+                <input
+                  name="picName"
+                  maxlength="120"
+                  autocomplete="name"
+                  required
+                />
+              </label>
+              <label>
+                WhatsApp PIC
+                <input
+                  name="picWhatsApp"
+                  maxlength="24"
+                  inputmode="tel"
+                  autocomplete="tel"
+                  required
+                />
+              </label>
+            </div>
+            <label>
+              Email PIC <small>Opsional, untuk salinan penawaran</small>
+              <input
+                name="picEmail"
+                type="email"
+                maxlength="254"
+                autocomplete="email"
+              />
+            </label>
+          </fieldset>
+          <fieldset>
+            <legend>
+              <span>03</span> Kebutuhan tambahan
+            </legend>
+            <label>
+              Ceritakan kebutuhanmu{' '}
+              <small>
+                Opsional: tipe penginapan, transportasi, makanan, peserta anak,
+                atau kebutuhan khusus.
+              </small>
+              <textarea
+                name="needs"
+                maxlength="2000"
+                rows="6"
+                placeholder="Contoh: ingin penginapan keluarga, makan halal, dan jemput dari stasiun."
+              ></textarea>
+            </label>
+            <label class="checkbox-label">
+              <input name="privacyAccepted" type="checkbox" required />
+              <span>
+                Saya setuju data kontak ini dipakai LebihJauh untuk
+                menindaklanjuti permintaan Private Trip.
+              </span>
+            </label>
+          </fieldset>
+          <p
+            id="private-trip-error"
+            class="booking-error"
+            role="alert"
+            hidden
+          ></p>
+          <button
+            id="private-trip-submit"
+            class="button button-orange"
+            type="submit"
+          >
+            Kirim permintaan <span aria-hidden="true">↗</span>
+          </button>
+        </form>
+        <aside class="booking-summary">
+          <p class="eyebrow">SETELAH DIKIRIM</p>
+          <h2>Jelas dari awal.</h2>
+          <ol class="private-steps">
+            <li>
+              <strong>Permintaan tersimpan</strong>
+              <span>Kamu menerima nomor referensi.</span>
+            </li>
+            <li>
+              <strong>Admin menyusun penawaran</strong>
+              <span>
+                Harga, fasilitas, down payment, dan masa berlaku dijelaskan.
+              </span>
+            </li>
+            <li>
+              <strong>Sepakat, baru booking</strong>
+              <span>Invoice dibuat hanya setelah detailnya disetujui.</span>
+            </li>
+          </ol>
+          <p class="booking-hold-note">
+            Butuh jawaban cepat? Setelah mengirim, kamu dapat meneruskan
+            ringkasannya ke WhatsApp kami.
+          </p>
+        </aside>
+      </div>
+    </section>
+  </main>
+  <script is:inline>
+    const form = document.querySelector('#private-trip-form');
+    const error = document.querySelector('#private-trip-error');
+    const submit = document.querySelector('#private-trip-submit');
+    form?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      error.hidden = true;
+      if (!form.reportValidity()) return;
+      submit.disabled = true;
+      submit.textContent = 'Menyimpan permintaan…';
+      const values = Object.fromEntries(new FormData(form));
+      values.privacyAccepted = form.elements.privacyAccepted.checked;
+      try {
+        const response = await fetch('/api/private-trip-requests', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(values),
+        });
+        const result = await response.json();
+        if (!response.ok)
+          throw new Error(result.message || 'Permintaan belum dapat dikirim.');
+        form.replaceWith(
+          Object.assign(document.createElement('div'), {
+            className: 'private-success',
+            innerHTML: `<p class="eyebrow"><span></span> PERMINTAAN TERSIMPAN</p><h2>Terima kasih.</h2><p>Nomor referensi <strong>${result.request.number}</strong>. Admin akan menyiapkan penawaran berdasarkan kebutuhanmu.</p><a class="button button-dark" href="https://wa.me/?text=${encodeURIComponent(`Halo Admin LebihJauh, saya baru mengirim permintaan Private Trip ${result.request.number}.`)}" target="_blank" rel="noopener">Teruskan ke WhatsApp <span>↗</span></a>`,
+          }),
+        );
+      } catch (cause) {
+        error.textContent =
+          cause instanceof Error
+            ? cause.message
+            : 'Permintaan belum dapat dikirim.';
+        error.hidden = false;
+        submit.disabled = false;
+        submit.innerHTML = 'Kirim permintaan <span aria-hidden="true">↗</span>';
+      }
+    });
+  </script>
+</Layout>
+
+<style>
+  .private-request-page textarea {
+    width: 100%;
+    resize: vertical;
+    min-height: 132px;
+    border: 1px solid #cfd4c9;
+    background: #fffefa;
+    padding: 12px;
+    color: #20271f;
+  }
+  .private-steps {
+    padding: 0;
+    margin: 28px 0;
+    list-style: none;
+    display: grid;
+    gap: 18px;
+  }
+  .private-steps li {
+    display: grid;
+    gap: 3px;
+    padding-bottom: 17px;
+    border-bottom: 1px solid #d9dcd4;
+  }
+  .private-steps strong {
+    font-size: 13px;
+  }
+  .private-steps span {
+    font-size: 12px;
+    color: #d5d8d0;
+    line-height: 1.65;
+  }
+  .private-success {
+    border-left: 4px solid var(--orange);
+    background: #fffefa;
+    padding: 32px;
+    max-width: 650px;
+  }
+  .private-success h2 {
+    margin: 12px 0;
+  }
+  .private-success p {
+    max-width: 500px;
+    margin-bottom: 24px;
+  }
+</style>

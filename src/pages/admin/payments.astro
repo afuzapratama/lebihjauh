@@ -1,0 +1,216 @@
+---
+import { desc, eq } from 'drizzle-orm';
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import { getDb } from '../../db/client';
+import { booking, invoice, payment } from '../../db/schema';
+
+export const prerender = false;
+const db = getDb();
+const payments = await db
+  .select({
+    id: payment.id,
+    amount: payment.amount,
+    reference: payment.reference,
+    proofObjectKey: payment.proofObjectKey,
+    state: payment.state,
+    receivedAt: payment.receivedAt,
+    reportedTransferAt: payment.reportedTransferAt,
+    submittedAt: payment.submittedAt,
+    number: invoice.number,
+    bookingId: booking.id,
+    picName: booking.picName,
+    trip: booking.packageSnapshot,
+  })
+  .from(payment)
+  .innerJoin(invoice, eq(payment.invoiceId, invoice.id))
+  .innerJoin(booking, eq(payment.bookingId, booking.id))
+  .orderBy(desc(payment.receivedAt));
+const pending = payments.filter((item) => item.state === 'submitted');
+const verified = payments.filter((item) => item.state === 'verified');
+const rejected = payments.filter((item) => item.state === 'rejected');
+const pendingAmount = pending.reduce(
+  (total, item) => total + BigInt(item.amount),
+  0n,
+);
+const verifiedAmount = verified.reduce(
+  (total, item) => total + BigInt(item.amount),
+  0n,
+);
+const money = new Intl.NumberFormat('id-ID');
+const date = new Intl.DateTimeFormat('id-ID', {
+  dateStyle: 'medium',
+  timeStyle: 'short',
+  timeZone: 'Asia/Jakarta',
+});
+const tripName = (value: unknown) =>
+  typeof value === 'object' &&
+  value &&
+  'tripName' in value &&
+  typeof value.tripName === 'string'
+    ? value.tripName
+    : 'Trip LebihJauh';
+const stateLabel = (state: string) =>
+  ({
+    submitted: 'Menunggu verifikasi',
+    verified: 'Terverifikasi',
+    rejected: 'Ditolak',
+  })[state] ?? state;
+---
+
+<AdminLayout title="Pembayaran" active="payments">
+  <div class="page-title payment-page-title">
+    <div>
+      <p class="eyebrow">03 / PEMBAYARAN</p>
+      <h1>Pembayaran.</h1>
+      <p class="muted">
+        Cocokkan bukti dari invoice atau WhatsApp dengan mutasi, lalu verifikasi
+        nominal yang benar-benar masuk dari detail order.
+      </p>
+    </div>
+    <div class="payment-page-actions">
+      <a class="primary" href="/admin/orders">
+        Catat pembayaran masuk ↗
+      </a>
+      <a class="button-link" href="/admin/payments/revenue">
+        Lihat pendapatan ↗
+      </a>
+      <a class="button-link" href="/admin/payments/methods">
+        Atur metode pembayaran ↗
+      </a>
+    </div>
+  </div>
+  <section class="payment-workbench" aria-label="Ringkasan pembayaran">
+    <article
+      class:list={['payment-attention', { clear: pending.length === 0 }]}
+    >
+      <p class="eyebrow">{pending.length ? 'PERLU DICEK' : 'ANTREAN BERSIH'}</p>
+      <h2>
+        {pending.length
+          ? `${pending.length} pembayaran menunggu verifikasi`
+          : 'Tidak ada pembayaran yang menunggu.'}
+      </h2>
+      <p>
+        {pending.length
+          ? `Total Rp${money.format(Number(pendingAmount))} belum dihitung ke booking. Periksa bukti dan mutasi sebelum mencatatnya.`
+          : 'Pembayaran baru tetap dicatat dari detail order setelah bukti WhatsApp dan mutasi cocok.'}
+      </p>
+    </article>
+    <article class="payment-stat">
+      <span>TERVERIFIKASI</span>
+      <strong>Rp{money.format(Number(verifiedAmount))}</strong>
+      <small>{verified.length} pembayaran tercatat</small>
+    </article>
+    <article class="payment-stat">
+      <span>DITOLAK</span>
+      <strong>{rejected.length}</strong>
+      <small>tetap tersimpan di riwayat</small>
+    </article>
+  </section>
+  <section class="list-panel orders-panel payment-history">
+    <div class="panel-head">
+      <div>
+        <p class="eyebrow">RIWAYAT PEMBAYARAN</p>
+        <h2>
+          {payments.length
+            ? `${payments.length} pembayaran tercatat`
+            : 'Belum ada pembayaran tercatat'}
+        </h2>
+        <p class="muted">
+          Status hanya berubah setelah admin mencocokkan bukti pembayaran dengan
+          mutasi.
+        </p>
+      </div>
+      {pending.length > 0 && (
+        <span class="state payment-submitted">
+          {pending.length} MENUNGGU VERIFIKASI
+        </span>
+      )}
+    </div>
+    {payments.length ? (
+      <div class="orders-table-wrap">
+        <table class="orders-table payment-history-table">
+          <thead>
+            <tr>
+              <th>Invoice / PIC</th>
+              <th>Trip</th>
+              <th>Nominal</th>
+              <th>Referensi</th>
+              <th>Status</th>
+              <th>Bukti</th>
+              <th>Transfer dilaporkan</th>
+              <th>Dana masuk</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {payments.map((item) => (
+              <tr class:list={{ 'order-urgent': item.state === 'submitted' }}>
+                <td>
+                  <strong>{item.number}</strong>
+                  <small>{item.picName}</small>
+                </td>
+                <td>{tripName(item.trip)}</td>
+                <td>
+                  <strong>Rp{money.format(Number(item.amount))}</strong>
+                </td>
+                <td>{item.reference ?? '—'}</td>
+                <td>
+                  <span class:list={['state', `payment-${item.state}`]}>
+                    {stateLabel(item.state)}
+                  </span>
+                </td>
+                <td>
+                  {item.proofObjectKey ? (
+                    <button
+                      class="button-link payment-proof-link"
+                      type="button"
+                      data-admin-image-src={`/api/admin/payments/${item.id}/proof`}
+                      data-admin-image-eyebrow="BUKTI PEMBAYARAN"
+                      data-admin-image-title={`${item.number} · ${item.picName}`}
+                      data-admin-image-alt={`Bukti pembayaran ${item.number}`}
+                      data-admin-image-note="Cocokkan nominal, pengirim, dan waktu transfer sebelum memverifikasi pembayaran."
+                    >
+                      Lihat
+                    </button>
+                  ) : (
+                    '—'
+                  )}
+                </td>
+                <td>
+                  {item.reportedTransferAt
+                    ? date.format(item.reportedTransferAt)
+                    : '—'}
+                </td>
+                <td>
+                  {item.state === 'verified'
+                    ? date.format(item.receivedAt)
+                    : 'Belum diverifikasi'}
+                </td>
+                <td>
+                  <a
+                    class="button-link"
+                    href={`/admin/orders/${item.bookingId}`}
+                  >
+                    {item.state === 'submitted'
+                      ? 'Tinjau & verifikasi ↗'
+                      : 'Buka order ↗'}
+                  </a>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    ) : (
+      <div class="payment-history-empty">
+        <p>
+          Setelah PIC mengirim bukti melalui WhatsApp, buka order terkait dan
+          pilih <strong>Catat & verifikasi pembayaran</strong>.
+        </p>
+        <a class="primary" href="/admin/orders">
+          Buka daftar order ↗
+        </a>
+      </div>
+    )}
+  </section>
+</AdminLayout>

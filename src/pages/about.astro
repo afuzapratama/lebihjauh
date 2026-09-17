@@ -1,0 +1,264 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Icon from '../components/Icon.astro';
+import SiteHeader from '../components/SiteHeader.astro';
+import { getSitePageContent } from '../lib/site-content';
+
+export const prerender = false;
+const isDraftPreview =
+  Astro.url.searchParams.get('preview') === 'draft' &&
+  Boolean(Astro.locals.user);
+const content = await getSitePageContent('about', isDraftPreview);
+const valueIcons = ['people', 'mountain', 'sun'] as const;
+---
+
+<Layout
+  title={content.seo.title}
+  description={content.seo.description}
+  image={content.seo.shareImageUrl || undefined}
+>
+  <SiteHeader active="about" />
+
+  <main id="main" class="about-page">
+    <section class="about-hero" aria-labelledby="about-title">
+      <div class="about-hero-copy">
+        <p class="eyebrow light">
+          <span></span> {content.hero.eyebrow}
+        </p>
+        <h1 id="about-title">
+          {content.hero.titleLine1}
+          <br />
+          {content.hero.titleLine2}
+          <br />
+          <span>{content.hero.titleAccent}</span>
+        </h1>
+        <p class="about-hero-lead">{content.hero.lead}</p>
+        <a class="about-scroll-link" href="#cerita-kami">
+          <span>↓</span> {content.hero.scrollLabel}
+        </a>
+      </div>
+
+      <figure class="about-hero-visual">
+        <img
+          src={content.hero.image.imageUrl}
+          alt={content.hero.image.alt}
+          fetchpriority="high"
+          style={`object-position:${content.hero.image.focalPoint}`}
+        />
+        <figcaption>
+          <span>{content.hero.image.caption}</span>
+          {content.hero.image.credit &&
+            (content.hero.image.sourceUrl ? (
+              <a
+                href={content.hero.image.sourceUrl}
+                target="_blank"
+                rel="noreferrer"
+              >
+                FOTO: {content.hero.image.credit} ↗
+              </a>
+            ) : (
+              <span>FOTO: {content.hero.image.credit}</span>
+            ))}
+        </figcaption>
+        <span class="about-hero-note" aria-hidden="true">
+          {content.hero.note.split('\n').map((line, index) => (
+            <>
+              {index > 0 && <br />}
+              {line}
+            </>
+          ))}
+        </span>
+      </figure>
+
+      <div class="about-hero-index" aria-hidden="true">
+        <span>
+          EST. SOMEWHERE BETWEEN
+          <br />A PLAN & A GOOD STORY
+        </span>
+        <strong>01</strong>
+      </div>
+    </section>
+
+    <section
+      class="about-intro section"
+      id="cerita-kami"
+      aria-labelledby="about-intro-title"
+    >
+      <div class="about-intro-kicker">
+        <span class="about-asterisk">✳</span>
+        <p>
+          {content.intro.kicker.split('\n').map((line) => (
+            <>
+              {line}
+              <br />
+            </>
+          ))}
+        </p>
+      </div>
+      <div class="about-intro-copy">
+        <p class="eyebrow">
+          <span></span> {content.intro.eyebrow}
+        </p>
+        <h2 id="about-intro-title">
+          {content.intro.title}
+          <span class="handwritten">{content.intro.titleAccent}</span>
+        </h2>
+        <p>{content.intro.body1}</p>
+        <p>{content.intro.body2}</p>
+      </div>
+    </section>
+
+    <section
+      class="about-story section"
+      aria-label="Cerita perjalanan LebihJauh"
+    >
+      <div class="about-story-images">
+        <figure class="about-photo about-photo-main">
+          <img
+            src={content.story.mainImage.imageUrl}
+            alt={content.story.mainImage.alt}
+            loading="lazy"
+            style={`object-position:${content.story.mainImage.focalPoint}`}
+          />
+          <figcaption>
+            {content.story.mainImage.caption && (
+              <span>{content.story.mainImage.caption}</span>
+            )}
+            {content.story.mainImage.credit &&
+              (content.story.mainImage.sourceUrl ? (
+                <a
+                  href={content.story.mainImage.sourceUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  {content.story.mainImage.credit} ↗
+                </a>
+              ) : (
+                <span>{content.story.mainImage.credit}</span>
+              ))}
+          </figcaption>
+        </figure>
+        <figure class="about-photo about-photo-small">
+          <img
+            src={content.story.secondaryImage.imageUrl}
+            alt={content.story.secondaryImage.alt}
+            loading="lazy"
+            style={`object-position:${content.story.secondaryImage.focalPoint}`}
+          />
+          <figcaption>
+            {content.story.secondaryImage.caption && (
+              <span>{content.story.secondaryImage.caption}</span>
+            )}
+            {content.story.secondaryImage.credit &&
+              (content.story.secondaryImage.sourceUrl ? (
+                <a
+                  href={content.story.secondaryImage.sourceUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  {content.story.secondaryImage.credit} ↗
+                </a>
+              ) : (
+                <span>{content.story.secondaryImage.credit}</span>
+              ))}
+          </figcaption>
+        </figure>
+        <span class="about-photo-tape" aria-hidden="true"></span>
+      </div>
+      <div class="about-story-copy">
+        <p class="eyebrow">
+          <span></span> {content.story.eyebrow}
+        </p>
+        <h2>
+          {content.story.title}
+          <br />
+          <span class="handwritten">{content.story.titleAccent}</span>
+        </h2>
+        <p class="about-story-lead">{content.story.lead}</p>
+        <p>{content.story.body}</p>
+        <blockquote>“{content.story.quote}”</blockquote>
+      </div>
+    </section>
+
+    <section class="about-values" aria-labelledby="about-values-title">
+      <div class="section">
+        <div class="about-values-head">
+          <div>
+            <p class="eyebrow light">
+              <span></span> {content.values.eyebrow}
+            </p>
+            <h2 id="about-values-title">
+              {content.values.titleLine1}
+              <br />
+              {content.values.titleLine2}
+            </h2>
+          </div>
+          <p>{content.values.intro}</p>
+        </div>
+        <div class="about-values-grid">
+          {content.values.items.map((value, index) => (
+            <article>
+              <div>
+                <span>{String(index + 1).padStart(2, '0')}</span>
+                <Icon name={valueIcons[index % valueIcons.length]} size={29} />
+              </div>
+              <h3>{value.title}</h3>
+              <p>{value.copy}</p>
+            </article>
+          ))}
+        </div>
+      </div>
+    </section>
+
+    <section class="about-outro section" aria-labelledby="about-outro-title">
+      <figure class="about-outro-image">
+        <img
+          src={content.outro.image.imageUrl}
+          alt={content.outro.image.alt}
+          loading="lazy"
+          style={`object-position:${content.outro.image.focalPoint}`}
+        />
+        <figcaption>
+          {content.outro.image.caption && (
+            <span>{content.outro.image.caption}</span>
+          )}
+          {content.outro.image.credit &&
+            (content.outro.image.sourceUrl ? (
+              <a
+                href={content.outro.image.sourceUrl}
+                target="_blank"
+                rel="noreferrer"
+              >
+                FOTO: {content.outro.image.credit} ↗
+              </a>
+            ) : (
+              <span>FOTO: {content.outro.image.credit}</span>
+            ))}
+        </figcaption>
+      </figure>
+      <div class="about-outro-copy">
+        <span class="about-outro-mark" aria-hidden="true">
+          ↗
+        </span>
+        <p class="eyebrow">
+          <span></span> {content.outro.eyebrow}
+        </p>
+        <h2 id="about-outro-title">
+          {content.outro.titleLine1}
+          <br />
+          {content.outro.titleLine2}{' '}
+          <span class="handwritten">{content.outro.titleAccent}</span>
+        </h2>
+        <p>{content.outro.description}</p>
+        <div class="about-outro-actions">
+          <a class="button button-orange" href="/trip">
+            {content.outro.primaryCtaLabel} <Icon name="arrow-up" />
+          </a>
+          <a class="text-button" href="/private-trip">
+            {content.outro.secondaryCtaLabel} <Icon name="arrow" size={16} />
+          </a>
+        </div>
+      </div>
+    </section>
+  </main>
+</Layout>

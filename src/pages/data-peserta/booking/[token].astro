@@ -1,0 +1,1169 @@
+---
+import Layout from '../../../layouts/Layout.astro';
+import FileUploadControl from '../../../components/FileUploadControl.astro';
+import SiteHeader from '../../../components/SiteHeader.astro';
+import { getBookingParticipantDataAccess } from '../../../lib/participant-safety';
+
+export const prerender = false;
+const token = Astro.params.token ?? '';
+Astro.response.headers.set('Cache-Control', 'private, no-store');
+Astro.response.headers.set('Referrer-Policy', 'no-referrer');
+Astro.response.headers.set('X-Robots-Tag', 'noindex, nofollow');
+const access = await getBookingParticipantDataAccess(token);
+if (!access) Astro.response.status = 404;
+const requestedPreviewCount = Number(
+  Astro.url.searchParams.get('previewParticipants') ?? 0,
+);
+const previewCount =
+  import.meta.env.DEV &&
+  Number.isInteger(requestedPreviewCount) &&
+  requestedPreviewCount >= 1
+    ? Math.min(Math.max(requestedPreviewCount, 2), 60)
+    : 0;
+const isRosterPreview = Boolean(access && previewCount);
+const people = access
+  ? isRosterPreview
+    ? Array.from({ length: previewCount }, (_, index) => ({
+        participantId: `preview-participant-${index + 1}`,
+        position: index + 1,
+        fullName: `Peserta Simulasi ${String(index + 1).padStart(2, '0')}`,
+        isPic: index === 0,
+        safetyId: index % 4 === 0 ? `preview-safety-${index + 1}` : null,
+        status: index % 4 === 0 ? 'submitted' : null,
+        reviewedAt: null,
+      }))
+    : access.people
+  : [];
+const completed = people.filter((person) => person.safetyId).length;
+const date = new Intl.DateTimeFormat('id-ID', {
+  dateStyle: 'full',
+  timeStyle: 'short',
+  timeZone: 'Asia/Jakarta',
+});
+---
+
+<Layout title="Data rombongan | LebihJauh">
+  <SiteHeader active="trips" />
+  <main id="main" class="public-trip-page participant-data-page">
+    <section class="section participant-data-wrap">
+      {access ? (
+        <div class="participant-data-layout booking-pic-layout">
+          <header class="participant-data-heading">
+            <p class="eyebrow">
+              <span></span> DATA ROMBONGAN
+            </p>
+            <h1>
+              Lengkapi data,
+              <br />
+              <span class="handwritten">jalan lebih tenang.</span>
+            </h1>
+            <p>
+              Tautan PIC untuk booking <strong>{access.bookingNumber}</strong>.
+              Pilih peserta di bawah untuk mengisi atau memperbarui datanya.
+            </p>
+          </header>
+          <aside
+            class="participant-data-summary"
+            aria-label="Ringkasan perjalanan"
+          >
+            <p class="eyebrow">PERJALANANMU</p>
+            <h2>{access.tripName}</h2>
+            <dl>
+              <div>
+                <dt>Keberangkatan</dt>
+                <dd>{date.format(access.startAt)}</dd>
+              </div>
+              <div>
+                <dt>Progres</dt>
+                <dd id="booking-progress">
+                  {completed}/{people.length} peserta lengkap
+                </dd>
+              </div>
+              <div>
+                <dt>Link berlaku sampai</dt>
+                <dd>{date.format(access.expiresAt)}</dd>
+              </div>
+            </dl>
+            <div
+              class="booking-summary-progress"
+              role="progressbar"
+              aria-label="Progres kelengkapan data peserta"
+              aria-valuemin="0"
+              aria-valuemax={people.length}
+              aria-valuenow={completed}
+            >
+              <i style={`width: ${(completed / people.length) * 100}%`}></i>
+            </div>
+          </aside>
+          <section
+            class="participant-data-form booking-pic-workspace"
+            aria-labelledby="roster-heading"
+          >
+            <fieldset class="booking-roster-panel">
+              <legend id="roster-heading">
+                <span>01</span> Pilih peserta
+              </legend>
+              <p class="field-note">
+                Setiap peserta memiliki draf terpisah. Perubahan otomatis
+                disimpan sebagai draf.
+              </p>
+              {isRosterPreview && (
+                <p class="booking-preview-note">
+                  Mode simulasi {people.length} peserta · perubahan tidak akan
+                  dikirim ke server.
+                </p>
+              )}
+              <details id="booking-roster-disclosure" open>
+                <summary>
+                  <span>
+                    <strong id="booking-roster-summary">
+                      Pilih dari {people.length} peserta
+                    </strong>
+                    <small id="booking-roster-selected">
+                      Belum ada peserta dipilih
+                    </small>
+                  </span>
+                  <span aria-hidden="true">⌄</span>
+                </summary>
+                <div class="booking-roster-content">
+                  <div class="booking-roster-toolbar">
+                    <label class="booking-roster-search">
+                      <span class="sr-only">Cari peserta</span>
+                      <input
+                        id="booking-roster-search"
+                        type="search"
+                        placeholder="Cari nama atau nomor peserta…"
+                        autocomplete="off"
+                      />
+                    </label>
+                    <div
+                      class="booking-roster-filters"
+                      aria-label="Filter status peserta"
+                    >
+                      <button
+                        type="button"
+                        data-roster-filter="all"
+                        aria-pressed="true"
+                      >
+                        Semua
+                      </button>
+                      <button
+                        type="button"
+                        data-roster-filter="incomplete"
+                        aria-pressed="false"
+                      >
+                        Belum lengkap
+                      </button>
+                      <button
+                        type="button"
+                        data-roster-filter="complete"
+                        aria-pressed="false"
+                      >
+                        Lengkap
+                      </button>
+                    </div>
+                  </div>
+                  <p id="booking-roster-result" class="booking-roster-result">
+                    Menampilkan {people.length} peserta
+                  </p>
+                  <div class="booking-pic-roster" role="list">
+                    {people.map((person) => (
+                      <div class="booking-pic-roster-item" role="listitem">
+                        <button
+                          type="button"
+                          class="booking-pic-roster-card"
+                          data-participant-id={person.participantId}
+                          data-complete={Boolean(person.safetyId)}
+                          aria-pressed="false"
+                        >
+                          <span class="booking-roster-number">
+                            {String(person.position).padStart(2, '0')}
+                          </span>
+                          <strong>{person.fullName}</strong>
+                          <span class="booking-roster-card-meta">
+                            {person.isPic && <small>PIC</small>}
+                            <em>
+                              {person.safetyId ? 'Lengkap' : 'Belum diisi'}
+                            </em>
+                          </span>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                  <p
+                    id="booking-roster-empty"
+                    class="booking-roster-empty"
+                    hidden
+                  >
+                    Peserta tidak ditemukan. Coba kata kunci atau filter lain.
+                  </p>
+                </div>
+              </details>
+            </fieldset>
+            <form id="booking-participant-form" novalidate hidden>
+              <div class="participant-selected-heading">
+                <div>
+                  <p class="eyebrow">PESERTA TERPILIH</p>
+                  <h2 id="selected-participant-name"></h2>
+                </div>
+                <div>
+                  <span id="booking-draft-status" aria-live="polite">
+                    Memuat…
+                  </span>
+                  <button id="booking-change-participant" type="button">
+                    Ganti peserta
+                  </button>
+                </div>
+              </div>
+              <fieldset>
+                <legend>
+                  <span>02</span> Identitas peserta
+                </legend>
+                <label>
+                  Nama lengkap sesuai dokumen
+                  <input
+                    name="fullName"
+                    maxlength="120"
+                    autocomplete="name"
+                    required
+                  />
+                </label>
+                <label>
+                  Alamat lengkap
+                  <textarea
+                    name="address"
+                    maxlength="1000"
+                    rows="4"
+                    autocomplete="street-address"
+                    required
+                  ></textarea>
+                </label>
+                <label>
+                  Nomor WhatsApp peserta <small>Opsional</small>
+                  <input
+                    name="participantWhatsApp"
+                    inputmode="tel"
+                    autocomplete="tel"
+                    maxlength="20"
+                  />
+                </label>
+              </fieldset>
+              <fieldset>
+                <legend>
+                  <span>03</span> Kontak darurat
+                </legend>
+                <div class="form-two-columns">
+                  <label>
+                    Nama kontak darurat
+                    <input name="emergencyName" maxlength="120" required />
+                  </label>
+                  <label>
+                    Hubungan
+                    <input
+                      name="emergencyRelationship"
+                      maxlength="80"
+                      required
+                    />
+                  </label>
+                </div>
+                <label>
+                  WhatsApp kontak darurat
+                  <input
+                    name="emergencyWhatsApp"
+                    inputmode="tel"
+                    autocomplete="tel"
+                    maxlength="20"
+                    required
+                  />
+                </label>
+              </fieldset>
+              <fieldset>
+                <legend>
+                  <span>04</span> Dokumen identitas
+                </legend>
+                <div class="form-two-columns">
+                  <label>
+                    Jenis dokumen
+                    <select name="identityType" required>
+                      <option value="">Pilih dokumen</option>
+                      <option value="ktp">KTP</option>
+                      <option value="sim">SIM</option>
+                      <option value="student_card">Kartu pelajar / KIA</option>
+                      <option value="passport">Paspor</option>
+                      <option value="kitas">KITAS</option>
+                    </select>
+                  </label>
+                  <label>
+                    Nomor dokumen
+                    <input name="identityNumber" maxlength="40" required />
+                  </label>
+                </div>
+                <p class="booking-document-label">Foto identitas</p>
+                <FileUploadControl
+                  id="booking-document-file"
+                  title="Ambil atau pilih foto identitas"
+                  hint="KTP, SIM, paspor, atau kartu identitas · JPEG, PNG, atau WebP · maksimal 8 MB"
+                  accept="image/jpeg,image/png,image/webp"
+                  icon="identity"
+                  size="compact"
+                  actionLabel="Pilih foto"
+                />
+                <p id="booking-document-status" class="field-note"></p>
+                <div
+                  id="booking-document-preview"
+                  class="booking-document-preview"
+                  hidden
+                >
+                  <img
+                    id="booking-document-preview-image"
+                    alt="Pratinjau foto identitas"
+                  />
+                  <span>
+                    <strong id="booking-document-file-name"></strong>
+                    <small id="booking-document-file-size"></small>
+                  </span>
+                  <button id="booking-document-remove" type="button">
+                    Hapus
+                  </button>
+                </div>
+              </fieldset>
+              <fieldset>
+                <legend>
+                  <span>05</span> Konfirmasi
+                </legend>
+                <label class="checkbox-label">
+                  <input name="consent" type="checkbox" required />
+                  <span>
+                    Saya menyatakan data ini benar dan menyetujui penggunaannya
+                    untuk keselamatan serta operasional perjalanan ini.
+                  </span>
+                </label>
+              </fieldset>
+              <p
+                id="booking-data-error"
+                class="booking-error"
+                role="alert"
+                hidden
+              ></p>
+              <p
+                id="booking-data-success"
+                class="participant-data-success"
+                role="status"
+                hidden
+              ></p>
+              <div class="participant-form-actions">
+                <button
+                  class="button button-dark"
+                  id="booking-save-draft"
+                  type="button"
+                >
+                  Simpan draf
+                </button>
+                <button
+                  class="button button-orange"
+                  id="booking-submit"
+                  type="submit"
+                >
+                  Simpan data keselamatan ↗
+                </button>
+                <button
+                  class="button button-dark"
+                  id="booking-next-participant"
+                  type="button"
+                  hidden
+                >
+                  Peserta berikutnya →
+                </button>
+              </div>
+            </form>
+            <p id="booking-empty-state" class="privacy-note">
+              Pilih peserta untuk mulai mengisi data.
+            </p>
+          </section>
+        </div>
+      ) : (
+        <div class="participant-data-unavailable">
+          <p class="eyebrow">LINK TIDAK TERSEDIA</p>
+          <h1>Tautan PIC sudah tidak berlaku.</h1>
+          <p>Minta admin menerbitkan ulang tautan booking-level.</p>
+        </div>
+      )}
+    </section>
+  </main>
+  {access && <script is:inline define:vars={{ token, isRosterPreview }}>
+    const roster = [...document.querySelectorAll('[data-participant-id]')];
+    const form = document.querySelector('#booking-participant-form');
+    const empty = document.querySelector('#booking-empty-state');
+    const error = document.querySelector('#booking-data-error');
+    const success = document.querySelector('#booking-data-success');
+    const status = document.querySelector('#booking-draft-status');
+    const selectedName = document.querySelector('#selected-participant-name');
+    const file = document.querySelector('#booking-document-file');
+    const documentStatus = document.querySelector('#booking-document-status');
+    const documentPreview = document.querySelector('#booking-document-preview');
+    const documentPreviewImage = document.querySelector(
+      '#booking-document-preview-image',
+    );
+    const documentFileName = document.querySelector(
+      '#booking-document-file-name',
+    );
+    const documentFileSize = document.querySelector(
+      '#booking-document-file-size',
+    );
+    const documentRemove = document.querySelector('#booking-document-remove');
+    const save = document.querySelector('#booking-save-draft');
+    const submit = document.querySelector('#booking-submit');
+    const next = document.querySelector('#booking-next-participant');
+    const disclosure = document.querySelector('#booking-roster-disclosure');
+    const changeParticipant = document.querySelector(
+      '#booking-change-participant',
+    );
+    const selectedSummary = document.querySelector('#booking-roster-selected');
+    const search = document.querySelector('#booking-roster-search');
+    const filterButtons = [
+      ...document.querySelectorAll('[data-roster-filter]'),
+    ];
+    const rosterResult = document.querySelector('#booking-roster-result');
+    const rosterEmpty = document.querySelector('#booking-roster-empty');
+    const progress = document.querySelector('#booking-progress');
+    const progressBar = document.querySelector('.booking-summary-progress');
+    let participantId = '';
+    let participantButton;
+    let hasExistingDocument = false;
+    let debounce;
+    let loadVersion = 0;
+    let previewUrl = '';
+    let activeFilter = 'all';
+    const mobileRoster = window.matchMedia('(max-width: 700px)');
+    const allowedDocumentTypes = ['image/jpeg', 'image/png', 'image/webp'];
+    const originalSubmitLabel = submit.textContent;
+    const showError = (message = '') => {
+      error.textContent = message;
+      error.hidden = !message;
+    };
+    const values = () => Object.fromEntries(new FormData(form));
+    const setValues = (data) => {
+      form.reset();
+      Object.entries(data || {}).forEach(([name, value]) => {
+        const field = form.elements.namedItem(name);
+        if (!field) return;
+        if (field.type === 'checkbox') field.checked = Boolean(value);
+        else field.value = value ?? '';
+      });
+    };
+    const clearDocumentPreview = (resetInput = true) => {
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+      previewUrl = '';
+      if (resetInput) file.value = '';
+      documentPreview.hidden = true;
+      documentPreviewImage.removeAttribute('src');
+      documentFileName.textContent = '';
+      documentFileSize.textContent = '';
+    };
+    const setDocumentPreview = (selected) => {
+      clearDocumentPreview(false);
+      if (!selected) return;
+      previewUrl = URL.createObjectURL(selected);
+      documentPreviewImage.src = previewUrl;
+      documentFileName.textContent = selected.name;
+      documentFileSize.textContent = `${(selected.size / 1024 / 1024).toFixed(2)} MB · siap diunggah`;
+      documentPreview.hidden = false;
+    };
+    const updateProgress = () => {
+      const complete = roster.filter(
+        (item) => item.dataset.complete === 'true',
+      ).length;
+      progress.textContent = `${complete}/${roster.length} peserta lengkap`;
+      progressBar.setAttribute('aria-valuenow', String(complete));
+      const line = progressBar.querySelector('i');
+      line.style.width = `${roster.length ? (complete / roster.length) * 100 : 0}%`;
+    };
+    const normalize = (value) =>
+      value
+        .toLocaleLowerCase('id-ID')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '');
+    const updateRoster = () => {
+      const query = normalize(search.value.trim());
+      let shown = 0;
+      roster.forEach((button) => {
+        const matchesSearch = normalize(
+          `${button.querySelector('strong').textContent} ${button.querySelector('.booking-roster-number').textContent}`,
+        ).includes(query);
+        const complete = button.dataset.complete === 'true';
+        const matchesFilter =
+          activeFilter === 'all' ||
+          (activeFilter === 'complete' && complete) ||
+          (activeFilter === 'incomplete' && !complete);
+        const visible = matchesSearch && matchesFilter;
+        button.closest('.booking-pic-roster-item').hidden = !visible;
+        if (visible) shown += 1;
+      });
+      rosterResult.textContent = `Menampilkan ${shown} dari ${roster.length} peserta`;
+      rosterEmpty.hidden = shown > 0;
+    };
+    const saveDraft = async (
+      quiet = false,
+      targetParticipantId = participantId,
+      draftValues = values(),
+    ) => {
+      if (!targetParticipantId) return;
+      if (isRosterPreview) {
+        if (targetParticipantId === participantId)
+          status.textContent = 'Mode simulasi · draf tidak dikirim';
+        if (!quiet) {
+          success.textContent = 'Draf simulasi tersimpan di tampilan ini.';
+          success.hidden = false;
+        }
+        return;
+      }
+      try {
+        const response = await fetch(`/api/participant-data/booking/${token}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            participantId: targetParticipantId,
+            ...draftValues,
+          }),
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.message);
+        if (targetParticipantId === participantId)
+          status.textContent = 'Draf tersimpan';
+        if (!quiet) {
+          success.textContent = 'Draf peserta tersimpan.';
+          success.hidden = false;
+        }
+      } catch (e) {
+        if (!quiet) showError(e.message || 'Draf belum dapat disimpan.');
+      }
+    };
+    const loadParticipant = async (button) => {
+      const previousParticipantId = participantId;
+      const previousValues = previousParticipantId ? values() : null;
+      clearTimeout(debounce);
+      if (
+        previousParticipantId &&
+        previousParticipantId !== button.dataset.participantId &&
+        previousValues
+      )
+        saveDraft(true, previousParticipantId, previousValues);
+      const currentLoad = ++loadVersion;
+      participantId = button.dataset.participantId;
+      participantButton = button;
+      roster.forEach((item) => {
+        const selected = item === button;
+        item.classList.toggle('is-selected', selected);
+        item.setAttribute('aria-pressed', String(selected));
+      });
+      empty.hidden = true;
+      form.hidden = false;
+      form.setAttribute('aria-busy', 'true');
+      showError();
+      success.hidden = true;
+      next.hidden = true;
+      clearDocumentPreview();
+      const participantName = button.querySelector('strong').textContent;
+      selectedName.textContent = participantName;
+      selectedSummary.textContent = participantName;
+      status.textContent = 'Memuat…';
+      setValues({ fullName: participantName });
+      hasExistingDocument = button.dataset.complete === 'true';
+      if (isRosterPreview) {
+        documentStatus.textContent = hasExistingDocument
+          ? 'Foto identitas simulasi sudah tersimpan. Pilih file untuk mengganti.'
+          : 'Belum ada foto identitas.';
+        status.textContent = 'Mode simulasi · siap diisi';
+        form.removeAttribute('aria-busy');
+      } else {
+        try {
+          const response = await fetch(
+            `/api/participant-data/booking/${token}?participantId=${encodeURIComponent(participantId)}`,
+          );
+          const result = await response.json();
+          if (!response.ok) throw new Error(result.message);
+          if (currentLoad !== loadVersion) return;
+          setValues(result.participant.formValues);
+          hasExistingDocument = result.participant.hasDocument;
+          documentStatus.textContent = hasExistingDocument
+            ? 'Foto identitas sudah tersimpan. Pilih file untuk mengganti.'
+            : 'Belum ada foto identitas.';
+          status.textContent = result.participant.draftSavedAt
+            ? `Draf terakhir ${new Date(result.participant.draftSavedAt).toLocaleString('id-ID')}`
+            : 'Siap diisi';
+        } catch (e) {
+          if (currentLoad !== loadVersion) return;
+          showError(e.message || 'Data peserta belum dapat dimuat.');
+        } finally {
+          if (currentLoad === loadVersion) form.removeAttribute('aria-busy');
+        }
+      }
+      if (mobileRoster.matches) {
+        disclosure.open = false;
+        requestAnimationFrame(() =>
+          document
+            .querySelector('.participant-selected-heading')
+            .scrollIntoView({
+              behavior: window.matchMedia('(prefers-reduced-motion: reduce)')
+                .matches
+                ? 'auto'
+                : 'smooth',
+              block: 'start',
+            }),
+        );
+      }
+    };
+    roster.forEach((button) =>
+      button.addEventListener('click', () => loadParticipant(button)),
+    );
+    form.addEventListener('input', () => {
+      clearTimeout(debounce);
+      status.textContent = 'Menyimpan…';
+      const targetParticipantId = participantId;
+      debounce = setTimeout(
+        () => saveDraft(true, targetParticipantId, values()),
+        700,
+      );
+    });
+    save.addEventListener('click', () => saveDraft(false));
+    search.addEventListener('input', updateRoster);
+    filterButtons.forEach((button) =>
+      button.addEventListener('click', () => {
+        activeFilter = button.dataset.rosterFilter;
+        filterButtons.forEach((item) =>
+          item.setAttribute('aria-pressed', String(item === button)),
+        );
+        updateRoster();
+      }),
+    );
+    changeParticipant.addEventListener('click', () => {
+      disclosure.open = true;
+      disclosure.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      if (mobileRoster.matches) setTimeout(() => search.focus(), 250);
+    });
+    documentRemove.addEventListener('click', () => {
+      clearDocumentPreview();
+      documentStatus.textContent = hasExistingDocument
+        ? 'Foto identitas tersimpan tetap digunakan.'
+        : 'Belum ada foto identitas.';
+    });
+    file.addEventListener('change', () => {
+      const selected = file.files[0];
+      showError();
+      if (!selected) return clearDocumentPreview();
+      if (!allowedDocumentTypes.includes(selected.type)) {
+        clearDocumentPreview();
+        return showError('Gunakan foto berformat JPEG, PNG, atau WebP.');
+      }
+      if (selected.size > 8 * 1024 * 1024) {
+        clearDocumentPreview();
+        return showError('Ukuran foto identitas maksimal 8 MB.');
+      }
+      setDocumentPreview(selected);
+      documentStatus.textContent = 'Foto siap diunggah saat data disimpan.';
+    });
+    const openNextIncomplete = () => {
+      const currentIndex = roster.indexOf(participantButton);
+      const ordered = [
+        ...roster.slice(currentIndex + 1),
+        ...roster.slice(0, currentIndex),
+      ];
+      const target = ordered.find((item) => item.dataset.complete !== 'true');
+      if (target) loadParticipant(target);
+      else {
+        disclosure.open = true;
+        disclosure.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    };
+    next.addEventListener('click', openNextIncomplete);
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      clearTimeout(debounce);
+      showError();
+      success.hidden = true;
+      if (!form.reportValidity()) return;
+      if (!file.files[0] && !hasExistingDocument)
+        return showError('Unggah foto identitas terlebih dahulu.');
+      submit.disabled = true;
+      save.disabled = true;
+      try {
+        if (isRosterPreview) {
+          await new Promise((resolve) => setTimeout(resolve, 250));
+          participantButton.dataset.complete = 'true';
+          participantButton.querySelector('em').textContent = 'Lengkap';
+          hasExistingDocument = true;
+          success.textContent = 'Data simulasi peserta sudah lengkap.';
+          success.hidden = false;
+          status.textContent = 'Data simulasi tersimpan';
+          next.hidden = false;
+          updateProgress();
+          updateRoster();
+          return;
+        }
+        let uploaded = '';
+        if (file.files[0]) {
+          const selected = file.files[0];
+          submit.textContent = 'Mengunggah foto…';
+          const presign = await fetch(
+            `/api/participant-data/booking/${token}/presign`,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                participantId,
+                fileName: selected.name,
+                contentType: selected.type,
+                size: selected.size,
+              }),
+            },
+          );
+          const signed = await presign.json();
+          if (!presign.ok) throw new Error(signed.message);
+          const upload = await fetch(signed.upload.uploadUrl, {
+            method: 'PUT',
+            headers: { 'Content-Type': selected.type },
+            body: selected,
+          });
+          if (!upload.ok)
+            throw new Error('Foto identitas belum dapat diunggah.');
+          uploaded = signed.upload.objectKey;
+        }
+        submit.textContent = 'Menyimpan data…';
+        const response = await fetch(`/api/participant-data/booking/${token}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            participantId,
+            ...values(),
+            consent: form.elements.namedItem('consent').checked,
+            documentObjectKey: uploaded,
+          }),
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.message);
+        success.textContent = 'Data peserta sudah tersimpan.';
+        success.hidden = false;
+        status.textContent = 'Data final tersimpan';
+        participantButton.dataset.complete = 'true';
+        participantButton.querySelector('em').textContent = 'Lengkap';
+        hasExistingDocument = true;
+        clearDocumentPreview();
+        documentStatus.textContent = 'Foto identitas sudah tersimpan.';
+        next.hidden = false;
+        updateProgress();
+        updateRoster();
+      } catch (e) {
+        showError(e.message || 'Data belum dapat disimpan.');
+      } finally {
+        submit.disabled = false;
+        save.disabled = false;
+        submit.textContent = originalSubmitLabel;
+      }
+    });
+    mobileRoster.addEventListener('change', (event) => {
+      if (!event.matches) disclosure.open = true;
+    });
+    updateProgress();
+    updateRoster();
+  </script>}
+</Layout>
+
+<style>
+  .booking-pic-layout {
+    grid-template-columns: minmax(0, 1.35fr) minmax(280px, 0.65fr);
+    gap: 42px;
+  }
+  .booking-pic-layout .participant-data-heading {
+    grid-column: 1;
+  }
+  .booking-pic-layout .participant-data-summary {
+    grid-column: 2;
+  }
+  .booking-pic-workspace {
+    grid-column: 1;
+  }
+  .booking-summary-progress {
+    height: 6px;
+    margin-top: 20px;
+    overflow: hidden;
+    background: #65705f;
+  }
+  .booking-summary-progress i {
+    display: block;
+    height: 100%;
+    background: var(--orange);
+    transition: width 180ms ease;
+  }
+  .booking-preview-note {
+    margin: 12px 0 0;
+    padding: 10px 12px;
+    border-left: 3px solid var(--orange);
+    background: #fff0e5;
+    color: #71401e;
+    font-size: 11px;
+    line-height: 1.55;
+  }
+  #booking-roster-disclosure > summary {
+    display: none;
+  }
+  .booking-roster-content {
+    margin-top: 18px;
+    padding: 18px;
+    border: 1px solid var(--line);
+    background: #eceee7;
+  }
+  .booking-roster-toolbar {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    align-items: center;
+  }
+  .booking-roster-search {
+    display: block !important;
+    flex: 1 1 320px;
+    max-width: 420px;
+    margin: 0 !important;
+  }
+  .booking-roster-search input {
+    min-height: 44px !important;
+    padding-left: 14px !important;
+  }
+  .booking-roster-filters {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .booking-roster-filters button {
+    min-height: 38px;
+    padding: 8px 12px;
+    border: 1px solid #c9ccc2;
+    background: #fffefa;
+    font-size: 11px;
+    font-weight: 700;
+  }
+  .booking-roster-filters button[aria-pressed='true'] {
+    border-color: var(--ink);
+    background: var(--ink);
+    color: white;
+  }
+  .booking-roster-result {
+    margin: 12px 0 0;
+    color: var(--muted);
+    font-size: 11px;
+  }
+  .booking-pic-roster {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 9px;
+    max-height: 388px;
+    margin-top: 12px;
+    padding: 3px 7px 7px 3px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-color: #a8ada1 transparent;
+  }
+  .booking-pic-roster-card {
+    display: grid;
+    grid-template-columns: 32px minmax(0, 1fr) auto;
+    gap: 8px 10px;
+    align-items: center;
+    width: 100%;
+    min-height: 66px;
+    padding: 12px 13px;
+    border: 1px solid #d3d5cc;
+    background: #fffefa;
+    text-align: left;
+  }
+  .booking-pic-roster-card:hover,
+  .booking-pic-roster-card.is-selected {
+    border-color: var(--orange);
+  }
+  .booking-pic-roster-card.is-selected {
+    box-shadow: 3px 3px 0 var(--orange);
+  }
+  .booking-roster-number {
+    color: var(--orange-text);
+    font-weight: 700;
+  }
+  .booking-pic-roster-card > strong {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .booking-roster-card-meta {
+    display: flex;
+    justify-content: flex-end;
+    gap: 7px;
+    align-items: center;
+  }
+  .booking-roster-card-meta small {
+    padding: 3px 5px;
+    background: #e8e9e2;
+    color: var(--muted);
+    font-size: 9px;
+    font-weight: 700;
+  }
+  .booking-roster-card-meta em {
+    color: var(--muted);
+    font-size: 11px;
+    font-style: normal;
+    white-space: nowrap;
+  }
+  .booking-pic-roster-card[data-complete='true'] .booking-roster-card-meta em {
+    color: #35623b;
+    font-weight: 700;
+  }
+  .booking-pic-roster-card[data-complete='true']
+    .booking-roster-card-meta
+    em::before {
+    content: '✓ ';
+  }
+  .booking-roster-empty {
+    margin: 12px 0 0;
+    padding: 18px;
+    background: #fffefa;
+    color: var(--muted);
+    font-size: 12px;
+    text-align: center;
+  }
+  #booking-participant-form {
+    max-width: 820px;
+    margin: 6px auto 0;
+    scroll-margin-top: 24px;
+  }
+  #booking-participant-form[aria-busy='true'] {
+    opacity: 0.62;
+    pointer-events: none;
+  }
+  .participant-selected-heading {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    align-items: end;
+    padding: 18px 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .participant-selected-heading h2 {
+    margin: 4px 0 0;
+    font: 700 34px/1 var(--display);
+    text-transform: uppercase;
+  }
+  .participant-selected-heading > div:last-child {
+    display: grid;
+    gap: 7px;
+    justify-items: end;
+  }
+  #booking-draft-status {
+    color: var(--muted);
+    font-size: 11px;
+  }
+  #booking-change-participant {
+    padding: 0 0 3px;
+    border-bottom: 1px solid var(--ink);
+    font-size: 11px;
+    font-weight: 700;
+  }
+  .booking-document-label {
+    margin: 15px 0 7px;
+    font-size: 12px;
+    font-weight: 700;
+  }
+  .booking-document-preview strong,
+  .booking-document-preview small {
+    display: block;
+  }
+  .booking-document-preview small {
+    margin-top: 4px;
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 400;
+    line-height: 1.45;
+  }
+  .booking-document-preview {
+    display: grid;
+    grid-template-columns: 74px minmax(0, 1fr) auto;
+    gap: 12px;
+    align-items: center;
+    margin-top: 10px;
+    padding: 9px;
+    border: 1px solid var(--line);
+    background: white;
+  }
+  .booking-document-preview img {
+    width: 74px;
+    height: 58px;
+    object-fit: cover;
+  }
+  .booking-document-preview strong {
+    overflow: hidden;
+    font-size: 11px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .booking-document-preview button {
+    padding: 7px;
+    border-bottom: 1px solid var(--ink);
+    font-size: 11px;
+    font-weight: 700;
+  }
+  .participant-form-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  @media (max-width: 800px) {
+    .booking-pic-layout {
+      grid-template-columns: 1fr;
+      gap: 30px;
+    }
+    .booking-pic-layout .participant-data-heading,
+    .booking-pic-layout .participant-data-summary,
+    .booking-pic-workspace {
+      grid-column: auto;
+    }
+  }
+  @media (max-width: 700px) {
+    .booking-pic-layout {
+      display: grid;
+    }
+    .booking-pic-workspace {
+      gap: 20px;
+    }
+    .booking-pic-workspace > .booking-roster-panel {
+      padding-bottom: 20px;
+    }
+    #booking-roster-disclosure {
+      margin-top: 14px;
+    }
+    #booking-roster-disclosure > summary {
+      display: flex;
+      justify-content: space-between;
+      gap: 14px;
+      align-items: center;
+      min-height: 62px;
+      padding: 12px 14px;
+      border: 1px solid var(--line);
+      background: #fffefa;
+      cursor: pointer;
+      list-style: none;
+    }
+    #booking-roster-disclosure > summary::-webkit-details-marker {
+      display: none;
+    }
+    #booking-roster-disclosure > summary > span:first-child {
+      display: grid;
+      gap: 4px;
+    }
+    #booking-roster-disclosure > summary strong {
+      font-size: 12px;
+    }
+    #booking-roster-disclosure > summary small {
+      color: var(--muted);
+      font-size: 10px;
+    }
+    #booking-roster-disclosure > summary > span:last-child {
+      color: var(--orange-text);
+      font-size: 23px;
+      transition: transform 160ms ease;
+    }
+    #booking-roster-disclosure[open] > summary > span:last-child {
+      transform: rotate(180deg);
+    }
+    .booking-roster-content {
+      margin-top: 0;
+      padding: 12px;
+      border-top: 0;
+    }
+    .booking-roster-toolbar {
+      align-items: stretch;
+      flex-direction: column;
+      gap: 9px;
+    }
+    .booking-roster-search {
+      flex-basis: auto;
+      max-width: none;
+    }
+    .booking-roster-search input,
+    .participant-data-form input:not([type='checkbox']),
+    .participant-data-form textarea,
+    .participant-data-form select {
+      font-size: 16px;
+    }
+    .booking-roster-filters {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+    .booking-roster-filters button {
+      padding-inline: 7px;
+    }
+    .booking-pic-roster {
+      grid-template-columns: 1fr;
+      max-height: min(46vh, 360px);
+    }
+    .booking-pic-roster-card {
+      min-height: 64px;
+    }
+    .participant-selected-heading {
+      align-items: start;
+      flex-direction: column;
+      padding-top: 4px;
+      scroll-margin-top: 100px;
+    }
+    .participant-selected-heading > div:last-child {
+      width: 100%;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: end;
+      justify-items: start;
+    }
+    #booking-change-participant {
+      justify-self: end;
+    }
+    #booking-participant-form {
+      margin-top: 0;
+    }
+    .participant-form-actions {
+      position: sticky;
+      z-index: 4;
+      bottom: 0;
+      display: grid;
+      grid-template-columns: 1fr 1.35fr;
+      margin: 0 -20px -20px;
+      padding: 12px 20px max(12px, env(safe-area-inset-bottom));
+      border-top: 1px solid var(--line);
+      background: rgba(246, 245, 240, 0.96);
+      box-shadow: 0 -8px 24px rgba(25, 27, 24, 0.08);
+      backdrop-filter: blur(8px);
+    }
+    .participant-form-actions .button {
+      width: 100%;
+      min-width: 0;
+      justify-content: center;
+      padding-inline: 10px;
+      text-align: center;
+    }
+    #booking-next-participant:not([hidden]) {
+      grid-column: 1 / -1;
+    }
+  }
+  @media (max-width: 430px) {
+    .booking-roster-card-meta small {
+      display: none;
+    }
+    .booking-roster-card-meta em {
+      font-size: 10px;
+    }
+    .booking-document-preview {
+      grid-template-columns: 62px minmax(0, 1fr);
+    }
+    .booking-document-preview img {
+      width: 62px;
+      height: 52px;
+    }
+    .booking-document-preview button {
+      grid-column: 1 / -1;
+      justify-self: start;
+    }
+  }
+</style>

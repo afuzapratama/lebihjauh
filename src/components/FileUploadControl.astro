@@ -1,0 +1,254 @@
+---
+interface Props {
+  id: string;
+  name?: string;
+  accept?: string;
+  required?: boolean;
+  title: string;
+  hint: string;
+  icon?: 'photo' | 'receipt' | 'identity';
+  size?: 'compact' | 'normal' | 'large';
+  inputClass?: string;
+  actionLabel?: string;
+}
+
+const {
+  id,
+  name,
+  accept,
+  required = false,
+  title,
+  hint,
+  icon = 'photo',
+  size = 'normal',
+  inputClass,
+  actionLabel = 'Pilih file',
+} = Astro.props;
+---
+
+<label
+  class:list={['file-upload-control', `is-${size}`]}
+  for={id}
+  data-file-upload-control
+>
+  <input
+    id={id}
+    name={name}
+    class={inputClass}
+    type="file"
+    accept={accept}
+    required={required}
+    aria-describedby={`${id}-hint ${id}-name`}
+  />
+  <span class:list={['file-upload-icon', `is-${icon}`]} aria-hidden="true">
+    {icon === 'photo' && (
+      <svg viewBox="0 0 24 24" fill="none">
+        <path d="M4 17.5 8.7 12l3.2 3.4 2.1-2.2 3.3 4.3" />
+        <path d="M17 4v6m-2.4-3.6L17 4l2.4 2.4" />
+        <path d="M20 11.5V19H4V5h7" />
+      </svg>
+    )}
+    {icon === 'receipt' && (
+      <svg viewBox="0 0 24 24" fill="none">
+        <path d="M6 3.5h8l4 4V20.5H6z" />
+        <path d="M14 3.5v4h4M9 15h6M9 18h5" />
+        <path d="M11.8 12V7.5m-2 2 2-2 2 2" />
+      </svg>
+    )}
+    {icon === 'identity' && (
+      <svg viewBox="0 0 24 24" fill="none">
+        <rect x="3.5" y="5" width="17" height="14" />
+        <circle cx="8" cy="11" r="2" />
+        <path d="M5.5 16c.5-1.5 1.3-2.2 2.5-2.2s2 .7 2.5 2.2M13 14h4M13 17h4" />
+        <path d="M16 11V6.5m-2 2 2-2 2 2" />
+      </svg>
+    )}
+  </span>
+  <span class="file-upload-copy">
+    <strong>{title}</strong>
+    <small id={`${id}-hint`}>{hint}</small>
+    <em id={`${id}-name`} data-file-upload-name>
+      Belum ada file dipilih
+    </em>
+  </span>
+  <span class="file-upload-action" aria-hidden="true">
+    {actionLabel}
+  </span>
+</label>
+
+<script>
+  const syncFileUploadControl = (control: HTMLElement) => {
+    const input = control.querySelector('input[type="file"]');
+    const fileName = control.querySelector('[data-file-upload-name]');
+    if (!(input instanceof HTMLInputElement) || !fileName) return;
+    const file = input.files?.[0];
+    fileName.textContent = file ? file.name : 'Belum ada file dipilih';
+    control.classList.toggle('has-file', Boolean(file));
+  };
+
+  const setupFileUploadControls = () => {
+    document
+      .querySelectorAll<HTMLElement>('[data-file-upload-control]')
+      .forEach((control) => {
+        if (control.dataset.fileUploadReady === 'true') return;
+        control.dataset.fileUploadReady = 'true';
+        const input = control.querySelector('input[type="file"]');
+        input?.addEventListener('change', () => {
+          syncFileUploadControl(control);
+          requestAnimationFrame(() => syncFileUploadControl(control));
+        });
+        syncFileUploadControl(control);
+      });
+  };
+
+  setupFileUploadControls();
+  document.addEventListener('astro:page-load', setupFileUploadControls);
+  document.addEventListener('click', () => {
+    requestAnimationFrame(() => {
+      document
+        .querySelectorAll<HTMLElement>('[data-file-upload-control]')
+        .forEach(syncFileUploadControl);
+    });
+  });
+  document.addEventListener('reset', () => {
+    requestAnimationFrame(() => {
+      document
+        .querySelectorAll<HTMLElement>('[data-file-upload-control]')
+        .forEach(syncFileUploadControl);
+    });
+  });
+</script>
+
+<style>
+  .file-upload-control {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 14px;
+    align-items: center;
+    width: 100%;
+    min-height: 104px;
+    padding: 16px;
+    border: 1px dashed #aeb5a7;
+    background: #f7f7f1;
+    color: #20271f;
+    text-align: left;
+    cursor: pointer;
+    transition:
+      border-color 150ms ease,
+      background-color 150ms ease;
+  }
+  .file-upload-control.is-compact {
+    min-height: 88px;
+    padding: 13px 14px;
+  }
+  .file-upload-control.is-large {
+    min-height: 142px;
+    padding: 20px;
+  }
+  .file-upload-control:hover,
+  .file-upload-control:focus-within {
+    border-color: #e15d26;
+    background: #fff8f1;
+  }
+  .file-upload-control:focus-within {
+    outline: 2px solid #e15d26;
+    outline-offset: 2px;
+  }
+  .file-upload-control.has-file {
+    border-style: solid;
+    border-color: #718267;
+    background: #f2f5ed;
+  }
+  .file-upload-control input {
+    position: absolute;
+    width: 1px;
+    min-width: 1px;
+    height: 1px;
+    min-height: 1px;
+    padding: 0;
+    overflow: hidden;
+    border: 0;
+    opacity: 0;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .file-upload-icon {
+    display: grid;
+    width: 48px;
+    height: 48px;
+    place-items: center;
+    background: #3c4d37;
+    color: #fff;
+  }
+  .file-upload-icon.is-receipt {
+    background: #6d5838;
+  }
+  .file-upload-icon.is-identity {
+    background: #344c5a;
+  }
+  .file-upload-icon svg {
+    width: 27px;
+    height: 27px;
+    stroke: currentColor;
+    stroke-width: 1.6;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  .file-upload-copy {
+    display: grid;
+    min-width: 0;
+    gap: 4px;
+  }
+  .file-upload-copy strong {
+    font-size: 12px;
+    line-height: 1.35;
+  }
+  .file-upload-copy small {
+    color: #6c7369;
+    font-size: 10px;
+    font-weight: 400;
+    line-height: 1.45;
+  }
+  .file-upload-copy em {
+    min-width: 0;
+    overflow: hidden;
+    color: #5f665d;
+    font-size: 10px;
+    font-style: normal;
+    line-height: 1.4;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .has-file .file-upload-copy em {
+    color: #40523a;
+    font-weight: 700;
+  }
+  .file-upload-action {
+    padding: 8px 10px;
+    border: 1px solid #c8cec2;
+    background: #fff;
+    color: #2d382a;
+    font-size: 10px;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+  @media (max-width: 520px) {
+    .file-upload-control,
+    .file-upload-control.is-compact,
+    .file-upload-control.is-large {
+      grid-template-columns: auto minmax(0, 1fr);
+      min-height: 96px;
+      padding: 14px;
+    }
+    .file-upload-icon {
+      width: 43px;
+      height: 43px;
+    }
+    .file-upload-action {
+      grid-column: 1 / -1;
+      width: 100%;
+      text-align: center;
+    }
+  }
+</style>

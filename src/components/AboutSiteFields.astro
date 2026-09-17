@@ -1,0 +1,239 @@
+---
+import type { AboutPageContent } from '../lib/site-content';
+import AdminContentField from './AdminContentField.astro';
+import SiteImageField from './SiteImageField.astro';
+interface Props {
+  content: AboutPageContent;
+}
+const { content } = Astro.props;
+const F = AdminContentField;
+---
+
+<section class="panel website-section">
+  <p class="eyebrow">01 / HERO & SEO</p>
+  <h2>Kesan pertama About.</h2>
+  <details open>
+    <summary>Foto hero</summary>
+    <SiteImageField
+      id="about-hero-image"
+      prefix="hero.image"
+      title="Foto hero About"
+      value={content.hero.image}
+      captionLabel="Label foto"
+    />
+  </details>
+  <details open>
+    <summary>Kalimat hero</summary>
+    <div class="field-grid">
+      <F name="hero.eyebrow" label="Eyebrow" value={content.hero.eyebrow} />
+      <F
+        name="hero.titleLine1"
+        label="Judul baris 1"
+        value={content.hero.titleLine1}
+      />
+      <F
+        name="hero.titleLine2"
+        label="Judul baris 2"
+        value={content.hero.titleLine2}
+      />
+      <F
+        name="hero.titleAccent"
+        label="Judul aksen"
+        value={content.hero.titleAccent}
+      />
+      <F name="hero.lead" label="Lead" value={content.hero.lead} textarea />
+      <F
+        name="hero.scrollLabel"
+        label="Teks scroll"
+        value={content.hero.scrollLabel}
+      />
+      <F
+        name="hero.note"
+        label="Tulisan dekoratif"
+        value={content.hero.note}
+        textarea
+      />
+    </div>
+  </details>
+  <details>
+    <summary>SEO & tampilan saat dibagikan</summary>
+    <div class="field-grid">
+      <F name="seo.title" label="Judul browser" value={content.seo.title} />
+      <F
+        name="seo.description"
+        label="Meta description"
+        value={content.seo.description}
+        textarea
+      />
+      <F
+        name="seo.shareImageUrl"
+        label="URL gambar sosial (opsional)"
+        value={content.seo.shareImageUrl}
+        required={false}
+        type="url"
+      />
+    </div>
+  </details>
+</section>
+<section class="panel website-section">
+  <p class="eyebrow">02 / KENAPA KAMI ADA</p>
+  <h2>Cerita pembuka.</h2>
+  <div class="field-grid">
+    <F
+      name="intro.kicker"
+      label="Kicker"
+      value={content.intro.kicker}
+      textarea
+    />
+    <F name="intro.eyebrow" label="Eyebrow" value={content.intro.eyebrow} />
+    <F name="intro.title" label="Judul" value={content.intro.title} />
+    <F
+      name="intro.titleAccent"
+      label="Judul aksen"
+      value={content.intro.titleAccent}
+    />
+    <F
+      name="intro.body1"
+      label="Paragraf 1"
+      value={content.intro.body1}
+      textarea
+    />
+    <F
+      name="intro.body2"
+      label="Paragraf 2"
+      value={content.intro.body2}
+      textarea
+    />
+  </div>
+</section>
+<section class="panel website-section">
+  <p class="eyebrow">03 / PERJALANAN VERSI KAMI</p>
+  <h2>Dua foto dan cerita perjalanan.</h2>
+  <div class="website-image-pair">
+    <SiteImageField
+      id="about-story-main"
+      prefix="story.mainImage"
+      title="Foto utama"
+      value={content.story.mainImage}
+    />
+    <SiteImageField
+      id="about-story-secondary"
+      prefix="story.secondaryImage"
+      title="Foto pendamping"
+      value={content.story.secondaryImage}
+    />
+  </div>
+  <details open>
+    <summary>Kalimat cerita</summary>
+    <div class="field-grid">
+      <F name="story.eyebrow" label="Eyebrow" value={content.story.eyebrow} />
+      <F name="story.title" label="Judul" value={content.story.title} />
+      <F
+        name="story.titleAccent"
+        label="Judul aksen"
+        value={content.story.titleAccent}
+      />
+      <F name="story.lead" label="Lead" value={content.story.lead} textarea />
+      <F
+        name="story.body"
+        label="Paragraf"
+        value={content.story.body}
+        textarea
+      />
+      <F
+        name="story.quote"
+        label="Kutipan"
+        value={content.story.quote}
+        textarea
+      />
+    </div>
+  </details>
+</section>
+<section class="panel website-section">
+  <p class="eyebrow">04 / NILAI</p>
+  <h2>Hal yang kami pegang.</h2>
+  <div class="field-grid">
+    <F name="values.eyebrow" label="Eyebrow" value={content.values.eyebrow} />
+    <F
+      name="values.titleLine1"
+      label="Judul baris 1"
+      value={content.values.titleLine1}
+    />
+    <F
+      name="values.titleLine2"
+      label="Judul baris 2"
+      value={content.values.titleLine2}
+    />
+    <F
+      name="values.intro"
+      label="Pengantar"
+      value={content.values.intro}
+      textarea
+    />
+  </div>
+  <div class="repeat-list">
+    {content.values.items.map((item, index) => (
+      <article class="repeat-row">
+        <strong>Nilai {index + 1}</strong>
+        <F
+          name={`values.items.${index}.title`}
+          label="Judul nilai"
+          value={item.title}
+        />
+        <F
+          name={`values.items.${index}.copy`}
+          label="Penjelasan"
+          value={item.copy}
+          textarea
+        />
+      </article>
+    ))}
+  </div>
+</section>
+<section class="panel website-section">
+  <p class="eyebrow">05 / PENUTUP</p>
+  <h2>Ajakan perjalanan berikutnya.</h2>
+  <SiteImageField
+    id="about-outro-image"
+    prefix="outro.image"
+    title="Foto penutup"
+    value={content.outro.image}
+  />
+  <details open>
+    <summary>Kalimat penutup</summary>
+    <div class="field-grid">
+      <F name="outro.eyebrow" label="Eyebrow" value={content.outro.eyebrow} />
+      <F
+        name="outro.titleLine1"
+        label="Judul baris 1"
+        value={content.outro.titleLine1}
+      />
+      <F
+        name="outro.titleLine2"
+        label="Judul baris 2"
+        value={content.outro.titleLine2}
+      />
+      <F
+        name="outro.titleAccent"
+        label="Judul aksen"
+        value={content.outro.titleAccent}
+      />
+      <F
+        name="outro.description"
+        label="Deskripsi"
+        value={content.outro.description}
+        textarea
+      />
+      <F
+        name="outro.primaryCtaLabel"
+        label="Tombol Open Trip"
+        value={content.outro.primaryCtaLabel}
+      />
+      <F
+        name="outro.secondaryCtaLabel"
+        label="Tombol Private Trip"
+        value={content.outro.secondaryCtaLabel}
+      />
+    </div>
+  </details>
+</section>

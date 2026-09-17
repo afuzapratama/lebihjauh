@@ -1,0 +1,258 @@
+---
+import AdminLayout from '../../layouts/AdminLayout.astro';
+---
+
+<AdminLayout title="Open Trip" active="trips">
+  <div class="page-title">
+    <div>
+      <p class="eyebrow">01 / OPEN TRIP</p>
+      <h1>
+        Jadwal terbuka.
+        <br />
+        Siap dikelola.
+      </h1>
+      <p class="muted">
+        Kelola paket dan keberangkatan Open Trip. Permintaan khusus berada di
+        menu Private Trip.
+      </p>
+    </div>
+    <a class="primary" href="/admin/trips/new">
+      Buat trip <span aria-hidden="true">↗</span>
+    </a>
+  </div>
+  <p class="notice" id="notice" hidden role="status"></p>
+  <section class="panel" aria-labelledby="trip-list-title">
+    <div class="panel-head">
+      <h2 id="trip-list-title">Open Trip tersimpan</h2>
+      <span id="loading">Memuat…</span>
+    </div>
+    <div class="trip-toolbar">
+      <label>
+        Cari trip
+        <input
+          id="trip-search"
+          type="search"
+          placeholder="Nama, lokasi, atau kategori"
+        />
+      </label>
+      <label>
+        Urutkan
+        <select id="trip-sort">
+          <option value="updated">Terakhir diperbarui</option>
+          <option value="departure">Keberangkatan terdekat</option>
+          <option value="name">Nama A–Z</option>
+        </select>
+      </label>
+    </div>
+    <div id="trip-list" class="trip-cards" aria-live="polite"></div>
+  </section>
+
+  <script is:inline>
+    const list = document.getElementById('trip-list');
+    const loading = document.getElementById('loading');
+    const notice = document.getElementById('notice');
+    const search = document.getElementById('trip-search');
+    const sort = document.getElementById('trip-sort');
+    let trips = [];
+    const dateFormat = new Intl.DateTimeFormat('id-ID', {
+      dateStyle: 'medium',
+      timeStyle: 'short',
+      timeZone: 'Asia/Jakarta',
+    });
+    const money = new Intl.NumberFormat('id-ID');
+    function showNotice(message, type = 'success') {
+      if (window.adminNotify) {
+        window.adminNotify({ message, type });
+        notice.hidden = true;
+        return;
+      }
+      notice.textContent = message;
+      notice.hidden = false;
+      notice.dataset.type = type;
+    }
+    function nextDeparture(item) {
+      const now = Date.now();
+      return [...item.departures]
+        .filter((schedule) => new Date(schedule.startAt).valueOf() >= now)
+        .sort((a, b) => new Date(a.startAt) - new Date(b.startAt))[0];
+    }
+    function visibleTrips() {
+      const query = search.value.trim().toLocaleLowerCase('id-ID');
+      const filtered = trips.filter((item) =>
+        `${item.name} ${item.locationLabel || ''} ${item.category}`
+          .toLocaleLowerCase('id-ID')
+          .includes(query),
+      );
+      return filtered.sort((a, b) => {
+        if (sort.value === 'name') return a.name.localeCompare(b.name, 'id');
+        if (sort.value === 'departure') {
+          return (
+            (nextDeparture(a) ? new Date(nextDeparture(a).startAt) : Infinity) -
+            (nextDeparture(b) ? new Date(nextDeparture(b).startAt) : Infinity)
+          );
+        }
+        return new Date(b.updatedAt) - new Date(a.updatedAt);
+      });
+    }
+    function render() {
+      list.replaceChildren();
+      const items = visibleTrips();
+      if (!items.length) {
+        const empty = document.createElement('p');
+        empty.className = 'empty';
+        empty.textContent = trips.length
+          ? 'Tidak ada trip yang cocok dengan pencarian.'
+          : 'Belum ada Open Trip. Buat paket pertama untuk mulai mengatur keberangkatan.';
+        list.append(empty);
+        return;
+      }
+      for (const [index, item] of items.entries()) {
+        const card = document.createElement('article');
+        card.className = 'trip-card';
+        const media = document.createElement('div');
+        media.className = 'trip-card-media';
+        const number = document.createElement('span');
+        number.className = 'trip-card-number';
+        number.textContent = `${String(index + 1).padStart(2, '0')} / TRIP`;
+        if (item.coverImageUrl) {
+          const image = document.createElement('img');
+          image.className = 'trip-card-image';
+          image.src = item.coverImageUrl;
+          image.alt = `Foto utama ${item.name}`;
+          media.append(image);
+        } else {
+          const imagePlaceholder = document.createElement('div');
+          imagePlaceholder.className = 'trip-card-image placeholder';
+          imagePlaceholder.textContent = 'Belum ada foto';
+          media.append(imagePlaceholder);
+        }
+        media.append(number);
+        card.append(media);
+        const body = document.createElement('div');
+        body.className = 'trip-card-body';
+        const heading = document.createElement('div');
+        const eyebrow = document.createElement('p');
+        eyebrow.className = 'eyebrow trip-card-eyebrow';
+        eyebrow.textContent = [item.category, item.locationLabel]
+          .filter(Boolean)
+          .join(' · ');
+        const title = document.createElement('h3');
+        title.textContent = item.name;
+        const meta = document.createElement('p');
+        meta.textContent = `Halaman publik · /trip/${item.slug}`;
+        heading.append(eyebrow, title, meta);
+        const schedule = nextDeparture(item);
+        const summary = document.createElement('p');
+        summary.className = 'trip-card-summary';
+        summary.textContent = schedule
+          ? `Berikutnya ${dateFormat.format(new Date(schedule.startAt))} · ${schedule.capacity} pax · mulai Rp${money.format(schedule.unitPrice)}/pax`
+          : 'Belum ada keberangkatan.';
+        const badges = document.createElement('div');
+        badges.className = 'trip-card-badges';
+        const count = document.createElement('span');
+        count.className = 'pill';
+        count.textContent = `${item.departures.length} jadwal`;
+        badges.append(count);
+        if (schedule) {
+          const state = document.createElement('span');
+          state.className = `state ${schedule.publicationState}`;
+          state.textContent = { draft: 'Draft', open: 'Buka', closed: 'Tutup' }[
+            schedule.publicationState
+          ];
+          badges.append(state);
+        }
+        if (!item.coverImageUrl) {
+          const missing = document.createElement('span');
+          missing.className = 'pill';
+          missing.textContent = 'Foto belum ada';
+          badges.append(missing);
+        }
+        const updated = document.createElement('p');
+        updated.className = 'trip-card-updated';
+        updated.textContent = `Diperbarui ${dateFormat.format(new Date(item.updatedAt))}`;
+        const scheduleInfo = document.createElement('div');
+        scheduleInfo.className = 'trip-card-schedule';
+        const scheduleLabel = document.createElement('p');
+        scheduleLabel.className = 'trip-card-schedule-label';
+        scheduleLabel.textContent = schedule
+          ? 'JADWAL TERDEKAT'
+          : 'JADWAL KEBERANGKATAN';
+        scheduleInfo.append(scheduleLabel, summary, badges);
+        const actions = document.createElement('div');
+        actions.className = 'actions';
+        const manage = document.createElement('a');
+        manage.className = 'primary';
+        manage.href = `/admin/trips/${item.id}`;
+        manage.textContent = 'Kelola trip';
+        const remove = document.createElement('button');
+        remove.type = 'button';
+        remove.className = 'danger-button';
+        remove.textContent = 'Arsipkan';
+        let archiveReason;
+        if (item.canArchive === false) {
+          remove.disabled = true;
+          remove.title = item.archiveReason;
+          archiveReason = document.createElement('p');
+          archiveReason.className = 'action-unavailable';
+          archiveReason.textContent = item.archiveReason;
+        }
+        remove.onclick = async () => {
+          const approved = await window.adminConfirm({
+            title: `Arsipkan ${item.name}?`,
+            message:
+              'Trip tidak lagi tampil di daftar admin atau katalog. Data dan audit tetap tersimpan.',
+            confirmLabel: 'Arsipkan trip',
+            destructive: true,
+          });
+          if (!approved) return;
+          remove.disabled = true;
+          try {
+            const response = await fetch('/api/admin/trips', {
+              method: 'DELETE',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ id: item.id }),
+            });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.message);
+            trips = trips.filter((trip) => trip.id !== item.id);
+            render();
+            showNotice(
+              'Trip diarsipkan. Riwayatnya tetap tersimpan dengan aman.',
+            );
+          } catch (error) {
+            showNotice(
+              error.message || 'Trip tidak dapat diarsipkan.',
+              'error',
+            );
+            remove.disabled = false;
+          }
+        };
+        actions.append(manage, remove);
+        const footer = document.createElement('div');
+        footer.className = 'trip-card-footer';
+        footer.append(updated, actions);
+        body.append(heading, scheduleInfo);
+        if (archiveReason) body.append(archiveReason);
+        body.append(footer);
+        card.append(body);
+        list.append(card);
+      }
+    }
+    async function load() {
+      try {
+        const response = await fetch('/api/admin/trips?source=open_trip');
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.message);
+        trips = data.trips;
+        loading.textContent = `${trips.length} trip`;
+        render();
+      } catch (error) {
+        loading.textContent = 'Gagal dimuat';
+        showNotice(error.message || 'Daftar trip tidak dapat dimuat.', 'error');
+      }
+    }
+    search.addEventListener('input', render);
+    sort.addEventListener('change', render);
+    load();
+  </script>
+</AdminLayout>

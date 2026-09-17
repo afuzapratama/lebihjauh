@@ -1,0 +1,443 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex,nofollow" />
+    <title>LebihJauh — Workshop booking 4A</title>
+    <link rel="stylesheet" href="review.css" />
+    <script src="review.js" defer></script>
+  </head>
+  <body>
+    <aside class="sidebar">
+      <a class="brand" href="review.html">LebihJauh<span>↗</span></a>
+      <p class="small">WORKSHOP PRODUK / 4A</p>
+      <nav aria-label="Layar simulasi">
+        <button data-screen="schedule" aria-current="page">
+          <span>01</span> Admin jadwal
+        </button>
+        <button data-screen="checkout"><span>02</span> Checkout</button>
+        <button data-screen="invoice">
+          <span>03</span> Invoice & pembayaran
+        </button>
+        <button data-screen="private"><span>04</span> Private Trip</button>
+      </nav>
+      <div class="sidebar-bottom">
+        <span class="dot"></span> PROTOTIPE LOKAL
+        <p>Data contoh. Tanpa login, database, atau transaksi nyata.</p>
+        <a href="README.md">Baca rancangan ↗</a>
+      </div>
+    </aside>
+    <main>
+      <header>
+        <span>LEBIHJAUH / BOOKING WORKSHOP</span
+        ><span class="pill">RANCANGAN · BELUM OPERASIONAL</span>
+      </header>
+      <div class="notice">
+        <strong>Ruang review, sir.</strong> Coba alurnya. Semua perubahan hanya
+        ada di tab ini dan hilang saat refresh. Dasar nominal DP dan tenggat
+        masih usulan; metode pembayaran telah dipilih: transfer bank dengan
+        verifikasi admin.
+      </div>
+      <section id="screen-schedule" aria-labelledby="schedule-title">
+        <div class="heading">
+          <div>
+            <p class="eyebrow">01 / DARI MEJA ADMIN</p>
+            <h1 id="schedule-title">Satu trip.<br />Banyak keberangkatan.</h1>
+          </div>
+          <span class="stamp">PLAN IT.<br />MAKE IT HAPPEN. ↗</span>
+        </div>
+        <div class="grid">
+          <div class="card">
+            <div class="card-title">
+              <h2>Labuan Bajo</h2>
+              <span class="pill olive">CONTOH PAKET</span>
+            </div>
+            <p class="muted">
+              18–25 Oktober 2026 · Asia/Makassar · 8 hari, 7 malam
+            </p>
+            <form id="schedule-form">
+              <div class="row">
+                <label
+                  >Harga per pax (Rp)<input
+                    id="price"
+                    type="number"
+                    min="1"
+                    max="1000000000"
+                    step="1"
+                    value="2500000"
+                    required /></label
+                ><label
+                  >Kuota contoh<input
+                    id="capacity"
+                    type="number"
+                    min="1"
+                    max="100"
+                    step="1"
+                    value="20"
+                    required
+                /></label>
+              </div>
+              <div class="row">
+                <label
+                  >Aturan down payment<select id="dp-mode">
+                    <option value="percentage">Persentase</option>
+                    <option value="fixed">Nominal rupiah</option>
+                  </select></label
+                ><label
+                  ><span id="dp-value-label">Persentase DP (%)</span
+                  ><input
+                    id="dp-value"
+                    type="number"
+                    min="0.01"
+                    max="100"
+                    step="0.01"
+                    value="30"
+                    required
+                /></label>
+              </div>
+              <label
+                >Dasar perhitungan nominal
+                <span class="inline-note">D02 · belum dipilih</span
+                ><select id="dp-basis" disabled>
+                  <option value="order">Per pesanan</option>
+                  <option value="pax">Per pax</option>
+                </select></label
+              >
+              <p class="field-help">
+                Persentase selalu dihitung dari total order pada rancangan ini.
+                Coba kedua dasar nominal untuk membandingkan dampaknya.
+              </p>
+            </form>
+            <div class="policy">
+              <span>Penahanan unpaid</span
+              ><strong>24 jam <small>contoh, bukan aturan final</small></strong
+              ><span>Metode pembayaran</span
+              ><strong
+                >Transfer + verifikasi admin
+                <small>keputusan D01 · transfer bank</small></strong
+              >
+            </div>
+            <button class="primary" data-screen="checkout">
+              Lihat dari sisi pelanggan <span>↗</span>
+            </button>
+          </div>
+          <div>
+            <div class="card description">
+              <p class="eyebrow">YANG DIBACA PELANGGAN</p>
+              <h2>Deskripsi yang lengkap.</h2>
+              <p class="muted">
+                Admin mengisi bagian terpisah. Pengunjung membacanya sebagai
+                satu cerita perjalanan.
+              </p>
+              <details open>
+                <summary>01 · Tentang perjalanan</summary>
+                <p>
+                  Contoh pengalaman menjelajah kepulauan Labuan Bajo. Isi ini
+                  hanya menunjukkan penempatan konten.
+                </p>
+              </details>
+              <details>
+                <summary>02 · Fasilitas termasuk</summary>
+                <p>
+                  Contoh: kapal, makan, pemandu, dan dokumentasi. Fasilitas
+                  sebenarnya ditentukan pemilik paket.
+                </p>
+              </details>
+              <details>
+                <summary>03 · Tidak termasuk</summary>
+                <p>
+                  Admin menjelaskan pengeluaran di luar paket secara eksplisit.
+                </p>
+              </details>
+              <details>
+                <summary>04 · Itinerary dan meeting point</summary>
+                <p>Rencana kegiatan per hari serta tempat/waktu berkumpul.</p>
+              </details>
+              <details>
+                <summary>05 · Persiapan dan ketentuan</summary>
+                <p>
+                  Perlengkapan, pembayaran, perubahan jadwal, dan pembatalan
+                  sesuai kebijakan yang akan disepakati.
+                </p>
+              </details>
+            </div>
+            <p class="note">
+              Harga, DP, dan kuota memakai field terstruktur; tidak dibaca dari
+              paragraf fasilitas.
+            </p>
+          </div>
+        </div>
+      </section>
+      <section id="screen-checkout" aria-labelledby="checkout-title" hidden>
+        <div class="heading">
+          <div>
+            <p class="eyebrow">02 / LANGKAH PELANGGAN</p>
+            <h1 id="checkout-title">Pilih tanggal.<br />Ajak orang-orangmu.</h1>
+          </div>
+        </div>
+        <ol class="steps">
+          <li class="active">Jadwal & pax</li>
+          <li>Data pemesan</li>
+          <li>Ringkasan</li>
+          <li>Invoice</li>
+        </ol>
+        <div class="grid">
+          <div class="card">
+            <h2>Rencana perjalanan</h2>
+            <form id="checkout-form">
+              <label
+                >Keberangkatan<select>
+                  <option>Labuan Bajo · 18–25 Oktober 2026</option>
+                </select></label
+              ><label
+                >Jumlah pax<input
+                  id="pax"
+                  type="number"
+                  value="4"
+                  min="1"
+                  max="100"
+                  step="1"
+                  required
+              /></label>
+              <div class="pic">
+                <span class="avatar">R</span>
+                <div>
+                  <strong>Raka — PIC contoh</strong>
+                  <p>Nama & WhatsApp pemesan masuk di langkah ini.</p>
+                </div>
+              </div>
+              <p class="field-help">
+                Dalam prototipe ini tidak perlu memasukkan data pribadi. Form
+                final mengikuti keputusan data peserta D09.
+              </p>
+              <label class="checkbox"
+                ><input id="agree" type="checkbox" required /> Saya memahami ini
+                simulasi dengan data dan ketentuan contoh.</label
+              ><button class="primary" type="submit">
+                Simulasikan membuat order <span>↗</span>
+              </button>
+            </form>
+            <p id="order-message" class="note" role="status"></p>
+          </div>
+          <div class="card summary-card">
+            <p class="eyebrow">RINGKASAN PERJALANAN</p>
+            <h2>Labuan Bajo</h2>
+            <p class="muted">18–25 Oktober 2026</p>
+            <dl>
+              <div>
+                <dt>Harga per pax</dt>
+                <dd id="quote-price">—</dd>
+              </div>
+              <div>
+                <dt>Peserta</dt>
+                <dd id="quote-pax">—</dd>
+              </div>
+              <div class="total">
+                <dt>Total pesanan</dt>
+                <dd id="quote-total">—</dd>
+              </div>
+              <div>
+                <dt>Down Payment minimum</dt>
+                <dd id="quote-dp">—</dd>
+              </div>
+              <div>
+                <dt>Sisa setelah DP diterima</dt>
+                <dd id="quote-balance">—</dd>
+              </div>
+            </dl>
+            <p id="calculation-error" class="error" role="alert" hidden></p>
+            <p class="note">
+              Sistem final menghitung ulang harga dan kuota di server. Ringkasan
+              ini hanya simulasi lokal.
+            </p>
+          </div>
+        </div>
+      </section>
+      <section id="screen-invoice" aria-labelledby="invoice-title" hidden>
+        <div class="heading">
+          <div>
+            <p class="eyebrow">03 / ORDER DULU, BARU WHATSAPP</p>
+            <h1 id="invoice-title">Satu invoice.<br />Riwayat yang jelas.</h1>
+          </div>
+        </div>
+        <div id="no-order" class="card empty">
+          <h2>Belum ada order simulasi.</h2>
+          <p>Mulai dari checkout untuk melihat hasilnya di sini.</p>
+          <button class="primary" data-screen="checkout">Ke checkout ↗</button>
+        </div>
+        <div id="invoice-content" hidden>
+          <div class="stats">
+            <div>
+              <span>STATUS PEMBAYARAN</span
+              ><strong id="payment-status">Unpaid</strong>
+            </div>
+            <div>
+              <span>STATUS BOOKING</span
+              ><strong id="booking-status">Menunggu DP</strong>
+            </div>
+            <div>
+              <span>ALOKASI KURSI</span
+              ><strong id="seat-status">Ditahan</strong>
+            </div>
+          </div>
+          <div class="grid">
+            <div class="card">
+              <div class="card-title">
+                <h2 id="invoice-number">—</h2>
+                <span class="pill">SIMULASI</span>
+              </div>
+              <p id="invoice-description" class="muted"></p>
+              <dl>
+                <div>
+                  <dt>Total tagihan</dt>
+                  <dd id="invoice-total">—</dd>
+                </div>
+                <div>
+                  <dt>DP minimum</dt>
+                  <dd id="invoice-dp">—</dd>
+                </div>
+                <div>
+                  <dt>Terbayar terverifikasi</dt>
+                  <dd id="invoice-paid">—</dd>
+                </div>
+                <div>
+                  <dt>Kekurangan DP</dt>
+                  <dd id="invoice-dp-short">—</dd>
+                </div>
+                <div class="total">
+                  <dt>Sisa pelunasan</dt>
+                  <dd id="invoice-balance">—</dd>
+                </div>
+                <div>
+                  <dt>Kelebihan bayar</dt>
+                  <dd id="invoice-overpaid">—</dd>
+                </div>
+              </dl>
+              <div class="wa-preview">
+                <strong>Ringkasan untuk WhatsApp</strong>
+                <p id="wa-message"></p>
+                <span>Tidak ada pesan yang dikirim dari prototipe.</span>
+              </div>
+              <p class="note">
+                Snapshot order tidak berubah saat harga di tab Admin jadwal
+                diubah. Buat simulasi baru untuk mencoba harga baru.
+              </p>
+            </div>
+            <div class="card">
+              <p class="eyebrow">TINDAKAN ADMIN / SIMULASI</p>
+              <h2>Periksa pembayarannya.</h2>
+              <form id="payment-form">
+                <label
+                  >Nominal bukti contoh (Rp)<input
+                    id="payment-amount"
+                    type="number"
+                    min="1"
+                    max="100000000000"
+                    step="1"
+                    required /></label
+                ><button class="secondary" type="submit">
+                  Simulasikan bukti masuk
+                </button>
+              </form>
+              <p id="review-status" class="review-status" role="status">
+                Belum ada bukti pending.
+              </p>
+              <div class="row actions">
+                <button id="accept-payment" class="primary" disabled>
+                  Terima bukti</button
+                ><button id="reject-payment" class="secondary" disabled>
+                  Tolak bukti
+                </button>
+              </div>
+              <div class="ledger">
+                <h3>Riwayat simulasi</h3>
+                <ul id="ledger-list"></ul>
+              </div>
+              <button id="expire-order" class="text-button">
+                Simulasikan masa hold habis →
+              </button>
+              <p class="note">
+                Verifikasi setelah expiry tetap mencatat uang, tetapi tidak
+                otomatis mengambil kursi kembali.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+      <section id="screen-private" aria-labelledby="private-title" hidden>
+        <div class="heading">
+          <div>
+            <p class="eyebrow">04 / PERJALANAN VERSI ROMBONGANMU</p>
+            <h1 id="private-title">
+              Request dulu.<br />Sepakati perjalanannya.
+            </h1>
+          </div>
+        </div>
+        <div class="grid">
+          <div class="card">
+            <p class="eyebrow">CONTOH REQUEST · LJ-RQ-DEMO-001</p>
+            <h2>Sailing bareng teman.</h2>
+            <dl>
+              <div>
+                <dt>Tujuan</dt>
+                <dd>Labuan Bajo</dd>
+              </div>
+              <div>
+                <dt>Tanggal usulan</dt>
+                <dd>18–25 Oktober 2026</dd>
+              </div>
+              <div>
+                <dt>Jumlah pax</dt>
+                <dd>8 orang</dd>
+              </div>
+              <div>
+                <dt>Status</dt>
+                <dd id="private-state">Request baru</dd>
+              </div>
+            </dl>
+            <p class="muted">
+              Harga, fasilitas, dan down payment dibicarakan bersama admin.
+              Request awal belum menjadi invoice.
+            </p>
+            <button id="private-next" class="primary">
+              Simulasikan admin menindaklanjuti ↗</button
+            ><button id="private-reset" class="text-button">Ulangi alur</button>
+          </div>
+          <div class="card">
+            <h2>Alur private.</h2>
+            <ol class="private-steps">
+              <li data-private-step="0">
+                Request tersimpan <small>Nomor referensi, tanpa tagihan.</small>
+              </li>
+              <li data-private-step="1">
+                Diskusi kebutuhan <small>Tanggal, pax, dan fasilitas.</small>
+              </li>
+              <li data-private-step="2">
+                Penawaran dibuat <small>Harga, DP, serta masa berlaku.</small>
+              </li>
+              <li data-private-step="3">
+                Kesepakatan dicatat
+                <small>Persetujuan untuk versi penawaran tertentu.</small>
+              </li>
+              <li data-private-step="4">
+                Booking & invoice
+                <small
+                  >Satu konversi, memakai mesin pembayaran yang sama.</small
+                >
+              </li>
+            </ol>
+            <div class="policy">
+              Entry manual dari WhatsApp tetap mencatat paket, harga, pax, serta
+              kesepakatan sebelum invoice diterbitkan.
+            </div>
+          </div>
+        </div>
+      </section>
+      <footer>
+        LEBIHJAUH · GO FURTHER.
+        <span>Fase 4A / Simulasi rancangan / Tidak terhubung ke backend</span>
+      </footer>
+    </main>
+  </body>
+</html>

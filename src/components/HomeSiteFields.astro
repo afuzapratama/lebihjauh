@@ -1,0 +1,476 @@
+---
+import type { HomePageContent } from '../lib/site-content';
+import AdminContentField from './AdminContentField.astro';
+import SiteImageField from './SiteImageField.astro';
+interface Option {
+  id: string;
+  label: string;
+}
+interface Props {
+  content: HomePageContent;
+  tripOptions?: Option[];
+  galleryOptions?: Option[];
+  newsOptions?: Option[];
+}
+const {
+  content,
+  tripOptions = [],
+  galleryOptions = [],
+  newsOptions = [],
+} = Astro.props;
+const F = AdminContentField;
+---
+
+<section class="panel website-section">
+  <p class="eyebrow">01 / HERO & SEO</p>
+  <h2>Kesan pertama Home.</h2>
+  <details open>
+    <summary>Foto hero</summary>
+    <SiteImageField
+      id="home-hero-image"
+      prefix="hero.image"
+      title="Foto hero utama"
+      value={content.hero.image}
+      captionLabel="Lokasi foto"
+    />
+  </details>
+  <details open>
+    <summary>Kalimat hero</summary>
+    <div class="field-grid">
+      <F name="hero.topline" label="Topline" value={content.hero.topline} />
+      <F
+        name="hero.edition"
+        label="Kalimat kanan atas"
+        value={content.hero.edition}
+      />
+      <F
+        name="hero.titleLine1"
+        label="Judul baris 1"
+        value={content.hero.titleLine1}
+      />
+      <F
+        name="hero.titleLine2"
+        label="Judul baris 2"
+        value={content.hero.titleLine2}
+      />
+      <F
+        name="hero.titleAccent"
+        label="Judul aksen"
+        value={content.hero.titleAccent}
+      />
+      <F
+        name="hero.ctaLabel"
+        label="Teks tombol"
+        value={content.hero.ctaLabel}
+      />
+      <F
+        name="hero.description"
+        label="Deskripsi"
+        value={content.hero.description}
+        textarea
+      />
+      <F
+        name="hero.handwriting"
+        label="Tulisan dekoratif"
+        value={content.hero.handwriting}
+        textarea
+      />
+    </div>
+  </details>
+  <details>
+    <summary>SEO & tampilan saat dibagikan</summary>
+    <div class="field-grid">
+      <F name="seo.title" label="Judul browser" value={content.seo.title} />
+      <F
+        name="seo.description"
+        label="Meta description"
+        value={content.seo.description}
+        textarea
+      />
+      <F
+        name="seo.shareImageUrl"
+        label="URL gambar sosial (opsional)"
+        value={content.seo.shareImageUrl}
+        required={false}
+        type="url"
+      />
+    </div>
+  </details>
+</section>
+
+<section class="panel website-section">
+  <p class="eyebrow">02 / OPEN TRIP & MANIFESTO</p>
+  <h2>Pengantar perjalanan.</h2>
+  <details open>
+    <summary>Running text</summary>
+    <div class="field-grid">
+      {content.manifesto.items.map((item, index) => (
+        <F
+          name={`manifesto.items.${index}`}
+          label={`Kalimat ${index + 1}`}
+          value={item}
+        />
+      ))}
+    </div>
+  </details>
+  <details>
+    <summary>Section Open Trip</summary>
+    <div class="field-grid">
+      <F name="trips.eyebrow" label="Eyebrow" value={content.trips.eyebrow} />
+      <F
+        name="trips.titleLine1"
+        label="Judul baris 1"
+        value={content.trips.titleLine1}
+      />
+      <F
+        name="trips.titleLine2"
+        label="Judul baris 2"
+        value={content.trips.titleLine2}
+      />
+      <F
+        name="trips.titleAccent"
+        label="Judul aksen"
+        value={content.trips.titleAccent}
+      />
+      <F
+        name="trips.intro"
+        label="Pengantar"
+        value={content.trips.intro}
+        textarea
+      />
+      <F
+        name="trips.emptyTitle"
+        label="Judul saat kosong"
+        value={content.trips.emptyTitle}
+      />
+      <F
+        name="trips.emptyCopy"
+        label="Penjelasan saat kosong"
+        value={content.trips.emptyCopy}
+        textarea
+      />
+      <F
+        name="trips.browseCopy"
+        label="Penjelasan katalog"
+        value={content.trips.browseCopy}
+        textarea
+      />
+    </div>
+  </details>
+</section>
+
+<section class="panel website-section">
+  <p class="eyebrow">03 / CERITA & PRIVATE TRIP</p>
+  <h2>Kenalan dengan LebihJauh.</h2>
+  <details open>
+    <summary>Foto cerita</summary>
+    <SiteImageField
+      id="home-story-image"
+      prefix="story.image"
+      title="Foto bagian Kenalan"
+      value={content.story.image}
+    />
+  </details>
+  <details>
+    <summary>Kalimat cerita</summary>
+    <div class="field-grid">
+      <F
+        name="story.fieldNote"
+        label="Field note"
+        value={content.story.fieldNote}
+      />
+      <F name="story.eyebrow" label="Eyebrow" value={content.story.eyebrow} />
+      <F
+        name="story.titleLine1"
+        label="Judul baris 1"
+        value={content.story.titleLine1}
+      />
+      <F
+        name="story.titleLine2"
+        label="Judul baris 2"
+        value={content.story.titleLine2}
+      />
+      <F
+        name="story.titleAccent"
+        label="Judul aksen"
+        value={content.story.titleAccent}
+      />
+      <F name="story.lead" label="Lead" value={content.story.lead} textarea />
+      <F
+        name="story.body1"
+        label="Paragraf 1"
+        value={content.story.body1}
+        textarea
+      />
+      <F
+        name="story.body2"
+        label="Paragraf 2"
+        value={content.story.body2}
+        textarea
+      />
+      {content.story.values.map((item, index) => (
+        <F
+          name={`story.values.${index}`}
+          label={`Nilai brand ${index + 1}`}
+          value={item}
+        />
+      ))}
+      <F
+        name="story.signature"
+        label="Signature"
+        value={content.story.signature}
+      />
+    </div>
+  </details>
+  <details>
+    <summary>Promosi Private Trip</summary>
+    <div class="field-grid">
+      <F
+        name="privateTrip.eyebrow"
+        label="Eyebrow"
+        value={content.privateTrip.eyebrow}
+      />
+      <F
+        name="privateTrip.title"
+        label="Judul"
+        value={content.privateTrip.title}
+      />
+      <F
+        name="privateTrip.titleAccent"
+        label="Judul aksen"
+        value={content.privateTrip.titleAccent}
+      />
+      <F
+        name="privateTrip.description"
+        label="Deskripsi"
+        value={content.privateTrip.description}
+        textarea
+      />
+      <F
+        name="privateTrip.ctaLabel"
+        label="Teks tombol"
+        value={content.privateTrip.ctaLabel}
+      />
+    </div>
+  </details>
+</section>
+
+<section class="panel website-section">
+  <p class="eyebrow">04 / GALERI & NEWS</p>
+  <h2>Pengantar konten terbaru.</h2>
+  <details open>
+    <summary>Konten unggulan Home</summary>
+    <p class="muted">
+      Pilih urutan konten yang didahulukan. Jika kosong, Home otomatis memakai
+      konten terbaru.
+    </p>
+    <div class="field-grid">
+      <label>
+        Open Trip <small>Maksimal 3</small>
+        <select multiple size="5" data-id-list="featured.tripIds" data-max="3">
+          {tripOptions.map((option) => (
+            <option
+              value={option.id}
+              selected={content.featured.tripIds.includes(option.id)}
+            >
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label>
+        Foto Galeri <small>Maksimal 4</small>
+        <select
+          multiple
+          size="5"
+          data-id-list="featured.galleryIds"
+          data-max="4"
+        >
+          {galleryOptions.map((option) => (
+            <option
+              value={option.id}
+              selected={content.featured.galleryIds.includes(option.id)}
+            >
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label>
+        Artikel News <small>Maksimal 3</small>
+        <select multiple size="5" data-id-list="featured.newsIds" data-max="3">
+          {newsOptions.map((option) => (
+            <option
+              value={option.id}
+              selected={content.featured.newsIds.includes(option.id)}
+            >
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </label>
+    </div>
+  </details>
+  <details open>
+    <summary>Galeri</summary>
+    <div class="field-grid">
+      <F
+        name="gallery.eyebrow"
+        label="Eyebrow"
+        value={content.gallery.eyebrow}
+      />
+      <F
+        name="gallery.titleLine1"
+        label="Judul baris 1"
+        value={content.gallery.titleLine1}
+      />
+      <F
+        name="gallery.titleLine2"
+        label="Judul baris 2"
+        value={content.gallery.titleLine2}
+      />
+      <F
+        name="gallery.titleAccent"
+        label="Judul aksen"
+        value={content.gallery.titleAccent}
+      />
+      <F
+        name="gallery.intro"
+        label="Pengantar"
+        value={content.gallery.intro}
+        textarea
+      />
+      <F
+        name="gallery.archiveCopy"
+        label="Penjelasan arsip"
+        value={content.gallery.archiveCopy}
+        textarea
+      />
+      <F
+        name="gallery.archiveLabel"
+        label="Teks tombol arsip"
+        value={content.gallery.archiveLabel}
+      />
+    </div>
+  </details>
+  <details>
+    <summary>News</summary>
+    <div class="field-grid">
+      <F name="news.eyebrow" label="Eyebrow" value={content.news.eyebrow} />
+      <F
+        name="news.titleLine1"
+        label="Judul baris 1"
+        value={content.news.titleLine1}
+      />
+      <F
+        name="news.titleLine2"
+        label="Judul baris 2"
+        value={content.news.titleLine2}
+      />
+      <F
+        name="news.titleAccent"
+        label="Judul aksen"
+        value={content.news.titleAccent}
+      />
+      <F
+        name="news.intro"
+        label="Pengantar"
+        value={content.news.intro}
+        textarea
+      />
+      <F
+        name="news.archiveCopy"
+        label="Penjelasan arsip"
+        value={content.news.archiveCopy}
+        textarea
+      />
+      <F
+        name="news.archiveLabel"
+        label="Teks tombol arsip"
+        value={content.news.archiveLabel}
+      />
+    </div>
+  </details>
+</section>
+
+<section class="panel website-section">
+  <p class="eyebrow">05 / FAQ & PENUTUP</p>
+  <h2>Pertanyaan dan ajakan terakhir.</h2>
+  <details open>
+    <summary>FAQ</summary>
+    <div class="field-grid">
+      <F name="faq.eyebrow" label="Eyebrow" value={content.faq.eyebrow} />
+      <F name="faq.title" label="Judul" value={content.faq.title} />
+      <F
+        name="faq.titleAccent"
+        label="Judul aksen"
+        value={content.faq.titleAccent}
+      />
+      <F
+        name="faq.intro"
+        label="Pengantar"
+        value={content.faq.intro}
+        textarea
+      />
+    </div>
+    <div class="repeat-list" data-faq-list>
+      {content.faq.items.map((item, index) => (
+        <article class="repeat-row" data-faq-row>
+          <div class="repeat-row-head">
+            <strong data-faq-number>Pertanyaan {index + 1}</strong>
+            <button class="quiet-button" type="button" data-remove-faq>
+              Hapus
+            </button>
+          </div>
+          <label>
+            Pertanyaan
+            <input
+              data-faq-question
+              value={item.question}
+              maxlength="240"
+              required
+            />
+          </label>
+          <label>
+            Jawaban
+            <textarea
+              data-faq-answer
+              rows="3"
+              maxlength="600"
+              required
+            >{item.answer}</textarea>
+          </label>
+        </article>
+      ))}
+    </div>
+    <button class="button-link add-repeat" type="button" data-add-faq>
+      + Tambah FAQ
+    </button>
+  </details>
+  <details>
+    <summary>Closing section</summary>
+    <div class="field-grid">
+      <F
+        name="closing.eyebrow"
+        label="Eyebrow"
+        value={content.closing.eyebrow}
+      />
+      <F
+        name="closing.titleLine1"
+        label="Judul baris 1"
+        value={content.closing.titleLine1}
+      />
+      <F
+        name="closing.titleLine2"
+        label="Judul baris 2"
+        value={content.closing.titleLine2}
+      />
+      <F
+        name="closing.ctaLabel"
+        label="Teks tombol"
+        value={content.closing.ctaLabel}
+      />
+      <F name="closing.note" label="Catatan" value={content.closing.note} />
+    </div>
+  </details>
+</section>

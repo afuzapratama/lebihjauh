@@ -1,0 +1,67 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import Icon from '../../components/Icon.astro';
+import SiteHeader from '../../components/SiteHeader.astro';
+import { publishedNews } from '../../lib/public-content';
+export const prerender = false;
+const articles = await publishedNews();
+---
+
+<Layout
+  title="News & Cerita — LebihJauh"
+  description="Baca catatan perjalanan, inspirasi, dan kabar terbaru dari LebihJauh."
+>
+  <SiteHeader active="news" />
+  <main id="main" class="public-trip-page content-public">
+    <section class="section">
+      <header class="content-public-head">
+        <p class="eyebrow">
+          <span></span> NEWS & CERITA
+        </p>
+        <h1>
+          Dari jalan,
+          <br />
+          <span class="handwritten">jadi cerita.</span>
+        </h1>
+        <p>Catatan perjalanan, inspirasi, dan kabar terbaru dari LebihJauh.</p>
+      </header>
+      {articles.length ? (
+        <div class="journal-section content-news-section">
+          <div class="journal-grid">
+            {articles.map((article) => (
+              <article class="journal-card">
+                {article.coverImageUrl && (
+                  <a class="journal-image" href={`/news/${article.slug}`}>
+                    <img
+                      src={article.coverImageUrl}
+                      alt={article.coverAltText || ''}
+                    />
+                    <span>
+                      <Icon name="arrow-up" />
+                    </span>
+                  </a>
+                )}
+                <div class="journal-meta">
+                  <span>{article.category}</span>
+                  <span>CATATAN LEBIHJAUH</span>
+                </div>
+                <h3>
+                  <a href={`/news/${article.slug}`}>{article.title}</a>
+                </h3>
+                <p>{article.excerpt}</p>
+                <a class="text-button" href={`/news/${article.slug}`}>
+                  Baca cerita ↗
+                </a>
+              </article>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <div class="public-empty">
+          <h2>Belum ada cerita diterbitkan.</h2>
+          <p>Artikel pertama dari perjalanan LebihJauh akan muncul di sini.</p>
+        </div>
+      )}
+    </section>
+  </main>
+</Layout>

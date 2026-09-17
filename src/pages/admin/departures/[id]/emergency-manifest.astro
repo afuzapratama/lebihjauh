@@ -1,0 +1,330 @@
+---
+import AdminLayout from '../../../../layouts/AdminLayout.astro';
+import { getDb } from '../../../../db/client';
+import { adminAuditLog } from '../../../../db/schema';
+import { getEmergencyManifest } from '../../../../lib/emergency-manifest';
+
+export const prerender = false;
+Astro.response.headers.set('Cache-Control', 'private, no-store');
+const departureId = Astro.params.id ?? '';
+const manifest = /^[0-9a-f-]{36}$/i.test(departureId)
+  ? await getEmergencyManifest(departureId)
+  : null;
+if (!manifest) Astro.response.status = 404;
+if (manifest && Astro.locals.user?.id) {
+  await getDb()
+    .insert(adminAuditLog)
+    .values({
+      actorUserId: Astro.locals.user.id,
+      entityType: 'departure',
+      entityId: departureId,
+      action: 'emergency_manifest_opened',
+      payload: { participantCount: manifest.participants.length },
+    });
+}
+const when = new Intl.DateTimeFormat('id-ID', {
+  dateStyle: 'full',
+  timeStyle: 'short',
+  timeZone: 'Asia/Jakarta',
+});
+const documentType = (value?: string) =>
+  ({
+    ktp: 'KTP',
+    sim: 'SIM',
+    student_card: 'Kartu Pelajar / KIA',
+    passport: 'Paspor',
+    kitas: 'KITAS',
+  })[value ?? ''] ?? 'Dokumen';
+const pickupFilters = manifest
+  ? [
+      ...new Set(manifest.participants.map((person) => person.pickupLabel)),
+    ].sort((a, b) => a.localeCompare(b, 'id'))
+  : [];
+const bookingFilters = manifest
+  ? [
+      ...new Map(
+        manifest.participants.map((person) => [
+          person.number,
+          { number: person.number, picName: person.picName },
+        ]),
+      ).values(),
+    ].sort((a, b) => a.number.localeCompare(b.number, 'id'))
+  : [];
+---
+
+<AdminLayout
+  title={
+    manifest
+      ? `Manifest darurat ${manifest.schedule.tripName}`
+      : 'Manifest tidak ditemukan'
+  }
+  active="trips"
+>
+  {manifest ? (
+    <>
+      <div class="page-title emergency-manifest-actions">
+        <div>
+          <p class="eyebrow">DOKUMEN OPERASIONAL TERBATAS</p>
+          <h1>Manifest darurat.</h1>
+          <p class="muted">Jangan bagikan di grup publik atau WhatsApp.</p>
+        </div>
+        <div>
+          <a class="button-link" href={`/admin/departures/${departureId}`}>
+            ← Kembali ke jadwal
+          </a>
+          <button class="primary" id="print-emergency-manifest" type="button">
+            Cetak / simpan PDF
+          </button>
+        </div>
+      </div>
+      <section
+        class="emergency-manifest-filters"
+        aria-labelledby="emergency-filter-title"
+      >
+        <div class="emergency-filter-heading">
+          <div>
+            <p class="eyebrow">FILTER MANIFEST</p>
+            <h2 id="emergency-filter-title">Pilih data yang akan dicetak</h2>
+          </div>
+          <strong id="emergency-filter-result" aria-live="polite">
+            {manifest.participants.length} dari {manifest.participants.length}{' '}
+            peserta
+          </strong>
+        </div>
+        <div class="emergency-filter-grid">
+          <label>
+            <span>Cari nama peserta</span>
+            <input
+              id="emergency-name-filter"
+              type="search"
+              placeholder="Contoh: Mulyono"
+              autocomplete="off"
+            />
+          </label>
+          <label>
+            <span>Meeting point</span>
+            <select id="emergency-pickup-filter">
+              <option value="">Semua meeting point</option>
+              {pickupFilters.map((pickup) => (
+                <option value={pickup}>{pickup}</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            <span>Booking order / PIC</span>
+            <select id="emergency-booking-filter">
+              <option value="">Semua booking dan PIC</option>
+              {bookingFilters.map((booking) => (
+                <option value={booking.number}>
+                  {booking.number} · PIC {booking.picName}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button
+            class="button-link"
+            id="reset-emergency-filters"
+            type="button"
+          >
+            Reset filter
+          </button>
+        </div>
+        <p class="muted">
+          Tabel dan PDF mengikuti hasil filter yang sedang tampil.
+        </p>
+      </section>
+      <article class="emergency-manifest-sheet">
+        <header>
+          <div>
+            <p>LEBIHJAUH · MANIFEST DARURAT LAPANGAN</p>
+            <h2>{manifest.schedule.tripName}</h2>
+            <strong>{when.format(manifest.schedule.startAt)}</strong>
+          </div>
+          <div>
+            <b>DOKUMEN OPERASIONAL TERBATAS</b>
+            <span>Dicetak {when.format(manifest.generatedAt)}</span>
+            <span id="manifest-participant-count">
+              {manifest.participants.length} peserta
+            </span>
+            <span id="manifest-active-filters" hidden></span>
+          </div>
+        </header>
+        <p class="emergency-warning">
+          Simpan pada penanggung jawab perjalanan. Jangan disebarluaskan dan
+          musnahkan sesuai kebijakan retensi setelah kegiatan selesai.
+        </p>
+        <table>
+          <thead>
+            <tr>
+              <th>No.</th>
+              <th>Peserta / rombongan</th>
+              <th>Identitas</th>
+              <th>Alamat</th>
+              <th>Kontak darurat</th>
+              <th>Pickup</th>
+              <th>Check-in</th>
+            </tr>
+          </thead>
+          <tbody>
+            {manifest.participants.map((person, index) => (
+              <tr
+                class:list={{ incomplete: !person.safety }}
+                data-manifest-participant
+                data-name={person.fullName}
+                data-pickup={person.pickupLabel}
+                data-booking={person.number}
+                data-pic={person.picName}
+              >
+                <td data-manifest-number>
+                  {String(index + 1).padStart(2, '0')}
+                </td>
+                <td>
+                  <strong>{person.fullName}</strong>
+                  <small>
+                    {person.number}
+                    {person.isPic ? ' · PIC' : ''}
+                  </small>
+                </td>
+                <td>
+                  {person.safety ? (
+                    <>
+                      {documentType(person.safety.identityType)}
+                      <br />
+                      <strong>{person.safety.identityNumber}</strong>
+                    </>
+                  ) : (
+                    'BELUM LENGKAP'
+                  )}
+                </td>
+                <td>{person.safety?.address ?? 'BELUM LENGKAP'}</td>
+                <td>
+                  {person.safety ? (
+                    <>
+                      {person.safety.emergencyName} (
+                      {person.safety.emergencyRelationship})<br />
+                      <strong>{person.safety.emergencyWhatsApp}</strong>
+                    </>
+                  ) : (
+                    'BELUM LENGKAP'
+                  )}
+                </td>
+                <td>{person.pickupLabel}</td>
+                <td class="check-cell"></td>
+              </tr>
+            ))}
+            <tr id="empty-filtered-manifest" hidden>
+              <td colspan="7">Tidak ada peserta yang sesuai dengan filter.</td>
+            </tr>
+          </tbody>
+        </table>
+        <footer>
+          <span>Salinan: ________</span>
+          <span>Penanggung jawab: ______________________________</span>
+        </footer>
+      </article>
+      <script is:inline define:vars={{ departureId }}>
+        const nameFilter = document.querySelector('#emergency-name-filter');
+        const pickupFilter = document.querySelector('#emergency-pickup-filter');
+        const bookingFilter = document.querySelector(
+          '#emergency-booking-filter',
+        );
+        const resetFilters = document.querySelector('#reset-emergency-filters');
+        const filterResult = document.querySelector('#emergency-filter-result');
+        const participantCount = document.querySelector(
+          '#manifest-participant-count',
+        );
+        const activeFilters = document.querySelector(
+          '#manifest-active-filters',
+        );
+        const emptyResult = document.querySelector('#empty-filtered-manifest');
+        const printButton = document.querySelector('#print-emergency-manifest');
+        const participantRows = Array.from(
+          document.querySelectorAll('[data-manifest-participant]'),
+        );
+        const normalize = (value) =>
+          String(value ?? '')
+            .normalize('NFKD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .toLocaleLowerCase('id-ID')
+            .trim();
+        const selectedFilters = () => ({
+          search: nameFilter.value.trim(),
+          pickup: pickupFilter.value,
+          booking: bookingFilter.value,
+        });
+        const applyFilters = () => {
+          const filters = selectedFilters();
+          const search = normalize(filters.search);
+          let visibleCount = 0;
+          participantRows.forEach((row) => {
+            const visible =
+              (!search || normalize(row.dataset.name).includes(search)) &&
+              (!filters.pickup || row.dataset.pickup === filters.pickup) &&
+              (!filters.booking || row.dataset.booking === filters.booking);
+            row.hidden = !visible;
+            if (!visible) return;
+            visibleCount += 1;
+            row.querySelector('[data-manifest-number]').textContent = String(
+              visibleCount,
+            ).padStart(2, '0');
+          });
+          const total = participantRows.length;
+          filterResult.textContent = `${visibleCount} dari ${total} peserta`;
+          participantCount.textContent = `${visibleCount} peserta`;
+          emptyResult.hidden = visibleCount !== 0;
+          printButton.disabled = visibleCount === 0;
+          const descriptions = [
+            filters.search ? `Nama: ${filters.search}` : '',
+            filters.pickup ? `Meeting point: ${filters.pickup}` : '',
+            filters.booking
+              ? `Booking: ${bookingFilter.selectedOptions[0]?.textContent.trim()}`
+              : '',
+          ].filter(Boolean);
+          activeFilters.hidden = descriptions.length === 0;
+          activeFilters.textContent = descriptions.length
+            ? `Filter · ${descriptions.join(' · ')}`
+            : '';
+          return { visibleCount, filters };
+        };
+        nameFilter.addEventListener('input', applyFilters);
+        pickupFilter.addEventListener('change', applyFilters);
+        bookingFilter.addEventListener('change', applyFilters);
+        resetFilters.addEventListener('click', () => {
+          nameFilter.value = '';
+          pickupFilter.value = '';
+          bookingFilter.value = '';
+          applyFilters();
+          nameFilter.focus();
+        });
+        printButton.addEventListener('click', async () => {
+          const { visibleCount, filters } = applyFilters();
+          if (!visibleCount) return;
+          try {
+            const response = await fetch('/api/admin/emergency-manifest', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                departureId,
+                participantCount: visibleCount,
+                filters,
+              }),
+            });
+            if (!response.ok) throw new Error();
+            window.print();
+          } catch {
+            window.adminNotify({
+              type: 'error',
+              message:
+                'Jejak cetak belum dapat disimpan. Dokumen tidak dicetak.',
+            });
+          }
+        });
+        applyFilters();
+      </script>
+    </>
+  ) : (
+    <section class="panel">
+      <h1>Manifest tidak ditemukan.</h1>
+    </section>
+  )}
+</AdminLayout>

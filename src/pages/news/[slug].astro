@@ -1,0 +1,60 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import SiteHeader from '../../components/SiteHeader.astro';
+import { publishedArticle } from '../../lib/public-content';
+export const prerender = false;
+const article = await publishedArticle(Astro.params.slug ?? '');
+if (!article) Astro.response.status = 404;
+---
+
+<Layout
+  title={
+    article
+      ? `${article.title} — LebihJauh`
+      : 'Cerita tidak ditemukan — LebihJauh'
+  }
+  description={article?.excerpt ?? 'Cerita perjalanan dari LebihJauh.'}
+>
+  <SiteHeader active="news" />
+  <main id="main" class="public-trip-page article-page">
+    <section class="section">
+      {article ? (
+        <article class="article-content">
+          <p class="eyebrow">
+            <span></span> {article.category}
+          </p>
+          <h1>{article.title}</h1>
+          <p class="article-excerpt">{article.excerpt}</p>
+          {article.coverImageUrl && (
+            <img src={article.coverImageUrl} alt={article.coverAltText || ''} />
+          )}
+          <div class="article-body">
+            {article.body
+              .split('\n')
+              .filter(Boolean)
+              .map((paragraph) => (
+                <p>{paragraph}</p>
+              ))}
+          </div>
+          {article.socialUrl && (
+            <a
+              class="text-button"
+              href={article.socialUrl}
+              target="_blank"
+              rel="noopener"
+            >
+              Lihat postingan terkait ↗
+            </a>
+          )}
+        </article>
+      ) : (
+        <div class="public-empty">
+          <h1>Cerita tidak ditemukan.</h1>
+          <a class="button button-dark" href="/news">
+            Kembali ke News
+          </a>
+        </div>
+      )}
+    </section>
+  </main>
+</Layout>

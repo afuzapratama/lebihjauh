@@ -1,0 +1,195 @@
+---
+import { desc } from 'drizzle-orm';
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import { getDb } from '../../../db/client';
+import { privateTripRequest } from '../../../db/schema';
+
+export const prerender = false;
+const rows = await getDb()
+  .select()
+  .from(privateTripRequest)
+  .orderBy(desc(privateTripRequest.createdAt));
+const params = Astro.url.searchParams;
+const state = params.get('state') ?? 'all';
+const q = (params.get('q') ?? '').trim().toLowerCase();
+const labels: Record<string, string> = {
+  new: 'Baru',
+  contacted: 'Dihubungi',
+  offer_sent: 'Penawaran dikirim',
+  accepted: 'Disepakati',
+  declined: 'Ditolak',
+  expired: 'Kedaluwarsa',
+  converted: 'Menjadi booking',
+};
+const filtered = rows.filter(
+  (item) =>
+    (state === 'all' || item.state === state) &&
+    (!q ||
+      [
+        item.publicNumber,
+        item.destination,
+        item.picName,
+        item.picWhatsApp,
+      ].some((value) => value.toLowerCase().includes(q))),
+);
+const date = new Intl.DateTimeFormat('id-ID', {
+  dateStyle: 'medium',
+  timeStyle: 'short',
+  timeZone: 'Asia/Jakarta',
+});
+const requestDate = new Intl.DateTimeFormat('id-ID', {
+  dateStyle: 'medium',
+  timeZone: 'Asia/Jakarta',
+});
+const wa = (phone: string, message: string) =>
+  `https://wa.me/${phone.replace(/\D/g, '').replace(/^0/, '62')}?text=${encodeURIComponent(message)}`;
+---
+
+<AdminLayout title="Private Trip" active="privateTrips">
+  <div class="page-title">
+    <div>
+      <p class="eyebrow">01 / PRIVATE TRIP</p>
+      <h1>
+        Rencana unik.
+        <br />
+        Tetap terukur.
+      </h1>
+      <p class="muted">
+        Permintaan belum membuat invoice atau menggunakan kuota Open Trip. Buat
+        penawaran dulu, lalu simpan jejak kesepakatannya.
+      </p>
+    </div>
+    <a class="button-link" href="/private-trip" target="_blank">
+      Buka form publik ↗
+    </a>
+  </div>
+  <section class="order-metrics">
+    <a href="/admin/private-trips?state=new">
+      <span>PERMINTAAN BARU</span>
+      <strong>{rows.filter((x) => x.state === 'new').length}</strong>
+      <small>perlu ditindaklanjuti</small>
+    </a>
+    <a href="/admin/private-trips?state=offer_sent">
+      <span>PENAWARAN AKTIF</span>
+      <strong>{rows.filter((x) => x.state === 'offer_sent').length}</strong>
+      <small>menunggu jawaban</small>
+    </a>
+    <a href="/admin/private-trips?state=accepted">
+      <span>DISEPAKATI</span>
+      <strong>{rows.filter((x) => x.state === 'accepted').length}</strong>
+      <small>siap jadi booking</small>
+    </a>
+    <span>
+      <span>TOTAL MASUK</span>
+      <strong>{rows.length}</strong>
+      <small>permintaan</small>
+    </span>
+  </section>
+  <section class="list-panel orders-panel">
+    <div class="panel-head">
+      <div>
+        <p class="eyebrow">ANTREAN PRIVATE TRIP</p>
+        <h2>
+          {filtered.length} dari {rows.length} permintaan
+        </h2>
+      </div>
+      <span class="pill olive">BELUM DITAGIHKAN</span>
+    </div>
+    <form class="order-filters" method="get">
+      <label>
+        Cari referensi, PIC, WhatsApp, atau destinasi
+        <input
+          name="q"
+          type="search"
+          value={params.get('q') ?? ''}
+          placeholder="Contoh: LJ-PT-000001"
+        />
+      </label>
+      <label>
+        Status
+        <select name="state">
+          <option value="all">Semua status</option>
+          {Object.entries(labels).map(([value, label]) => (
+            <option value={value} selected={state === value}>
+              {label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <button class="primary" type="submit">
+        Terapkan filter
+      </button>
+      {(q || state !== 'all') && (
+        <a class="button-link" href="/admin/private-trips">
+          Reset
+        </a>
+      )}
+    </form>
+    {filtered.length ? (
+      <div class="orders-table-wrap">
+        <table class="orders-table">
+          <thead>
+            <tr>
+              <th>Referensi</th>
+              <th>Destinasi / waktu</th>
+              <th>PIC</th>
+              <th>Pax</th>
+              <th>Status</th>
+              <th>Tindakan</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.map((row) => (
+              <tr>
+                <td>
+                  <strong>{row.publicNumber}</strong>
+                  <small>Masuk {date.format(row.createdAt)}</small>
+                </td>
+                <td>
+                  <strong>{row.destination}</strong>
+                  <small>
+                    {requestDate.format(row.startDate)}
+                    {row.endDate ? ` – ${requestDate.format(row.endDate)}` : ''}
+                  </small>
+                </td>
+                <td>
+                  {row.picName}
+                  <small>{row.picWhatsApp}</small>
+                </td>
+                <td>{row.pax}</td>
+                <td>
+                  <span class:list={['state', `private-${row.state}`]}>
+                    {labels[row.state] ?? row.state}
+                  </span>
+                </td>
+                <td>
+                  <div class="order-row-actions">
+                    <a
+                      class="button-link"
+                      href={`/admin/private-trips/${row.id}`}
+                    >
+                      Buka ↗
+                    </a>
+                    <a
+                      class="button-link"
+                      target="_blank"
+                      rel="noopener"
+                      href={wa(
+                        row.picWhatsApp,
+                        `Halo ${row.picName}, kami dari LebihJauh terkait permintaan Private Trip ${row.publicNumber} ke ${row.destination}. Kami ingin menindaklanjuti kebutuhan perjalanan Anda.`,
+                      )}
+                    >
+                      WA PIC ↗
+                    </a>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    ) : (
+      <p class="muted empty-orders">Belum ada permintaan yang sesuai filter.</p>
+    )}
+  </section>
+</AdminLayout>

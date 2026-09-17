@@ -1,0 +1,67 @@
+---
+import Layout from '../layouts/Layout.astro';
+import SiteHeader from '../components/SiteHeader.astro';
+import { activePaymentMethods } from '../lib/payment-methods';
+
+export const prerender = false;
+const methods = await activePaymentMethods();
+const kindLabel = (kind: string) =>
+  ({ bank_transfer: 'TRANSFER BANK', ewallet: 'E-WALLET', qris: 'QRIS' })[
+    kind
+  ] ?? kind;
+---
+
+<Layout
+  title="Metode Pembayaran — LebihJauh"
+  description="Lihat metode pembayaran resmi yang tersedia untuk invoice perjalanan LebihJauh."
+>
+  <SiteHeader active="trips" />
+  <main id="main" class="public-trip-page payment-method-page">
+    <section class="section">
+      <header class="payment-method-heading">
+        <p class="eyebrow">
+          <span></span> CARA PEMBAYARAN
+        </p>
+        <h1>
+          Pilih yang
+          <br />
+          <span class="handwritten">paling nyaman.</span>
+        </h1>
+        <p>
+          Transfer sesuai nominal invoice. Kembali ke halaman invoice untuk
+          mengunggah bukti pembayaran atau menghubungi admin.
+        </p>
+      </header>
+      {methods.length ? (
+        <div class="public-payment-grid">
+          {methods.map((method) => (
+            <article class="public-payment-method">
+              <p class="eyebrow">{kindLabel(method.kind)}</p>
+              <h2>{method.name}</h2>
+              {method.kind === 'qris' && method.qrisImageUrl ? (
+                <img src={method.qrisImageUrl} alt={`QRIS ${method.name}`} />
+              ) : (
+                <dl>
+                  <div>
+                    <dt>Nomor rekening / akun</dt>
+                    <dd>{method.accountNumber}</dd>
+                  </div>
+                  <div>
+                    <dt>Atas nama</dt>
+                    <dd>{method.accountName}</dd>
+                  </div>
+                </dl>
+              )}
+              {method.instructions && <p>{method.instructions}</p>}
+            </article>
+          ))}
+        </div>
+      ) : (
+        <div class="public-empty">
+          <h2>Metode pembayaran sedang disiapkan.</h2>
+          <p>Silakan kembali ke invoice untuk menghubungi admin.</p>
+        </div>
+      )}
+    </section>
+  </main>
+</Layout>

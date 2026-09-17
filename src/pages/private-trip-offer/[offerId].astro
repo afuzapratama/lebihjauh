@@ -1,0 +1,192 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import SiteHeader from '../../components/SiteHeader.astro';
+import { getPublicPrivateOffer } from '../../lib/private-trip-service';
+
+export const prerender = false;
+const offerId = Astro.params.offerId ?? '';
+const found = /^[0-9a-f-]{36}$/i.test(offerId)
+  ? await getPublicPrivateOffer(offerId)
+  : null;
+const money = new Intl.NumberFormat('id-ID');
+const date = new Intl.DateTimeFormat('id-ID', {
+  dateStyle: 'full',
+  timeStyle: 'short',
+  timeZone: 'Asia/Jakarta',
+});
+const total = found
+  ? BigInt(found.offer.unitPrice) * BigInt(found.offer.pax)
+  : 0n;
+const wa = found
+  ? `https://wa.me/${found.request.picWhatsApp.replace(/\D/g, '').replace(/^0/, '62')}`
+  : '#';
+---
+
+<Layout>
+  <SiteHeader active="private" />
+  <main id="main" class="public-trip-page">
+    <section class="section booking-layout">
+      {found ? (
+        <>
+          <div class="booking-heading">
+            <p class="eyebrow">
+              <span></span> PENAWARAN PRIVATE TRIP
+            </p>
+            <h1>{found.offer.title}</h1>
+            <p>
+              Halo {found.request.picName}, silakan periksa detail penawaran
+              berikut sebelum memberi keputusan.
+            </p>
+            <p>
+              <a
+                class="button-link"
+                href={`${wa}?text=${encodeURIComponent(`Halo Admin, terkait penawaran Private Trip ${found.request.publicNumber}.`)}`}
+                target="_blank"
+                rel="noopener"
+              >
+                Tanya admin via WhatsApp ↗
+              </a>
+            </p>
+          </div>
+          <div class="booking-flow">
+            <article class="panel">
+              <p class="eyebrow">
+                REVISI {found.offer.revision} · BERLAKU HINGGA{' '}
+                {date.format(found.offer.validUntil)}
+              </p>
+              <h2>
+                {date.format(found.offer.startAt)} –{' '}
+                {date.format(found.offer.endAt)}
+              </h2>
+              <dl class="invoice-details">
+                <div>
+                  <dt>Peserta</dt>
+                  <dd>{found.offer.pax} orang</dd>
+                </div>
+                <div>
+                  <dt>Titik jemput</dt>
+                  <dd>{found.offer.meetingPoint}</dd>
+                </div>
+                <div>
+                  <dt>Total</dt>
+                  <dd>
+                    <strong>Rp{money.format(Number(total))}</strong>
+                  </dd>
+                </div>
+                <div>
+                  <dt>Down payment minimum</dt>
+                  <dd>Rp{money.format(Number(found.offer.minimumDp))}</dd>
+                </div>
+              </dl>
+              <div class="private-offer-public-copy">
+                <h3>Itinerary</h3>
+                {found.offer.itineraryStages.map((stage) => (
+                  <div>
+                    <strong>
+                      {stage.day} · {stage.title}
+                    </strong>
+                    <p>
+                      {stage.activities
+                        .map(
+                          (activity) =>
+                            `${activity.time ? `${activity.time} ` : ''}${activity.activity}${activity.location ? ` — ${activity.location}` : ''}`,
+                        )
+                        .join(' · ')}
+                    </p>
+                    {stage.details && <p>{stage.details}</p>}
+                  </div>
+                ))}
+                <h3>Pickup</h3>
+                <p>
+                  {found.offer.pickupDetails.zoneName} ·{' '}
+                  {found.offer.pickupDetails.locationName}
+                  <br />
+                  {found.offer.pickupDetails.address ||
+                    'Alamat dikonfirmasi admin.'}
+                  <br />
+                  {found.offer.pickupDetails.instructions || ''}
+                </p>
+                <h3>Termasuk</h3>
+                <p>
+                  {found.offer.included || 'Sesuai pembicaraan dengan admin.'}
+                </p>
+                <h3>Tidak termasuk</h3>
+                <p>{found.offer.excluded || 'Tidak ada catatan tambahan.'}</p>
+                <h3>Persiapan</h3>
+                <p>{found.offer.preparation || '—'}</p>
+                <h3>Catatan admin</h3>
+                <p>{found.offer.notes || '—'}</p>
+              </div>
+              <form id="offer-response" data-offer-id={offerId}>
+                <p class="muted">
+                  Pilih keputusan Anda. Admin akan menghubungi Anda untuk
+                  menyiapkan booking dan invoice setelah penawaran disetujui.
+                </p>
+                <p id="offer-response-error" class="booking-error" hidden></p>
+                <div class="private-offer-response-actions">
+                  <button
+                    class="button-link"
+                    type="submit"
+                    data-state="declined"
+                  >
+                    Tidak menyetujui
+                  </button>
+                  <button
+                    class="button button-orange"
+                    type="submit"
+                    data-state="accepted"
+                  >
+                    Setujui penawaran ↗
+                  </button>
+                </div>
+              </form>
+            </article>
+          </div>
+        </>
+      ) : (
+        <article class="panel">
+          <h1>Penawaran tidak tersedia.</h1>
+          <p>
+            Link ini sudah kedaluwarsa atau tidak valid. Silakan hubungi admin
+            untuk revisi terbaru.
+          </p>
+        </article>
+      )}
+    </section>
+  </main>
+  <script is:inline>
+    const responseForm = document.querySelector('#offer-response');
+    responseForm?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const button = event.submitter;
+      const state = button?.dataset.state;
+      if (!state) return;
+      const error = document.querySelector('#offer-response-error');
+      error.hidden = true;
+      const result = await fetch(
+        `/api/private-trip-offers/${responseForm.dataset.offerId}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            state,
+          }),
+        },
+      ).then((r) => r.json());
+      if (result.message && !result.state) {
+        error.textContent = result.message;
+        error.hidden = false;
+        return;
+      }
+      responseForm.replaceWith(
+        Object.assign(document.createElement('p'), {
+          className: 'notice',
+          textContent:
+            state === 'accepted'
+              ? 'Penawaran disetujui. Admin akan menghubungi Anda untuk menyiapkan booking dan invoice.'
+              : 'Penawaran ditolak. Admin akan menghubungi Anda bila diperlukan.',
+        }),
+      );
+    });
+  </script>
+</Layout>

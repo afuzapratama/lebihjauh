@@ -1,0 +1,170 @@
+---
+import Icon from './Icon.astro';
+import Wordmark from './Wordmark.astro';
+
+interface Props {
+  active?:
+    'home' | 'trips' | 'private' | 'about' | 'gallery' | 'news' | 'booking';
+}
+
+const { active } = Astro.props;
+const homeHref = active === 'home' ? '#home' : '/';
+const privateHref = '/private-trip';
+const galleryHref = active === 'home' ? '#galeri' : '/galeri';
+const newsHref = active === 'home' ? '#news' : '/news';
+const mobileTripOpen = active === 'trips' || active === 'private';
+---
+
+<header class="site-header" id={active === 'home' ? 'home' : undefined}>
+  <div class="nav-shell">
+    <Wordmark href={homeHref} />
+    <nav class="desktop-nav" aria-label="Navigasi utama">
+      <a
+        class:list={{ 'nav-home': active === 'home' }}
+        href={homeHref}
+        aria-current={active === 'home' ? 'page' : undefined}
+      >
+        Home
+      </a>
+      <details
+        class:list={[
+          'trip-dropdown',
+          { 'nav-current': active === 'trips' || active === 'private' },
+        ]}
+      >
+        <summary>
+          Trip <Icon name="chevron" size={14} />
+        </summary>
+        <div class="dropdown-menu">
+          <a
+            href="/trip"
+            aria-current={active === 'trips' ? 'page' : undefined}
+          >
+            Open Trip <Icon />
+          </a>
+          <a
+            href={privateHref}
+            aria-current={active === 'private' ? 'page' : undefined}
+          >
+            Private Trip <Icon />
+          </a>
+        </div>
+      </details>
+      <a
+        class:list={{ 'nav-current-link': active === 'about' }}
+        href="/about"
+        aria-current={active === 'about' ? 'page' : undefined}
+      >
+        About
+      </a>
+      <a
+        class:list={{ 'nav-current-link': active === 'gallery' }}
+        href={galleryHref}
+        aria-current={active === 'gallery' ? 'page' : undefined}
+      >
+        Galeri
+      </a>
+      <a
+        class:list={{ 'nav-current-link': active === 'news' }}
+        href={newsHref}
+        aria-current={active === 'news' ? 'page' : undefined}
+      >
+        News
+      </a>
+    </nav>
+    <div class="nav-actions">
+      <a
+        class:list={[
+          'button',
+          'button-outline',
+          'nav-check-booking',
+          { 'nav-check-booking-active': active === 'booking' },
+        ]}
+        href="/cek-booking"
+        aria-current={active === 'booking' ? 'page' : undefined}
+      >
+        Cek booking
+      </a>
+      <a class="button button-orange nav-cta" href="/trip">
+        Gas, pilih trip! <Icon name="arrow-up" size={17} />
+      </a>
+    </div>
+    <button
+      class="menu-toggle"
+      aria-label="Buka menu navigasi"
+      aria-expanded="false"
+      aria-controls="mobile-nav"
+      type="button"
+    >
+      <span class="menu-toggle-icon" aria-hidden="true">
+        <span></span>
+      </span>
+    </button>
+  </div>
+  <nav
+    id="mobile-nav"
+    class="mobile-nav"
+    aria-label="Navigasi mobile"
+    aria-hidden="true"
+    hidden
+  >
+    <a href={homeHref} aria-current={active === 'home' ? 'page' : undefined}>
+      Home
+    </a>
+    <div
+      class:list={['mobile-nav-group', { 'is-open': mobileTripOpen }]}
+      data-mobile-nav-group
+    >
+      <button
+        class="mobile-nav-disclosure"
+        type="button"
+        aria-expanded={mobileTripOpen}
+        aria-controls="mobile-trip-links"
+        data-mobile-nav-disclosure
+      >
+        <span>Trip</span>
+        <Icon name="chevron" size={16} />
+      </button>
+      <div
+        id="mobile-trip-links"
+        class="mobile-nav-submenu"
+        aria-hidden={!mobileTripOpen}
+        inert={!mobileTripOpen}
+        data-mobile-nav-submenu
+      >
+        <div class="mobile-nav-submenu-inner">
+          <a
+            href="/trip"
+            aria-current={active === 'trips' ? 'page' : undefined}
+          >
+            Open Trip <Icon />
+          </a>
+          <a
+            href={privateHref}
+            aria-current={active === 'private' ? 'page' : undefined}
+          >
+            Private Trip <Icon />
+          </a>
+        </div>
+      </div>
+    </div>
+    <a href="/about" aria-current={active === 'about' ? 'page' : undefined}>
+      About
+    </a>
+    <a
+      href={galleryHref}
+      aria-current={active === 'gallery' ? 'page' : undefined}
+    >
+      Galeri
+    </a>
+    <a href={newsHref} aria-current={active === 'news' ? 'page' : undefined}>
+      News
+    </a>
+    <a
+      href="/cek-booking"
+      aria-current={active === 'booking' ? 'page' : undefined}
+    >
+      Cek Booking <Icon />
+    </a>
+  </nav>
+</header>

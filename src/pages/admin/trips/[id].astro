@@ -1,0 +1,11 @@
+---
+import TripEditor from '../../../components/TripEditor.astro';
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+
+export const prerender = false;
+const { id } = Astro.params;
+---
+
+<AdminLayout title="Kelola trip" active="trips">
+  <TripEditor tripId={id} />
+</AdminLayout>

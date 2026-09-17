@@ -1,0 +1,60 @@
+CREATE TABLE "private_trip_requests" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"public_number" text NOT NULL,
+	"guest_scope_hash" text NOT NULL,
+	"destination" text NOT NULL,
+	"start_date" timestamp with time zone NOT NULL,
+	"end_date" timestamp with time zone,
+	"pax" integer NOT NULL,
+	"pic_name" text NOT NULL,
+	"pic_whatsapp" text NOT NULL,
+	"pic_email" text,
+	"needs" text DEFAULT '' NOT NULL,
+	"state" text DEFAULT 'new' NOT NULL,
+	"consented_at" timestamp with time zone NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "private_trip_requests_public_number_unique" UNIQUE("public_number"),
+	CONSTRAINT "private_trip_requests_pax_check" CHECK ("private_trip_requests"."pax" > 0),
+	CONSTRAINT "private_trip_requests_date_check" CHECK ("private_trip_requests"."end_date" is null or "private_trip_requests"."start_date" <= "private_trip_requests"."end_date"),
+	CONSTRAINT "private_trip_requests_state_check" CHECK ("private_trip_requests"."state" in ('new', 'contacted', 'offer_sent', 'accepted', 'declined', 'expired', 'converted'))
+);
+--> statement-breakpoint
+CREATE TABLE "private_trip_offers" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"request_id" uuid NOT NULL,
+	"revision" integer NOT NULL,
+	"title" text NOT NULL,
+	"start_at" timestamp with time zone NOT NULL,
+	"end_at" timestamp with time zone NOT NULL,
+	"pax" integer NOT NULL,
+	"unit_price" numeric(14, 0) NOT NULL,
+	"dp_mode" text NOT NULL,
+	"dp_value" numeric(14, 0) NOT NULL,
+	"minimum_dp" numeric(14, 0) NOT NULL,
+	"included" text DEFAULT '' NOT NULL,
+	"excluded" text DEFAULT '' NOT NULL,
+	"meeting_point" text DEFAULT '' NOT NULL,
+	"notes" text DEFAULT '' NOT NULL,
+	"valid_until" timestamp with time zone NOT NULL,
+	"state" text DEFAULT 'draft' NOT NULL,
+	"sent_at" timestamp with time zone,
+	"accepted_at" timestamp with time zone,
+	"accepted_note" text,
+	"created_by_user_id" text NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "private_trip_offers_request_revision_unique" UNIQUE("request_id", "revision"),
+	CONSTRAINT "private_trip_offers_date_check" CHECK ("private_trip_offers"."start_at" < "private_trip_offers"."end_at"),
+	CONSTRAINT "private_trip_offers_pax_check" CHECK ("private_trip_offers"."pax" > 0),
+	CONSTRAINT "private_trip_offers_price_check" CHECK ("private_trip_offers"."unit_price" > 0),
+	CONSTRAINT "private_trip_offers_dp_mode_check" CHECK ("private_trip_offers"."dp_mode" in ('percent', 'amount')),
+	CONSTRAINT "private_trip_offers_dp_value_check" CHECK ("private_trip_offers"."dp_value" >= 0),
+	CONSTRAINT "private_trip_offers_dp_percent_check" CHECK ("private_trip_offers"."dp_mode" <> 'percent' or "private_trip_offers"."dp_value" <= 100),
+	CONSTRAINT "private_trip_offers_dp_check" CHECK ("private_trip_offers"."minimum_dp" > 0),
+	CONSTRAINT "private_trip_offers_state_check" CHECK ("private_trip_offers"."state" in ('draft', 'sent', 'accepted', 'declined', 'superseded', 'expired'))
+);
+--> statement-breakpoint
+ALTER TABLE "private_trip_offers" ADD CONSTRAINT "private_trip_offers_request_id_private_trip_requests_id_fk" FOREIGN KEY ("request_id") REFERENCES "public"."private_trip_requests"("id") ON DELETE restrict ON UPDATE no action;
+--> statement-breakpoint
+ALTER TABLE "private_trip_offers" ADD CONSTRAINT "private_trip_offers_created_by_user_id_user_id_fk" FOREIGN KEY ("created_by_user_id") REFERENCES "public"."user"("id") ON DELETE restrict ON UPDATE no action;

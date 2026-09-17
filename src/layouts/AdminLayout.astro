@@ -1,0 +1,546 @@
+---
+import '@fontsource/inter/400.css';
+import '@fontsource/inter/600.css';
+import '@fontsource/inter/700.css';
+import '../styles/admin.css';
+
+interface Props {
+  title: string;
+  active?:
+    | 'dashboard'
+    | 'trips'
+    | 'orders'
+    | 'payments'
+    | 'paymentMethods'
+    | 'finance'
+    | 'privateTrips'
+    | 'content'
+    | 'website';
+  guest?: boolean;
+}
+const { title, active = 'dashboard', guest = false } = Astro.props;
+const user = Astro.locals.user;
+const upcoming: string[] = [];
+---
+
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex, nofollow" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>{title} — LebihJauh Admin</title>
+  </head>
+  <body class:list={['admin-app', { 'admin-guest': guest }]}>
+    <a class="skip-link" href="#admin-content">
+      Langsung ke konten
+    </a>
+    {guest ? (
+      <slot />
+    ) : (
+      <>
+        <aside class="admin-sidebar" id="admin-sidebar">
+          <div class="admin-sidebar-head">
+            <a class="admin-brand" href="/admin">
+              <img
+                src="/brand/logo-stacked-light.svg"
+                alt="LebihJauh — Go Further."
+                width="170"
+                height="220"
+              />
+            </a>
+            <button
+              class="admin-menu-toggle"
+              id="admin-menu-toggle"
+              type="button"
+              aria-expanded="false"
+              aria-controls="admin-navigation"
+            >
+              <span class="admin-menu-toggle-label">Menu</span>
+              <span class="admin-menu-toggle-icon" aria-hidden="true"></span>
+            </button>
+          </div>
+          <p class="sidebar-caption">RUANG KELOLA PERJALANAN</p>
+          <div class="admin-nav-shell" id="admin-navigation">
+            <nav class="admin-nav" aria-label="Navigasi admin">
+              <a
+                href="/admin"
+                aria-current={active === 'dashboard' ? 'page' : undefined}
+              >
+                <span>00</span> Dashboard
+              </a>
+              <details
+                class:list={[
+                  'admin-nav-group',
+                  { current: active === 'trips' || active === 'privateTrips' },
+                ]}
+                open={active === 'trips' || active === 'privateTrips'}
+              >
+                <summary>
+                  <span>01</span>
+                  <strong>Trip & jadwal</strong>
+                  <span class="admin-nav-chevron" aria-hidden="true">
+                    ⌄
+                  </span>
+                </summary>
+                <div class="admin-nav-submenu">
+                  <a
+                    href="/admin/trips"
+                    aria-current={active === 'trips' ? 'page' : undefined}
+                  >
+                    <span>OPEN</span>
+                    <strong>Open Trip</strong>
+                    <small>Paket & keberangkatan</small>
+                  </a>
+                  <a
+                    href="/admin/private-trips"
+                    aria-current={
+                      active === 'privateTrips' ? 'page' : undefined
+                    }
+                  >
+                    <span>PRIV</span>
+                    <strong>Private Trip</strong>
+                    <small>Permintaan & penawaran</small>
+                  </a>
+                </div>
+              </details>
+              <a
+                href="/admin/orders"
+                aria-current={active === 'orders' ? 'page' : undefined}
+              >
+                <span>02</span> Booking & order
+              </a>
+              <details
+                class:list={[
+                  'admin-nav-group',
+                  {
+                    current:
+                      active === 'payments' ||
+                      active === 'paymentMethods' ||
+                      active === 'finance',
+                  },
+                ]}
+                open={
+                  active === 'payments' ||
+                  active === 'paymentMethods' ||
+                  active === 'finance'
+                }
+              >
+                <summary>
+                  <span>03</span>
+                  <strong>Pembayaran</strong>
+                  <span class="admin-nav-chevron" aria-hidden="true">
+                    ⌄
+                  </span>
+                </summary>
+                <div class="admin-nav-submenu">
+                  <a
+                    href="/admin/payments"
+                    aria-current={active === 'payments' ? 'page' : undefined}
+                  >
+                    <span>PAY</span>
+                    <strong>Verifikasi</strong>
+                    <small>Antrean pembayaran</small>
+                  </a>
+                  <a
+                    href="/admin/payments/methods"
+                    aria-current={
+                      active === 'paymentMethods' ? 'page' : undefined
+                    }
+                  >
+                    <span>SET</span>
+                    <strong>Metode bayar</strong>
+                    <small>Bank, e-wallet & QRIS</small>
+                  </a>
+                  <a
+                    href="/admin/payments/revenue"
+                    aria-current={active === 'finance' ? 'page' : undefined}
+                  >
+                    <span>FIN</span>
+                    <strong>Keuangan</strong>
+                    <small>Masuk, keluar & piutang</small>
+                  </a>
+                </div>
+              </details>
+              <a
+                href="/admin/content"
+                aria-current={active === 'content' ? 'page' : undefined}
+              >
+                <span>04</span> Konten & galeri
+              </a>
+              <details
+                class:list={[
+                  'admin-nav-group',
+                  { current: active === 'website' },
+                ]}
+                open={active === 'website'}
+              >
+                <summary>
+                  <span>05</span>
+                  <strong>Tampilan Website</strong>
+                  <span class="admin-nav-chevron" aria-hidden="true">
+                    ⌄
+                  </span>
+                </summary>
+                <div class="admin-nav-submenu">
+                  <a href="/admin/website/home">
+                    <span>HOME</span>
+                    <strong>Halaman Home</strong>
+                    <small>Foto & kalimat utama</small>
+                  </a>
+                  <a href="/admin/website/about">
+                    <span>ABOUT</span>
+                    <strong>Halaman About</strong>
+                    <small>Cerita, nilai & foto</small>
+                  </a>
+                </div>
+              </details>
+              {upcoming.map((label, index) => (
+                <span class="nav-upcoming" aria-disabled="true">
+                  <span>{String(index + 5).padStart(2, '0')}</span>
+                  <span>
+                    {label}
+                    <small>Segera hadir</small>
+                  </span>
+                </span>
+              ))}
+            </nav>
+          </div>
+          <div class="sidebar-bottom">
+            <p>
+              <span class="brand-dot"></span>GO FURTHER. TOGETHER.
+            </p>
+            <a href="/">
+              Lihat website <span aria-hidden="true">↗</span>
+            </a>
+          </div>
+        </aside>
+        <div class="admin-workspace">
+          <header class="admin-topbar">
+            <span>
+              LEBIHJAUH /{' '}
+              {active === 'trips'
+                ? 'OPEN TRIP'
+                : active === 'orders'
+                  ? 'BOOKING & ORDER'
+                  : active === 'payments'
+                    ? 'PEMBAYARAN'
+                    : active === 'paymentMethods'
+                      ? 'METODE PEMBAYARAN'
+                      : active === 'finance'
+                        ? 'KEUANGAN'
+                        : active === 'privateTrips'
+                          ? 'PRIVATE TRIP'
+                          : active === 'content'
+                            ? 'KONTEN & GALERI'
+                            : active === 'website'
+                              ? 'TAMPILAN WEBSITE'
+                              : 'DASHBOARD'}
+            </span>
+            <div class="admin-account">
+              <span>{user?.name ?? user?.email ?? 'Admin'}</span>
+              <button type="button" class="quiet-button" id="admin-logout">
+                Keluar ↗
+              </button>
+            </div>
+          </header>
+          <p
+            id="logout-error"
+            class="notice"
+            role="alert"
+            data-type="error"
+            hidden
+          ></p>
+          <main id="admin-content" tabindex="-1">
+            <slot />
+          </main>
+          <div
+            id="admin-notifications"
+            class="admin-notifications"
+            role="region"
+            aria-label="Notifikasi tindakan"
+          ></div>
+          <dialog
+            class="participant-document-dialog"
+            id="admin-image-dialog"
+            aria-labelledby="admin-image-title"
+          >
+            <div class="participant-document-dialog-content">
+              <header>
+                <div>
+                  <p class="eyebrow" id="admin-image-eyebrow">
+                    PRATINJAU GAMBAR
+                  </p>
+                  <h2 id="admin-image-title">Gambar</h2>
+                </div>
+                <button
+                  class="participant-document-close"
+                  id="close-admin-image"
+                  type="button"
+                  aria-label="Tutup gambar"
+                >
+                  ×
+                </button>
+              </header>
+              <div class="participant-document-viewer">
+                <p id="admin-image-loading">Memuat gambar…</p>
+                <img id="admin-image" alt="" hidden />
+                <p id="admin-image-error" role="alert" hidden>
+                  Gambar belum dapat dimuat. Coba buka kembali.
+                </p>
+              </div>
+              <p class="participant-document-privacy" id="admin-image-note">
+                Gambar hanya digunakan untuk kebutuhan operasional admin.
+              </p>
+            </div>
+          </dialog>
+          <dialog class="admin-confirm-dialog" id="admin-confirm-dialog">
+            <form method="dialog" class="confirm-dialog-content">
+              <p class="eyebrow" id="admin-confirm-eyebrow">
+                KONFIRMASI
+              </p>
+              <h2 id="admin-confirm-title">Lanjutkan tindakan?</h2>
+              <p class="muted" id="admin-confirm-message"></p>
+              <div class="confirm-dialog-actions">
+                <button class="button-link" value="cancel" type="submit">
+                  Batal
+                </button>
+                <button class="danger-button" value="confirm" type="submit">
+                  Lanjutkan
+                </button>
+              </div>
+            </form>
+          </dialog>
+          <footer class="admin-footer">
+            <span>LEBIHJAUH · GO FURTHER.</span>
+            <span>Ruang untuk perjalanan dan cerita baru.</span>
+          </footer>
+        </div>
+      </>
+    )}
+    <script>
+      type NotificationType = 'success' | 'error' | 'info' | 'warning';
+      type NotificationOptions = {
+        message: string;
+        type?: NotificationType;
+        actionLabel?: string;
+        onAction?: () => void;
+      };
+      type ConfirmationOptions = {
+        title: string;
+        message: string;
+        confirmLabel: string;
+        destructive?: boolean;
+      };
+      declare global {
+        interface Window {
+          adminNotify: (options: NotificationOptions) => void;
+          adminConfirm: (options: ConfirmationOptions) => Promise<boolean>;
+        }
+      }
+
+      const notificationRegion = document.querySelector<HTMLElement>(
+        '#admin-notifications',
+      );
+      window.adminNotify = ({
+        message,
+        type = 'info',
+        actionLabel,
+        onAction,
+      }) => {
+        const notification = document.createElement('div');
+        notification.className = `admin-notification ${type}`;
+        notification.setAttribute(
+          'role',
+          type === 'error' ? 'alert' : 'status',
+        );
+        const text = document.createElement('p');
+        text.textContent = message;
+        notification.append(text);
+        if (actionLabel && onAction) {
+          const action = document.createElement('button');
+          action.type = 'button';
+          action.className = 'link-button';
+          action.textContent = actionLabel;
+          action.onclick = () => {
+            onAction();
+            notification.remove();
+          };
+          notification.append(action);
+        }
+        const close = document.createElement('button');
+        close.type = 'button';
+        close.className = 'notification-close';
+        close.setAttribute('aria-label', 'Tutup notifikasi');
+        close.textContent = '×';
+        close.onclick = () => notification.remove();
+        notification.append(close);
+        notificationRegion?.append(notification);
+        if (type !== 'error')
+          window.setTimeout(() => notification.remove(), 6_000);
+      };
+      try {
+        const pendingNotification = sessionStorage.getItem(
+          'lebihjauh-admin-notification',
+        );
+        if (pendingNotification) {
+          sessionStorage.removeItem('lebihjauh-admin-notification');
+          window.adminNotify(JSON.parse(pendingNotification));
+        }
+      } catch {
+        // Notifikasi tetap dapat bekerja tanpa storage browser.
+      }
+
+      const confirmationDialog = document.querySelector<HTMLDialogElement>(
+        '#admin-confirm-dialog',
+      );
+      const confirmationTitle = document.querySelector<HTMLElement>(
+        '#admin-confirm-title',
+      );
+      const confirmationMessage = document.querySelector<HTMLElement>(
+        '#admin-confirm-message',
+      );
+      const confirmationButton =
+        confirmationDialog?.querySelector<HTMLButtonElement>('.danger-button');
+      window.adminConfirm = (options) =>
+        new Promise((resolve) => {
+          if (
+            !confirmationDialog ||
+            !confirmationTitle ||
+            !confirmationMessage
+          ) {
+            resolve(false);
+            return;
+          }
+          if (confirmationDialog.open) confirmationDialog.close('cancel');
+          confirmationTitle.textContent = options.title;
+          confirmationMessage.textContent = options.message;
+          if (confirmationButton) {
+            confirmationButton.textContent = options.confirmLabel;
+            confirmationButton.classList.toggle(
+              'danger-button',
+              options.destructive !== false,
+            );
+            confirmationButton.classList.toggle(
+              'button-link',
+              options.destructive === false,
+            );
+          }
+          confirmationDialog.addEventListener(
+            'close',
+            () => resolve(confirmationDialog.returnValue === 'confirm'),
+            { once: true },
+          );
+          confirmationDialog.showModal();
+          confirmationDialog
+            .querySelector<HTMLButtonElement>('[value="cancel"]')
+            ?.focus();
+        });
+
+      const imageDialog = document.querySelector<HTMLDialogElement>(
+        '#admin-image-dialog',
+      );
+      const imageDialogEyebrow = document.querySelector<HTMLElement>(
+        '#admin-image-eyebrow',
+      );
+      const imageDialogTitle =
+        document.querySelector<HTMLElement>('#admin-image-title');
+      const imageDialogImage =
+        document.querySelector<HTMLImageElement>('#admin-image');
+      const imageDialogLoading = document.querySelector<HTMLElement>(
+        '#admin-image-loading',
+      );
+      const imageDialogError =
+        document.querySelector<HTMLElement>('#admin-image-error');
+      const imageDialogNote =
+        document.querySelector<HTMLElement>('#admin-image-note');
+      const clearAdminImage = () => {
+        imageDialogImage?.removeAttribute('src');
+        if (imageDialogImage) imageDialogImage.hidden = true;
+        if (imageDialogLoading) imageDialogLoading.hidden = false;
+        if (imageDialogError) imageDialogError.hidden = true;
+      };
+      document.addEventListener('click', (event) => {
+        if (!(event.target instanceof Element)) return;
+        const trigger = event.target.closest<HTMLElement>(
+          '[data-admin-image-src]',
+        );
+        if (!trigger || !imageDialog) return;
+        event.preventDefault();
+        const source = trigger.dataset.adminImageSrc;
+        if (!source) return;
+        clearAdminImage();
+        if (imageDialogEyebrow)
+          imageDialogEyebrow.textContent =
+            trigger.dataset.adminImageEyebrow ?? 'PRATINJAU GAMBAR';
+        if (imageDialogTitle)
+          imageDialogTitle.textContent =
+            trigger.dataset.adminImageTitle ?? 'Gambar';
+        if (imageDialogNote)
+          imageDialogNote.textContent =
+            trigger.dataset.adminImageNote ??
+            'Gambar hanya digunakan untuk kebutuhan operasional admin.';
+        if (imageDialogImage) {
+          imageDialogImage.alt = trigger.dataset.adminImageAlt ?? '';
+          imageDialogImage.src = source;
+        }
+        imageDialog.showModal();
+      });
+      imageDialogImage?.addEventListener('load', () => {
+        imageDialogImage.hidden = false;
+        if (imageDialogLoading) imageDialogLoading.hidden = true;
+      });
+      imageDialogImage?.addEventListener('error', () => {
+        imageDialogImage.hidden = true;
+        if (imageDialogLoading) imageDialogLoading.hidden = true;
+        if (imageDialogError) imageDialogError.hidden = false;
+      });
+      document
+        .querySelector('#close-admin-image')
+        ?.addEventListener('click', () => imageDialog?.close());
+      imageDialog?.addEventListener('click', (event) => {
+        if (event.target === imageDialog) imageDialog.close();
+      });
+      imageDialog?.addEventListener('close', clearAdminImage);
+
+      const logout = document.querySelector<HTMLButtonElement>('#admin-logout');
+      logout?.addEventListener('click', async () => {
+        logout.disabled = true;
+        try {
+          const response = await fetch('/api/auth/sign-out', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: '{}',
+          });
+          if (!response.ok) throw new Error('Gagal keluar. Silakan coba lagi.');
+          window.location.href = '/admin/login';
+        } catch {
+          const error = document.querySelector<HTMLElement>('#logout-error')!;
+          error.hidden = false;
+          error.textContent = 'Gagal keluar. Periksa koneksi lalu coba lagi.';
+          logout.disabled = false;
+        }
+      });
+
+      const sidebar = document.querySelector<HTMLElement>('#admin-sidebar');
+      const menuToggle =
+        document.querySelector<HTMLButtonElement>('#admin-menu-toggle');
+      const closeMobileMenu = () => {
+        sidebar?.classList.remove('menu-open');
+        menuToggle?.setAttribute('aria-expanded', 'false');
+      };
+      menuToggle?.addEventListener('click', () => {
+        const willOpen = !sidebar?.classList.contains('menu-open');
+        sidebar?.classList.toggle('menu-open', willOpen);
+        menuToggle.setAttribute('aria-expanded', String(willOpen));
+      });
+      document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') closeMobileMenu();
+      });
+      window.addEventListener('resize', () => {
+        if (window.innerWidth > 760) closeMobileMenu();
+      });
+    </script>
+  </body>
+</html>

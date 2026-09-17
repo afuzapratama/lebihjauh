@@ -1,0 +1,1501 @@
+---
+import { and, asc, desc, eq, isNull } from 'drizzle-orm';
+import FileUploadControl from '../../../components/FileUploadControl.astro';
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import { getDb } from '../../../db/client';
+import {
+  adminAuditLog,
+  booking,
+  bookingParticipantDataGrant,
+  invoice,
+  payment,
+  paymentMethod,
+} from '../../../db/schema';
+import { expireDueBookingHolds } from '../../../lib/booking-admin';
+import { getBookingParticipantSafety } from '../../../lib/admin-participant-safety';
+
+export const prerender = false;
+Astro.response.headers.set('Cache-Control', 'private, no-store');
+await expireDueBookingHolds();
+const db = getDb();
+const id = Astro.params.id ?? '';
+const [rawOrder] = await db
+  .select({
+    id: booking.id,
+    number: booking.publicNumber,
+    state: booking.state,
+    pax: booking.pax,
+    picName: booking.picName,
+    picWhatsApp: booking.picWhatsApp,
+    picEmail: booking.picEmail,
+    holdExpiresAt: booking.holdExpiresAt,
+    packageSnapshot: booking.packageSnapshot,
+    policySnapshot: booking.policySnapshot,
+    createdAt: booking.createdAt,
+    total: invoice.total,
+    minimumDp: invoice.minimumDp,
+  })
+  .from(booking)
+  .innerJoin(invoice, eq(invoice.bookingId, booking.id))
+  .where(
+    /^[0-9a-f-]{36}$/i.test(id)
+      ? eq(booking.id, id)
+      : eq(booking.publicNumber, id),
+  )
+  .limit(1);
+type PackageSnapshot = {
+  tripName?: string;
+  startAt?: string;
+  endAt?: string;
+  meetingPoint?: string;
+  pickup?: {
+    zoneName?: string;
+    locationName?: string;
+    pickupAt?: string | null;
+  };
+  terms?: string;
+};
+const snapshot = rawOrder?.packageSnapshot as PackageSnapshot | undefined;
+const order = rawOrder && {
+  ...rawOrder,
+  tripName: snapshot?.tripName ?? 'Trip LebihJauh',
+  startAt: snapshot?.startAt ? new Date(snapshot.startAt) : null,
+  endAt: snapshot?.endAt ? new Date(snapshot.endAt) : null,
+  meetingPoint:
+    [snapshot?.pickup?.zoneName, snapshot?.pickup?.locationName]
+      .filter(Boolean)
+      .join(' · ') ||
+    snapshot?.meetingPoint ||
+    'Menyusul',
+};
+const safetyParticipants = order
+  ? await getBookingParticipantSafety(order.id)
+  : [];
+const completedSafetyCount = safetyParticipants.filter(
+  (person) => person.safetyId,
+).length;
+const reviewedSafetyCount = safetyParticipants.filter(
+  (person) => person.reviewedAt && person.status === 'complete',
+).length;
+const [picGrant] = order
+  ? await db
+      .select({
+        expiresAt: bookingParticipantDataGrant.expiresAt,
+        revokedAt: bookingParticipantDataGrant.revokedAt,
+      })
+      .from(bookingParticipantDataGrant)
+      .where(eq(bookingParticipantDataGrant.bookingId, order.id))
+      .limit(1)
+  : [];
+const payments = order
+  ? await db
+      .select({
+        id: payment.id,
+        amount: payment.amount,
+        reference: payment.reference,
+        proofObjectKey: payment.proofObjectKey,
+        state: payment.state,
+        receivedAt: payment.receivedAt,
+        reportedTransferAt: payment.reportedTransferAt,
+        submittedAt: payment.submittedAt,
+        reviewedAt: payment.reviewedAt,
+        reviewNote: payment.reviewNote,
+        paymentMethodSnapshot: payment.paymentMethodSnapshot,
+      })
+      .from(payment)
+      .where(eq(payment.bookingId, order.id))
+      .orderBy(desc(payment.submittedAt))
+  : [];
+const activePaymentMethods = await db
+  .select({
+    id: paymentMethod.id,
+    name: paymentMethod.name,
+    kind: paymentMethod.kind,
+  })
+  .from(paymentMethod)
+  .where(
+    and(eq(paymentMethod.isActive, true), isNull(paymentMethod.archivedAt)),
+  )
+  .orderBy(asc(paymentMethod.sortOrder), asc(paymentMethod.name));
+const verifiedAmount = payments
+  .filter((item) => item.state === 'verified')
+  .reduce((total, item) => total + BigInt(item.amount), 0n);
+const paymentProgress = order
+  ? verifiedAmount >= BigInt(order.total)
+    ? 'Lunas'
+    : verifiedAmount >= BigInt(order.minimumDp)
+      ? 'Down payment terpenuhi'
+      : 'Belum memenuhi down payment'
+  : '';
+const activities = order
+  ? await db
+      .select({
+        action: adminAuditLog.action,
+        payload: adminAuditLog.payload,
+        createdAt: adminAuditLog.createdAt,
+      })
+      .from(adminAuditLog)
+      .where(eq(adminAuditLog.entityId, order.id))
+      .orderBy(desc(adminAuditLog.createdAt))
+      .limit(12)
+  : [];
+const timeline = order
+  ? [
+      { action: 'created_by_pic', createdAt: order.createdAt },
+      ...activities,
+    ].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+  : [];
+if (!order) Astro.response.status = 404;
+const date = new Intl.DateTimeFormat('id-ID', {
+  dateStyle: 'full',
+  timeStyle: 'short',
+  timeZone: 'Asia/Jakarta',
+});
+const money = new Intl.NumberFormat('id-ID');
+const stateLabel = (state: string) =>
+  ({
+    awaiting_payment: 'Menunggu pembayaran',
+    expired: 'Kedaluwarsa',
+    cancelled: 'Dibatalkan',
+    confirmed: 'Terkonfirmasi',
+    completed: 'Selesai',
+  })[state] ?? state;
+const paymentStateLabel = (state: string) =>
+  ({
+    submitted: 'Menunggu verifikasi',
+    verified: 'Terverifikasi',
+    rejected: 'Ditolak',
+  })[state] ?? state;
+const paymentMethodName = (value: unknown) =>
+  value &&
+  typeof value === 'object' &&
+  !Array.isArray(value) &&
+  typeof (value as Record<string, unknown>).name === 'string'
+    ? (value as Record<string, unknown>).name
+    : null;
+const documentTypeLabel = (value: string | null) =>
+  ({
+    ktp: 'KTP',
+    sim: 'SIM',
+    student_card: 'Kartu Pelajar / KIA',
+    passport: 'Paspor',
+    kitas: 'KITAS',
+  })[value ?? ''] ?? 'Dokumen';
+const actionLabel = (action: string) =>
+  ({
+    created_by_pic: 'Booking dibuat oleh PIC',
+    cancelled_by_customer: 'Dibatalkan atas permintaan pelanggan',
+    reopened_after_expiry: 'Booking dibuka ulang setelah kedaluwarsa',
+    invoice_access_reissued: 'Tautan invoice diterbitkan ulang',
+    payment_recorded_verified: 'Pembayaran dicatat dan diverifikasi',
+    payment_verified: 'Pembayaran diverifikasi',
+    payment_rejected: 'Pembayaran ditolak',
+    participant_data_links_issued: 'Tautan data peserta diterbitkan',
+    booking_participant_data_link_issued: 'Tautan PIC rombongan diterbitkan',
+  })[action] ?? action.replaceAll('_', ' ');
+const actionDetail = (payload: unknown) => {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload))
+    return null;
+  const reason = (payload as Record<string, unknown>).reason;
+  return typeof reason === 'string' && reason ? reason : null;
+};
+const whatsappDigits =
+  order?.picWhatsApp.replace(/\D/g, '').replace(/^0/, '62') ?? '';
+const directWhatsApp =
+  order && whatsappDigits
+    ? `https://wa.me/${whatsappDigits}?text=${encodeURIComponent(`Halo ${order.picName}, kami dari LebihJauh terkait booking ${order.number} untuk ${order.tripName}${order.startAt ? ` pada ${date.format(order.startAt)}` : ''}. Kami ingin menindaklanjuti proses booking Anda. Terima kasih.`)}`
+    : null;
+---
+
+<AdminLayout
+  title={order ? order.number : 'Order tidak ditemukan'}
+  active="orders"
+>
+  {order ? (
+    <>
+      <div class="page-title order-title">
+        <div>
+          <p class="eyebrow">02 / {order.number}</p>
+          <h1>{order.tripName}</h1>
+          <p class="muted">
+            {order.startAt ? date.format(order.startAt) : 'Jadwal tersimpan'} ·{' '}
+            {order.pax} peserta
+          </p>
+        </div>
+        <a class="button-link" href="/admin/orders">
+          ← Semua order
+        </a>
+      </div>
+      <section class="order-action-bar" aria-label="Tindakan booking">
+        {directWhatsApp && (
+          <a
+            class="primary"
+            href={directWhatsApp}
+            target="_blank"
+            rel="noopener"
+          >
+            Hubungi PIC via WhatsApp ↗
+          </a>
+        )}
+        {['awaiting_payment', 'confirmed'].includes(order.state) &&
+          (activePaymentMethods.length ? (
+            <button class="primary" id="record-payment" type="button">
+              Catat & verifikasi pembayaran
+            </button>
+          ) : (
+            <a class="button-link" href="/admin/payments/methods">
+              Atur metode pembayaran dulu ↗
+            </a>
+          ))}
+        {order.state === 'confirmed' && (
+          <button class="button-link" id="issue-participant-data" type="button">
+            Terbitkan link PIC rombongan ↗
+          </button>
+        )}
+        <button class="button-link" id="reissue-invoice" type="button">
+          Kirim ulang invoice ↗
+        </button>
+        {order.state === 'expired' && (
+          <button class="button-link" id="reopen-booking" type="button">
+            Buka ulang jika kuota ada ↗
+          </button>
+        )}
+        {order.state === 'awaiting_payment' && (
+          <button class="danger-button" id="cancel-booking" type="button">
+            Batalkan atas permintaan pelanggan
+          </button>
+        )}
+      </section>
+      <div class="layout order-detail-layout">
+        <section class="panel manifest-panel">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">MANIFEST LAPANGAN</p>
+              <h2>Peserta & data keselamatan</h2>
+            </div>
+            <div class="manifest-head-actions">
+              <span class="pill olive">
+                {completedSafetyCount}/{safetyParticipants.length} data masuk
+              </span>
+              <button class="button-link" id="print-manifest" type="button">
+                Cetak manifest ↗
+              </button>
+            </div>
+          </div>
+          <div class="manifest-print-info">
+            <strong>
+              {order.number} · {order.tripName}
+            </strong>
+            <span>
+              {order.startAt ? date.format(order.startAt) : 'Jadwal tersimpan'}{' '}
+              · {order.pax} peserta
+            </span>
+            <span>
+              Meeting point: {order.meetingPoint.split('\n')[0] || 'Menyusul'}
+            </span>
+          </div>
+          <p class="muted manifest-note">
+            Buka peserta untuk memeriksa identitas, kontak darurat, foto
+            dokumen, dan hasil pemeriksaan dalam satu tempat.
+          </p>
+          <div class="manifest-participant-list">
+            {safetyParticipants.map((person) => (
+              <details class="manifest-participant-card">
+                <summary>
+                  <span class="manifest-participant-number">
+                    {String(person.position).padStart(2, '0')}
+                  </span>
+                  <strong>
+                    {person.fullName} {person.isPic && <small>PIC</small>}
+                  </strong>
+                  <span
+                    class:list={[
+                      'manifest-participant-status',
+                      {
+                        'is-missing': !person.safetyId,
+                        'is-revision': person.status === 'needs_revision',
+                        'is-reviewed':
+                          Boolean(person.reviewedAt) &&
+                          person.status === 'complete',
+                        'is-waiting':
+                          Boolean(person.safetyId) &&
+                          person.status !== 'needs_revision' &&
+                          !person.reviewedAt,
+                      },
+                    ]}
+                  >
+                    {!person.safetyId
+                      ? 'Belum mengisi'
+                      : person.status === 'needs_revision'
+                        ? 'Perlu perbaikan'
+                        : person.reviewedAt
+                          ? 'Sudah diperiksa'
+                          : 'Menunggu diperiksa'}
+                  </span>
+                  <span
+                    class:list={[
+                      'manifest-checkin',
+                      { 'is-present': Boolean(person.checkedInAt) },
+                    ]}
+                  >
+                    {person.checkedInAt ? '✓ Hadir' : 'Belum check-in'}
+                  </span>
+                  <span class="manifest-participant-chevron" aria-hidden="true">
+                    ⌄
+                  </span>
+                </summary>
+                {person.safetyId ? (
+                  <div class="manifest-participant-content">
+                    <dl class="manifest-safety-details">
+                      <div class="wide">
+                        <dt>Alamat</dt>
+                        <dd>{person.address}</dd>
+                      </div>
+                      <div>
+                        <dt>WhatsApp peserta</dt>
+                        <dd>{person.whatsapp ?? 'Tidak diisi'}</dd>
+                      </div>
+                      <div>
+                        <dt>Kontak darurat</dt>
+                        <dd>
+                          {person.emergencyName} ·{' '}
+                          {person.emergencyRelationship}
+                          <br />
+                          {person.emergencyWhatsApp}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>{documentTypeLabel(person.identityType)}</dt>
+                        <dd>{person.identityNumber}</dd>
+                      </div>
+                      <div>
+                        <dt>Terakhir diperbarui</dt>
+                        <dd>
+                          {person.updatedAt
+                            ? date.format(person.updatedAt)
+                            : 'Belum tersedia'}
+                        </dd>
+                      </div>
+                    </dl>
+                    <div class="manifest-participant-actions">
+                      {person.documentObjectKey && (
+                        <button
+                          class="primary"
+                          type="button"
+                          data-admin-image-src={`/api/admin/participant-documents/${person.participantId}`}
+                          data-admin-image-eyebrow="FOTO IDENTITAS"
+                          data-admin-image-title={`Dokumen · ${person.fullName}`}
+                          data-admin-image-alt={`Foto identitas ${person.fullName}`}
+                          data-admin-image-note="Dokumen hanya digunakan untuk pemeriksaan operasional. Pembukaan foto ini tercatat dalam jejak audit."
+                        >
+                          Lihat foto identitas
+                        </button>
+                      )}
+                      {order.state === 'confirmed' && (
+                        <button
+                          class="button-link issue-single-participant-link"
+                          type="button"
+                          data-participant-id={person.participantId}
+                        >
+                          Terbitkan ulang link peserta ↗
+                        </button>
+                      )}
+                    </div>
+                    <form
+                      class="safety-review-form"
+                      data-participant-id={person.participantId}
+                    >
+                      <label>
+                        Catatan pemeriksaan{' '}
+                        <small>Wajib jika perlu revisi</small>
+                        <textarea
+                          name="note"
+                          maxlength="500"
+                          rows="2"
+                          placeholder="Contoh: foto dokumen buram, mohon unggah ulang."
+                        >{person.reviewNote ?? ''}</textarea>
+                      </label>
+                      <div>
+                        <button
+                          class="danger-button"
+                          type="submit"
+                          value="needs_revision"
+                        >
+                          Minta perbaikan
+                        </button>
+                        <button class="primary" type="submit" value="approve">
+                          Tandai sudah diperiksa
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                ) : (
+                  <div class="manifest-participant-empty">
+                    <p>
+                      Data keselamatan peserta ini belum dikirim. Setelah down
+                      payment terverifikasi, kirim tautan pengisian kepada
+                      peserta atau PIC rombongan.
+                    </p>
+                    {order.state === 'confirmed' && (
+                      <button
+                        class="button-link issue-single-participant-link"
+                        type="button"
+                        data-participant-id={person.participantId}
+                      >
+                        Buat link peserta ↗
+                      </button>
+                    )}
+                  </div>
+                )}
+              </details>
+            ))}
+          </div>
+        </section>
+        <div class="order-side-stack">
+          <section class="panel pic-workspace-panel">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">WORKSPACE PIC</p>
+                <h2>Data rombongan</h2>
+              </div>
+              <span class="pill olive">
+                {completedSafetyCount}/{safetyParticipants.length} data masuk
+              </span>
+            </div>
+            <p class="muted">
+              PIC mengisi data setiap peserta dari satu tautan. Draf tiap
+              peserta tersimpan terpisah dan dapat dilanjutkan setelah reload.
+            </p>
+            {picGrant &&
+            !picGrant.revokedAt &&
+            picGrant.expiresAt > new Date() ? (
+              <p class="pic-link-status">
+                Link aktif sampai {date.format(picGrant.expiresAt)}.
+              </p>
+            ) : (
+              <p class="pic-link-status">Belum ada link PIC aktif.</p>
+            )}
+            <div class="pic-workspace-progress">
+              <span>
+                <i
+                  style={`width: ${safetyParticipants.length ? (completedSafetyCount / safetyParticipants.length) * 100 : 0}%`}
+                ></i>
+              </span>
+              <small>
+                {reviewedSafetyCount} sudah diperiksa · {completedSafetyCount}{' '}
+                data terkumpul
+              </small>
+            </div>
+          </section>
+          <aside class="panel order-info-panel">
+            <p class="eyebrow">RINGKASAN ORDER</p>
+            <h2>{order.number}</h2>
+            <dl class="admin-order-details">
+              <div>
+                <dt>Status booking</dt>
+                <dd>
+                  <span class:list={['state', `booking-${order.state}`]}>
+                    {stateLabel(order.state)}
+                  </span>
+                </dd>
+              </div>
+              <div>
+                <dt>Total</dt>
+                <dd>Rp{money.format(Number(order.total))}</dd>
+              </div>
+              <div>
+                <dt>Down payment minimum</dt>
+                <dd>Rp{money.format(Number(order.minimumDp))}</dd>
+              </div>
+              <div>
+                <dt>Terverifikasi</dt>
+                <dd>Rp{money.format(Number(verifiedAmount))}</dd>
+              </div>
+              <div>
+                <dt>Status pembayaran</dt>
+                <dd>{paymentProgress}</dd>
+              </div>
+              <div>
+                <dt>Hold sampai</dt>
+                <dd>{date.format(order.holdExpiresAt)}</dd>
+              </div>
+              <div>
+                <dt>Dibuat</dt>
+                <dd>{date.format(order.createdAt)}</dd>
+              </div>
+              <div>
+                <dt>PIC</dt>
+                <dd>
+                  {order.picName}
+                  <br />
+                  {order.picWhatsApp}
+                  {order.picEmail && (
+                    <>
+                      <br />
+                      {order.picEmail}
+                    </>
+                  )}
+                </dd>
+              </div>
+              <div>
+                <dt>Meeting point</dt>
+                <dd>{order.meetingPoint.split('\n')[0] || 'Menyusul'}</dd>
+              </div>
+            </dl>
+          </aside>
+          <section class="panel order-timeline">
+            <p class="eyebrow">RIWAYAT TINDAKAN</p>
+            <h2>Jejak operasional</h2>
+            <ol>
+              {timeline.map((activity) => (
+                <li>
+                  <strong>
+                    {actionLabel(activity.action)}
+                    {actionDetail(
+                      'payload' in activity ? activity.payload : null,
+                    ) && (
+                      <small>
+                        {actionDetail(
+                          'payload' in activity ? activity.payload : null,
+                        )}
+                      </small>
+                    )}
+                  </strong>
+                  <span>{date.format(activity.createdAt)}</span>
+                </li>
+              ))}
+            </ol>
+          </section>
+        </div>
+      </div>
+      <section class="manifest-print-sheet" aria-hidden="true">
+        <header class="manifest-print-header">
+          <div>
+            <p>MANIFEST PESERTA</p>
+            <h1>{order.tripName}</h1>
+          </div>
+          <dl>
+            <div>
+              <dt>Nomor order</dt>
+              <dd>{order.number}</dd>
+            </div>
+            <div>
+              <dt>Keberangkatan</dt>
+              <dd>
+                {order.startAt
+                  ? date.format(order.startAt)
+                  : 'Jadwal tersimpan'}
+              </dd>
+            </div>
+            <div>
+              <dt>Rombongan</dt>
+              <dd>{order.pax} peserta</dd>
+            </div>
+          </dl>
+        </header>
+        <table class="manifest-print-table">
+          <thead>
+            <tr>
+              <th>No.</th>
+              <th>Nama peserta</th>
+              <th>NIK akhir</th>
+              <th>Check-in</th>
+            </tr>
+          </thead>
+          <tbody>
+            {safetyParticipants.map((person) => (
+              <tr>
+                <td>{String(person.position).padStart(2, '0')}</td>
+                <td>
+                  {person.fullName}
+                  {person.isPic && <small>PIC</small>}
+                </td>
+                <td>{person.identityLast4 ?? 'Belum lengkap'}</td>
+                <td>{person.checkedInAt ? 'Hadir' : ''}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </section>
+      <section class="panel payment-panel">
+        <div class="panel-head">
+          <div>
+            <p class="eyebrow">PEMBAYARAN</p>
+            <h2>Verifikasi pembayaran</h2>
+            <p class="muted">
+              Bukti dari invoice dan pesan WhatsApp tetap harus dicocokkan
+              dengan mutasi. Status down payment atau lunas dihitung otomatis.
+            </p>
+          </div>
+          <span class="pill">{paymentProgress}</span>
+        </div>
+        {payments.length ? (
+          <div class="payments-list">
+            {payments.map((item) => (
+              <article>
+                <div>
+                  <strong>Rp{money.format(Number(item.amount))}</strong>
+                  <span class:list={['state', `payment-${item.state}`]}>
+                    {paymentStateLabel(item.state)}
+                  </span>
+                  <small>
+                    {paymentMethodName(item.paymentMethodSnapshot)
+                      ? `${paymentMethodName(item.paymentMethodSnapshot)} · `
+                      : ''}
+                    {item.reportedTransferAt
+                      ? `Pembeli melaporkan transfer ${date.format(item.reportedTransferAt)} · `
+                      : ''}
+                    {item.state === 'verified'
+                      ? `Dana masuk ${date.format(item.receivedAt)} · `
+                      : ''}
+                    Referensi: {item.reference ?? '—'}
+                  </small>
+                  {item.proofObjectKey && (
+                    <button
+                      class="button-link payment-proof-link"
+                      type="button"
+                      data-admin-image-src={`/api/admin/payments/${item.id}/proof`}
+                      data-admin-image-eyebrow="BUKTI PEMBAYARAN"
+                      data-admin-image-title={`Pembayaran ${item.reference ?? order.number}`}
+                      data-admin-image-alt={`Bukti pembayaran ${item.reference ?? order.number}`}
+                      data-admin-image-note="Cocokkan nominal, pengirim, dan waktu transfer sebelum memverifikasi pembayaran."
+                    >
+                      Lihat bukti pembayaran
+                    </button>
+                  )}
+                  {item.reviewNote &&
+                    item.reviewNote !== 'Dicatat dan diverifikasi admin.' && (
+                      <small>Catatan admin: {item.reviewNote}</small>
+                    )}
+                </div>
+                {item.state === 'submitted' && (
+                  <div class="payment-actions">
+                    <button
+                      class="button-link review-payment"
+                      data-payment-id={item.id}
+                      data-decision="verify"
+                      type="button"
+                    >
+                      Verifikasi
+                    </button>
+                    <button
+                      class="danger-button review-payment"
+                      data-payment-id={item.id}
+                      data-decision="reject"
+                      type="button"
+                    >
+                      Tolak
+                    </button>
+                  </div>
+                )}
+              </article>
+            ))}
+          </div>
+        ) : (
+          <p class="muted">
+            Belum ada pembayaran tercatat. Setelah bukti WhatsApp dan mutasi
+            cocok, gunakan tombol “Catat & verifikasi pembayaran” di bagian atas
+            halaman.
+          </p>
+        )}
+      </section>
+      <dialog class="booking-cancel-dialog" id="booking-cancel-dialog">
+        <form id="booking-cancel-form">
+          <p class="eyebrow">BATALKAN BOOKING</p>
+          <h2>Lepaskan kursi ini?</h2>
+          <p class="muted">
+            Booking akan tetap tercatat, tetapi kursi langsung dilepas. Tindakan
+            ini tidak berlaku untuk booking yang sudah terkonfirmasi.
+          </p>
+          <label>
+            Alasan permintaan pelanggan
+            <textarea
+              name="reason"
+              required
+              minlength="5"
+              maxlength="500"
+              placeholder="Contoh: PIC meminta pembatalan melalui WhatsApp."
+            ></textarea>
+          </label>
+          <div>
+            <button class="button-link" id="close-cancel-dialog" type="button">
+              Kembali
+            </button>
+            <button class="danger-button" type="submit">
+              Batalkan booking
+            </button>
+          </div>
+        </form>
+      </dialog>
+      <dialog class="booking-cancel-dialog" id="payment-review-dialog">
+        <form id="payment-review-form">
+          <p class="eyebrow" id="payment-review-eyebrow">
+            VERIFIKASI PEMBAYARAN
+          </p>
+          <h2 id="payment-review-title">Verifikasi transfer?</h2>
+          <p class="muted" id="payment-review-copy">
+            Pembayaran akan dihitung ke invoice. Booking akan terkonfirmasi jika
+            total pembayaran terverifikasi sudah memenuhi down payment minimum.
+          </p>
+          <label>
+            Catatan admin{' '}
+            <small id="payment-review-note-help">
+              Opsional untuk verifikasi.
+            </small>
+            <textarea
+              name="note"
+              maxlength="500"
+              placeholder="Contoh: Mutasi bank sudah cocok."
+            ></textarea>
+          </label>
+          <div>
+            <button class="button-link" id="close-payment-review" type="button">
+              Kembali
+            </button>
+            <button
+              class="danger-button"
+              id="submit-payment-review"
+              type="submit"
+            >
+              Verifikasi pembayaran
+            </button>
+          </div>
+        </form>
+      </dialog>
+      <dialog class="booking-cancel-dialog" id="record-payment-dialog">
+        <form id="record-payment-form">
+          <p class="eyebrow">CATAT PEMBAYARAN MASUK</p>
+          <h2>Mutasi sudah cocok?</h2>
+          <p class="muted">
+            Simpan hanya setelah nominal dan pengirim pada bukti WhatsApp sudah
+            Anda cocokkan dengan mutasi. Aksi ini langsung memverifikasi
+            pembayaran.
+          </p>
+          <label>
+            Metode pembayaran
+            <select name="paymentMethodId" required>
+              {activePaymentMethods.map((method) => (
+                <option value={method.id}>
+                  {method.name} · {method.kind.replace('_', ' ')}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Nominal yang benar-benar masuk
+            <input
+              name="amount"
+              type="text"
+              inputmode="numeric"
+              autocomplete="off"
+              required
+              placeholder="Rp900.000"
+            />
+          </label>
+          <label>
+            Tanggal dana masuk
+            <small>
+              Gunakan tanggal pada mutasi. Ini menjadi dasar laporan pendapatan.
+            </small>
+            <input name="receivedAt" type="datetime-local" required />
+          </label>
+          <label>
+            Referensi mutasi{' '}
+            <small>Opsional, misalnya kode referensi atau nama pengirim.</small>
+            <input name="reference" maxlength="500" />
+          </label>
+          <div class="payment-proof-upload">
+            <span class="form-label">
+              Bukti pembayaran <small>Opsional</small>
+            </span>
+            <FileUploadControl
+              id="payment-proof-file"
+              name="proof"
+              title="Unggah bukti pembayaran"
+              hint="Foto atau tangkapan layar mutasi · JPEG, PNG, atau WebP · maksimal 8 MB"
+              accept="image/jpeg,image/png,image/webp"
+              icon="receipt"
+              size="compact"
+              actionLabel="Pilih bukti"
+            />
+            <div class="cover-preview" id="payment-proof-preview" hidden>
+              <img
+                id="payment-proof-preview-image"
+                alt="Pratinjau bukti pembayaran"
+              />
+              <div>
+                <strong id="payment-proof-preview-name"></strong>
+                <span id="payment-proof-preview-size"></span>
+                <button
+                  type="button"
+                  class="link-button"
+                  id="remove-payment-proof"
+                >
+                  Hapus bukti
+                </button>
+              </div>
+            </div>
+          </div>
+          <div>
+            <button class="button-link" id="close-record-payment" type="button">
+              Kembali
+            </button>
+            <button class="primary" type="submit">
+              Catat & verifikasi
+            </button>
+          </div>
+        </form>
+      </dialog>
+      <dialog
+        class="participant-links-dialog"
+        id="participant-data-links-dialog"
+        aria-labelledby="participant-data-links-title"
+        aria-describedby="participant-data-links-description"
+      >
+        <div class="participant-data-links-dialog-content">
+          <header>
+            <div>
+              <p class="eyebrow" id="participant-data-links-eyebrow">
+                TAUTAN DATA PESERTA
+              </p>
+              <h2 id="participant-data-links-title">Tautan siap dibagikan</h2>
+            </div>
+            <button
+              class="participant-links-close"
+              id="dismiss-participant-data-links"
+              type="button"
+              aria-label="Tutup tautan data peserta"
+            >
+              ×
+            </button>
+          </header>
+          <p
+            class="participant-links-description"
+            id="participant-data-links-description"
+          ></p>
+          <div id="participant-data-links"></div>
+          <div class="participant-links-security">
+            <span aria-hidden="true">●</span>
+            <p>
+              Tautan baru langsung menggantikan tautan sebelumnya. Bagikan hanya
+              kepada orang yang dituju.
+            </p>
+          </div>
+          <footer>
+            <button
+              class="button-link"
+              id="close-participant-data-links"
+              type="button"
+            >
+              Selesai
+            </button>
+          </footer>
+        </div>
+      </dialog>
+    </>
+  ) : (
+    <section class="panel">
+      <h1>Order tidak ditemukan.</h1>
+      <a class="primary" href="/admin/orders">
+        Kembali ke order
+      </a>
+    </section>
+  )}
+  {order && <script
+    is:inline
+    define:vars={{
+      orderId: order.id,
+      orderNumber: order.number,
+      picName: order.picName,
+      picWhatsApp: order.picWhatsApp,
+    }}
+  >
+    const actionRequest = async (action, extra = {}) => {
+      const response = await fetch('/api/admin/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bookingId: orderId, action, ...extra }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.message);
+      return result;
+    };
+    document
+      .querySelector('#print-manifest')
+      ?.addEventListener('click', () => window.print());
+    document
+      .querySelector('#reopen-booking')
+      ?.addEventListener('click', async () => {
+        if (
+          !(await window.adminConfirm({
+            title: 'Buka ulang booking?',
+            message:
+              'Sistem akan memeriksa kuota terbaru terlebih dahulu. Jika tersedia, kursi ditahan kembali maksimal 24 jam.',
+            confirmLabel: 'Periksa & buka ulang',
+            destructive: false,
+          }))
+        )
+          return;
+        try {
+          const result = await actionRequest('reopen');
+          window.adminNotify({
+            type: 'success',
+            message: `Booking ${result.booking.number} dibuka ulang. Hold baru sudah dibuat.`,
+          });
+          window.location.reload();
+        } catch (error) {
+          window.adminNotify({
+            type: 'error',
+            message: error.message || 'Booking tidak dapat dibuka ulang.',
+          });
+        }
+      });
+    document
+      .querySelector('#reissue-invoice')
+      ?.addEventListener('click', async () => {
+        if (
+          !(await window.adminConfirm({
+            title: 'Terbitkan tautan invoice baru?',
+            message:
+              'Tautan akses lama akan dicabut. Tautan baru akan disiapkan untuk dikirim ke PIC lewat WhatsApp.',
+            confirmLabel: 'Terbitkan tautan',
+            destructive: false,
+          }))
+        )
+          return;
+        try {
+          const result = await actionRequest('reissue-invoice');
+          const number = result.invoice.number;
+          const link = `${window.location.origin}/invoice/${number}#access=${encodeURIComponent(result.invoice.token)}`;
+          const phone = picWhatsApp.replace(/\D/g, '').replace(/^0/, '62');
+          const message = `Halo ${picName}, berikut tautan invoice terbaru untuk booking ${orderNumber}:\n${link}\n\nMohon simpan tautan ini dan lanjutkan konfirmasi pembayaran sesuai arahan kami. Terima kasih.`;
+          window.adminNotify({
+            type: 'success',
+            message: 'Tautan invoice baru dibuat. WhatsApp PIC akan dibuka.',
+          });
+          window.open(
+            `https://wa.me/${phone}?text=${encodeURIComponent(message)}`,
+            '_blank',
+            'noopener',
+          );
+        } catch (error) {
+          window.adminNotify({
+            type: 'error',
+            message: error.message || 'Tautan invoice belum dapat dibuat.',
+          });
+        }
+      });
+    const cancelDialog = document.querySelector('#booking-cancel-dialog');
+    document
+      .querySelector('#cancel-booking')
+      ?.addEventListener('click', () => cancelDialog?.showModal());
+    document
+      .querySelector('#close-cancel-dialog')
+      ?.addEventListener('click', () => cancelDialog?.close());
+    document
+      .querySelector('#booking-cancel-form')
+      ?.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const form = event.currentTarget;
+        const reason = new FormData(form).get('reason');
+        if (!form.reportValidity()) return;
+        try {
+          await actionRequest('cancel', { reason });
+          cancelDialog?.close();
+          window.adminNotify({
+            type: 'success',
+            message: 'Booking dibatalkan dan kursi sudah dilepas.',
+          });
+          window.location.reload();
+        } catch (error) {
+          window.adminNotify({
+            type: 'error',
+            message: error.message || 'Booking belum dapat dibatalkan.',
+          });
+        }
+      });
+    let paymentReview = null;
+    const paymentReviewDialog = document.querySelector(
+      '#payment-review-dialog',
+    );
+    const paymentReviewForm = document.querySelector('#payment-review-form');
+    document.querySelectorAll('.review-payment').forEach((button) =>
+      button.addEventListener('click', () => {
+        paymentReview = {
+          paymentId: button.dataset.paymentId,
+          decision: button.dataset.decision,
+        };
+        const rejecting = paymentReview.decision === 'reject';
+        document.querySelector('#payment-review-eyebrow').textContent =
+          rejecting ? 'TOLAK PEMBAYARAN' : 'VERIFIKASI PEMBAYARAN';
+        document.querySelector('#payment-review-title').textContent = rejecting
+          ? 'Tolak konfirmasi transfer?'
+          : 'Verifikasi transfer?';
+        document.querySelector('#payment-review-copy').textContent = rejecting
+          ? 'Penolakan tidak mengubah nilai invoice. Alasan akan terlihat pada riwayat pembayaran.'
+          : 'Pembayaran akan dihitung ke invoice. Booking akan terkonfirmasi jika down payment minimum telah terpenuhi.';
+        document.querySelector('#payment-review-note-help').textContent =
+          rejecting
+            ? 'Wajib diisi saat menolak.'
+            : 'Opsional untuk verifikasi.';
+        const note = paymentReviewForm.querySelector('[name="note"]');
+        note.required = rejecting;
+        note.value = '';
+        document.querySelector('#submit-payment-review').textContent = rejecting
+          ? 'Tolak pembayaran'
+          : 'Verifikasi pembayaran';
+        paymentReviewDialog.showModal();
+      }),
+    );
+    document
+      .querySelector('#close-payment-review')
+      ?.addEventListener('click', () => paymentReviewDialog?.close());
+    paymentReviewForm?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      if (!paymentReview || !paymentReviewForm.reportValidity()) return;
+      const note = new FormData(paymentReviewForm).get('note');
+      try {
+        const response = await fetch('/api/admin/payments', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...paymentReview, note }),
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.message);
+        paymentReviewDialog.close();
+        window.adminNotify({
+          type: 'success',
+          message:
+            paymentReview.decision === 'verify'
+              ? 'Pembayaran berhasil diverifikasi.'
+              : 'Pembayaran ditolak dan alasannya tercatat.',
+        });
+        window.location.reload();
+      } catch (error) {
+        window.adminNotify({
+          type: 'error',
+          message: error.message || 'Pembayaran belum dapat diproses.',
+        });
+      }
+    });
+    const recordPaymentDialog = document.querySelector(
+      '#record-payment-dialog',
+    );
+    const recordPaymentForm = document.querySelector('#record-payment-form');
+    const paymentProofInput = recordPaymentForm?.querySelector(
+      'input[name="proof"]',
+    );
+    const paymentProofPreview = document.querySelector(
+      '#payment-proof-preview',
+    );
+    const paymentProofPreviewImage = document.querySelector(
+      '#payment-proof-preview-image',
+    );
+    const paymentProofPreviewName = document.querySelector(
+      '#payment-proof-preview-name',
+    );
+    const paymentProofPreviewSize = document.querySelector(
+      '#payment-proof-preview-size',
+    );
+    let paymentProofPreviewUrl = null;
+    let uploadedProof = null;
+    const formatFileSize = (bytes) =>
+      bytes < 1024 * 1024
+        ? `${Math.max(1, Math.round(bytes / 1024))} KB`
+        : `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+    function clearPaymentProof() {
+      uploadedProof = null;
+      if (paymentProofPreviewUrl) URL.revokeObjectURL(paymentProofPreviewUrl);
+      paymentProofPreviewUrl = null;
+      if (paymentProofInput) paymentProofInput.value = '';
+      if (paymentProofPreview) paymentProofPreview.hidden = true;
+      paymentProofPreviewImage?.removeAttribute('src');
+      if (paymentProofPreviewName) paymentProofPreviewName.textContent = '';
+      if (paymentProofPreviewSize) paymentProofPreviewSize.textContent = '';
+    }
+    paymentProofInput?.addEventListener('change', () => {
+      uploadedProof = null;
+      if (paymentProofPreviewUrl) URL.revokeObjectURL(paymentProofPreviewUrl);
+      const file = paymentProofInput.files?.[0];
+      paymentProofPreviewUrl = null;
+      if (!file || !paymentProofPreview || !paymentProofPreviewImage) {
+        clearPaymentProof();
+        return;
+      }
+      if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+        clearPaymentProof();
+        window.adminNotify({
+          type: 'error',
+          message: 'Bukti pembayaran harus berupa JPEG, PNG, atau WebP.',
+        });
+        return;
+      }
+      if (file.size > 8 * 1024 * 1024) {
+        clearPaymentProof();
+        window.adminNotify({
+          type: 'error',
+          message: 'Ukuran bukti pembayaran maksimal 8 MB.',
+        });
+        return;
+      }
+      paymentProofPreviewUrl = URL.createObjectURL(file);
+      paymentProofPreviewImage.src = paymentProofPreviewUrl;
+      if (paymentProofPreviewName)
+        paymentProofPreviewName.textContent = file.name;
+      if (paymentProofPreviewSize)
+        paymentProofPreviewSize.textContent = formatFileSize(file.size);
+      paymentProofPreview.hidden = false;
+    });
+    document
+      .querySelector('#remove-payment-proof')
+      ?.addEventListener('click', clearPaymentProof);
+    document.querySelector('#record-payment')?.addEventListener('click', () => {
+      const receivedAt = recordPaymentForm?.querySelector(
+        '[name="receivedAt"]',
+      );
+      if (receivedAt && !receivedAt.value) {
+        const values = new Intl.DateTimeFormat('en-CA', {
+          timeZone: 'Asia/Jakarta',
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+          hourCycle: 'h23',
+        })
+          .formatToParts(new Date())
+          .reduce((result, part) => {
+            result[part.type] = part.value;
+            return result;
+          }, {});
+        receivedAt.value = `${values.year}-${values.month}-${values.day}T${values.hour}:${values.minute}`;
+      }
+      recordPaymentDialog?.showModal();
+    });
+    document
+      .querySelector('#close-record-payment')
+      ?.addEventListener('click', () => recordPaymentDialog?.close());
+    recordPaymentForm?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      if (!recordPaymentForm.reportValidity()) return;
+      const formData = new FormData(recordPaymentForm);
+      const submit = recordPaymentForm.querySelector('button.primary');
+      if (submit) submit.disabled = true;
+      try {
+        const proof = formData.get('proof');
+        if (
+          proof instanceof File &&
+          proof.size > 0 &&
+          (!uploadedProof || uploadedProof.file !== proof)
+        ) {
+          const prepared = await fetch('/api/admin/payment-proofs/presign', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              fileName: proof.name,
+              contentType: proof.type,
+              size: proof.size,
+            }),
+          });
+          const preparedResult = await prepared.json();
+          if (!prepared.ok) throw new Error(preparedResult.message);
+          const upload = preparedResult.upload;
+          const put = await fetch(upload.uploadUrl, {
+            method: 'PUT',
+            headers: { 'Content-Type': upload.contentType },
+            body: proof,
+          });
+          if (!put.ok)
+            throw new Error('Bukti pembayaran gagal diunggah. Coba lagi.');
+          uploadedProof = { file: proof, objectKey: upload.objectKey };
+        }
+        const response = await fetch('/api/admin/payments', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'record-verify',
+            bookingId: orderId,
+            paymentMethodId: formData.get('paymentMethodId'),
+            amount: String(formData.get('amount') ?? '').replace(/\D/g, ''),
+            receivedAt: formData.get('receivedAt'),
+            reference: formData.get('reference'),
+            proofObjectKey: uploadedProof?.objectKey,
+          }),
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.message);
+        recordPaymentDialog.close();
+        const label =
+          result.payment.paymentState === 'paid'
+            ? 'Pembayaran lunas terverifikasi.'
+            : result.payment.paymentState === 'dp'
+              ? 'Down payment terverifikasi; booking dikonfirmasi.'
+              : 'Pembayaran tercatat, namun belum memenuhi down payment minimum.';
+        window.adminNotify({ type: 'success', message: label });
+        window.location.reload();
+      } catch (error) {
+        window.adminNotify({
+          type: 'error',
+          message: error.message || 'Pembayaran belum dapat dicatat.',
+        });
+        if (submit) submit.disabled = false;
+      }
+    });
+    const participantLinksDialog = document.querySelector(
+      '#participant-data-links-dialog',
+    );
+    const participantLinks = document.querySelector('#participant-data-links');
+    const participantLinksEyebrow = document.querySelector(
+      '#participant-data-links-eyebrow',
+    );
+    const participantLinksTitle = document.querySelector(
+      '#participant-data-links-title',
+    );
+    const participantLinksDescription = document.querySelector(
+      '#participant-data-links-description',
+    );
+    const copyParticipantLink = async (value) => {
+      try {
+        if (!navigator.clipboard?.writeText) throw new Error('Clipboard API');
+        await navigator.clipboard.writeText(value);
+      } catch {
+        const helper = document.createElement('textarea');
+        helper.value = value;
+        helper.setAttribute('readonly', '');
+        helper.style.position = 'fixed';
+        helper.style.opacity = '0';
+        document.body.append(helper);
+        helper.select();
+        const copied = document.execCommand('copy');
+        helper.remove();
+        if (!copied) throw new Error('Tautan belum dapat disalin.');
+      }
+    };
+    const renderParticipantLink = (link, participantId) => {
+      const isBookingLink = !participantId || link.kind === 'booking';
+      participantLinksEyebrow.textContent = isBookingLink
+        ? 'AKSES PIC ROMBONGAN'
+        : 'AKSES PER PESERTA';
+      participantLinksTitle.textContent = isBookingLink
+        ? 'Tautan PIC siap dibagikan'
+        : `Tautan ${link.fullName} siap dibagikan`;
+      participantLinksDescription.textContent = isBookingLink
+        ? 'Satu tautan untuk PIC mengisi dan memperbarui data seluruh peserta dalam booking ini.'
+        : 'Tautan pribadi ini hanya membuka formulir milik satu peserta dan tidak menampilkan data peserta lain.';
+
+      const row = document.createElement('article');
+      row.className = 'participant-link-card';
+
+      const heading = document.createElement('div');
+      heading.className = 'participant-link-heading';
+      const badge = document.createElement('span');
+      badge.className = 'participant-link-badge';
+      badge.textContent = isBookingLink ? 'PIC ROMBONGAN' : 'PESERTA';
+      const expiry = document.createElement('span');
+      expiry.className = 'participant-link-expiry';
+      expiry.textContent = link.expiresAt
+        ? `Aktif sampai ${new Intl.DateTimeFormat('id-ID', {
+            dateStyle: 'medium',
+            timeStyle: 'short',
+          }).format(new Date(link.expiresAt))}`
+        : 'Tautan memiliki masa berlaku';
+      heading.append(badge, expiry);
+
+      const name = document.createElement('h3');
+      name.textContent = isBookingLink
+        ? `${picName} · PIC rombongan`
+        : link.fullName;
+
+      const urlLabel = document.createElement('label');
+      urlLabel.className = 'participant-link-url-label';
+      const urlLabelText = document.createElement('span');
+      urlLabelText.textContent = 'Alamat tautan';
+      const urlControl = document.createElement('div');
+      urlControl.className = 'participant-link-url-control';
+      const url = document.createElement('input');
+      url.type = 'text';
+      url.readOnly = true;
+      url.value = link.url;
+      url.setAttribute('aria-label', `Tautan data ${name.textContent}`);
+      url.addEventListener('focus', () => url.select());
+      const copy = document.createElement('button');
+      copy.className = 'primary';
+      copy.type = 'button';
+      copy.textContent = 'Salin tautan';
+      copy.addEventListener('click', async () => {
+        const previousLabel = copy.textContent;
+        copy.disabled = true;
+        try {
+          await copyParticipantLink(link.url);
+          copy.textContent = 'Tersalin ✓';
+          window.setTimeout(() => {
+            copy.textContent = previousLabel;
+            copy.disabled = false;
+          }, 1800);
+        } catch (error) {
+          copy.disabled = false;
+          window.adminNotify({
+            type: 'error',
+            message: error.message || 'Tautan belum dapat disalin.',
+          });
+        }
+      });
+      urlControl.append(url, copy);
+      urlLabel.append(urlLabelText, urlControl);
+
+      const actions = document.createElement('div');
+      actions.className = 'participant-link-actions';
+      const open = document.createElement('a');
+      open.className = 'button-link';
+      open.href = link.url;
+      open.target = '_blank';
+      open.rel = 'noopener noreferrer';
+      open.textContent = 'Buka tautan untuk diperiksa ↗';
+      actions.append(open);
+
+      row.append(heading, name, urlLabel, actions);
+      participantLinks.append(row);
+    };
+    const issueParticipantLinks = async (button, participantId = null) => {
+      button.disabled = true;
+      try {
+        const response = await fetch(
+          `/api/admin/orders/${orderId}/participant-data-grants`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(
+              participantId ? { participantId } : { bookingLevel: true },
+            ),
+          },
+        );
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.message);
+        participantLinks.replaceChildren();
+        const fallbackLink = participantId
+          ? result.grants?.links?.find(
+              (link) => link.participantId === participantId,
+            )
+          : result.grant;
+        const link = result.link ?? fallbackLink;
+        if (!link?.url)
+          throw new Error(
+            'Tautan berhasil dibuat, tetapi belum dapat ditampilkan.',
+          );
+        renderParticipantLink(link, participantId);
+        participantLinksDialog?.showModal();
+        window.adminNotify({
+          type: 'success',
+          message: participantId
+            ? 'Tautan khusus peserta sudah diterbitkan.'
+            : 'Tautan PIC rombongan sudah diterbitkan.',
+        });
+      } catch (error) {
+        window.adminNotify({
+          type: 'error',
+          message: error.message || 'Tautan data peserta belum dapat dibuat.',
+        });
+      } finally {
+        button.disabled = false;
+      }
+    };
+    document
+      .querySelector('#close-participant-data-links')
+      ?.addEventListener('click', () => participantLinksDialog?.close());
+    document
+      .querySelector('#dismiss-participant-data-links')
+      ?.addEventListener('click', () => participantLinksDialog?.close());
+    participantLinksDialog?.addEventListener('click', (event) => {
+      if (event.target === participantLinksDialog)
+        participantLinksDialog.close();
+    });
+    document
+      .querySelector('#issue-participant-data')
+      ?.addEventListener('click', async (event) => {
+        const button = event.currentTarget;
+        await issueParticipantLinks(button);
+      });
+    document
+      .querySelectorAll('.issue-single-participant-link')
+      .forEach((button) =>
+        button.addEventListener('click', async (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          await issueParticipantLinks(button, button.dataset.participantId);
+        }),
+      );
+    document.querySelectorAll('.safety-review-form').forEach((form) =>
+      form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const submitter = event.submitter;
+        if (!submitter) return;
+        const decision = submitter.value;
+        const note = new FormData(form).get('note');
+        if (
+          decision === 'needs_revision' &&
+          String(note || '').trim().length < 5
+        ) {
+          window.adminNotify({
+            type: 'error',
+            message: 'Isi alasan perbaikan minimal 5 karakter.',
+          });
+          return;
+        }
+        if (
+          !(await window.adminConfirm({
+            title:
+              decision === 'approve'
+                ? 'Data peserta sudah sesuai?'
+                : 'Minta peserta memperbaiki data?',
+            message:
+              decision === 'approve'
+                ? 'Pastikan identitas dan kontak darurat sudah terbaca dengan benar.'
+                : 'Status peserta akan ditandai perlu perbaikan. Terbitkan ulang tautan agar peserta dapat mengirim data baru.',
+            confirmLabel:
+              decision === 'approve' ? 'Tandai diperiksa' : 'Minta perbaikan',
+            destructive: decision !== 'approve',
+          }))
+        )
+          return;
+        submitter.disabled = true;
+        try {
+          const response = await fetch('/api/admin/participant-safety', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              participantId: form.dataset.participantId,
+              decision,
+              note,
+            }),
+          });
+          const result = await response.json();
+          if (!response.ok) throw new Error(result.message);
+          window.adminNotify({
+            type: 'success',
+            message:
+              decision === 'approve'
+                ? 'Data keselamatan sudah ditandai selesai diperiksa.'
+                : 'Peserta ditandai perlu memperbaiki data.',
+          });
+          window.location.reload();
+        } catch (error) {
+          window.adminNotify({
+            type: 'error',
+            message: error.message || 'Pemeriksaan belum dapat disimpan.',
+          });
+          submitter.disabled = false;
+        }
+      }),
+    );
+  </script>}
+  {order && <script>
+    import { bindRupiahInput } from '../../../scripts/money-input';
+
+    const paymentForm = document.querySelector<HTMLFormElement>(
+      '#record-payment-form',
+    );
+    const paymentAmount = paymentForm?.elements.namedItem('amount');
+    if (paymentAmount instanceof HTMLInputElement)
+      bindRupiahInput(paymentAmount);
+  </script>}
+</AdminLayout>

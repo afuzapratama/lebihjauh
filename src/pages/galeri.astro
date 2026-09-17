@@ -1,0 +1,225 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Icon from '../components/Icon.astro';
+import SiteHeader from '../components/SiteHeader.astro';
+import { publishedGallery } from '../lib/public-content';
+export const prerender = false;
+const items = await publishedGallery();
+---
+
+<Layout
+  title="Galeri Perjalanan — LebihJauh"
+  description="Lihat momen dan cerita visual dari perjalanan bersama LebihJauh."
+>
+  <SiteHeader active="gallery" />
+  <main id="main" class="public-trip-page content-public">
+    <section class="section">
+      <header class="content-public-head">
+        <p class="eyebrow">
+          <span></span> GALERI PERJALANAN
+        </p>
+        <h1>
+          Momen lewat.
+          <br />
+          <span class="handwritten">Kenangan melekat.</span>
+        </h1>
+        <p>Potongan perjalanan yang telah dibagikan LebihJauh.</p>
+      </header>
+      {items.length ? (
+        <>
+          <div class="gallery-grid gallery-public-grid" data-gallery-grid>
+            {items.map((item, index) => (
+              <button
+                class={`gallery-item gallery-item-${index % 4}`}
+                data-dialog={`gallery-${item.id}`}
+                data-gallery-item
+                hidden
+                aria-label={`Perbesar foto: ${item.caption}`}
+              >
+                <div class="gallery-image">
+                  <img
+                    data-src={item.imageUrl}
+                    alt={item.altText}
+                    loading="lazy"
+                    decoding="async"
+                  />
+                  <span class="gallery-expand">
+                    <Icon name="plus" />
+                  </span>
+                </div>
+                <span class="gallery-caption">
+                  <span>{String(index + 1).padStart(2, '0')}</span>{' '}
+                  {item.caption}
+                </span>
+              </button>
+            ))}
+          </div>
+          <button
+            class="gallery-load-more"
+            type="button"
+            data-gallery-load-more
+            hidden
+          >
+            Muat foto berikutnya
+          </button>
+        </>
+      ) : (
+        <div class="public-empty">
+          <h2>Galeri sedang disusun.</h2>
+          <p>Momen perjalanan akan hadir di sini setelah diterbitkan.</p>
+        </div>
+      )}
+    </section>
+  </main>
+  {items.map((item, index) => (
+    <dialog
+      class="content-dialog gallery-dialog"
+      id={`gallery-${item.id}`}
+      aria-labelledby={`gallery-caption-${item.id}`}
+    >
+      <button class="dialog-close" data-close aria-label="Tutup foto">
+        <Icon name="close" />
+      </button>
+      <img
+        data-src={item.imageUrl}
+        data-gallery-dialog-image
+        alt={item.altText}
+        loading="lazy"
+        decoding="async"
+      />
+      <div>
+        <p id={`gallery-caption-${item.id}`}>{item.caption}</p>
+        <span>
+          {String(index + 1).padStart(2, '0')} /{' '}
+          {String(items.length).padStart(2, '0')}
+        </span>
+        {item.socialUrl && (
+          <a
+            class="text-button gallery-social-link"
+            href={item.socialUrl}
+            target="_blank"
+            rel="noopener"
+          >
+            Postingan asli ↗
+          </a>
+        )}
+      </div>
+    </dialog>
+  ))}
+  <script>
+    const galleryGrid = document.querySelector<HTMLElement>(
+      '[data-gallery-grid]',
+    );
+    const galleryItems = Array.from(
+      document.querySelectorAll<HTMLElement>('[data-gallery-item]'),
+    );
+    const galleryLoadMore = document.querySelector<HTMLButtonElement>(
+      '[data-gallery-load-more]',
+    );
+
+    const galleryBatchSize = () => {
+      if (!galleryGrid) return 1;
+      const columns = getComputedStyle(galleryGrid)
+        .gridTemplateColumns.split(' ')
+        .filter(Boolean).length;
+      return Math.max(columns, 1) * 3;
+    };
+
+    let visibleGalleryItems = 0;
+    const revealGalleryItems = () => {
+      const nextVisible = Math.min(
+        visibleGalleryItems + galleryBatchSize(),
+        galleryItems.length,
+      );
+
+      galleryItems
+        .slice(visibleGalleryItems, nextVisible)
+        .forEach((galleryItem) => {
+          const image =
+            galleryItem.querySelector<HTMLImageElement>('img[data-src]');
+          if (image?.dataset.src) {
+            image.src = image.dataset.src;
+            delete image.dataset.src;
+          }
+          galleryItem.hidden = false;
+        });
+
+      visibleGalleryItems = nextVisible;
+      if (!galleryLoadMore) return;
+
+      const remainingItems = galleryItems.length - visibleGalleryItems;
+      galleryLoadMore.hidden = remainingItems === 0;
+      if (remainingItems > 0) {
+        const nextBatch = Math.min(galleryBatchSize(), remainingItems);
+        galleryLoadMore.textContent = `Muat ${nextBatch} foto berikutnya`;
+      }
+    };
+
+    revealGalleryItems();
+    galleryLoadMore?.addEventListener('click', revealGalleryItems);
+
+    if (galleryLoadMore && 'IntersectionObserver' in window) {
+      let hasScrolled = false;
+      let loadMoreIsNear = false;
+      const loadMoreObserver = new IntersectionObserver(
+        ([entry]) => {
+          loadMoreIsNear = entry?.isIntersecting ?? false;
+          if (hasScrolled && loadMoreIsNear) revealGalleryItems();
+        },
+        { rootMargin: '0px 0px 240px' },
+      );
+
+      loadMoreObserver.observe(galleryLoadMore);
+      window.addEventListener(
+        'scroll',
+        () => {
+          hasScrolled = true;
+          if (!galleryLoadMore.hidden && loadMoreIsNear) revealGalleryItems();
+        },
+        { once: true, passive: true },
+      );
+    }
+
+    let galleryTrigger: HTMLButtonElement | null = null;
+    document
+      .querySelectorAll<HTMLButtonElement>('[data-dialog]')
+      .forEach((button) =>
+        button.addEventListener('click', () => {
+          const dialog = document.getElementById(button.dataset.dialog ?? '');
+          if (!(dialog instanceof HTMLDialogElement)) return;
+          const image = dialog.querySelector<HTMLImageElement>(
+            '[data-gallery-dialog-image]',
+          );
+          if (image?.dataset.src) {
+            image.src = image.dataset.src;
+            delete image.dataset.src;
+          }
+          galleryTrigger = button;
+          dialog.showModal();
+          document.body.classList.add('dialog-open');
+        }),
+      );
+    document
+      .querySelectorAll<HTMLDialogElement>('.gallery-dialog')
+      .forEach((dialog) => {
+        dialog
+          .querySelector<HTMLButtonElement>('[data-close]')
+          ?.addEventListener('click', () => dialog.close());
+        dialog.addEventListener('click', (event) => {
+          const bounds = dialog.getBoundingClientRect();
+          if (
+            event.target === dialog &&
+            (event.clientX < bounds.left ||
+              event.clientX > bounds.right ||
+              event.clientY < bounds.top ||
+              event.clientY > bounds.bottom)
+          )
+            dialog.close();
+        });
+        dialog.addEventListener('close', () => {
+          document.body.classList.remove('dialog-open');
+          galleryTrigger?.focus({ preventScroll: true });
+        });
+      });
+  </script>
+</Layout>

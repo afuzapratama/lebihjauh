@@ -1,0 +1,1 @@
+ALTER TABLE "bookings" ADD COLUMN "guest_scope_hash" text NOT NULL;

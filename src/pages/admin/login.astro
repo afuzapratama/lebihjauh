@@ -1,0 +1,144 @@
+---
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import { auth } from '../../lib/auth';
+
+const requestedRedirect = Astro.url.searchParams.get('redirect') ?? '/admin';
+const destination = new URL(requestedRedirect, Astro.url);
+const redirectTo =
+  destination.origin === Astro.url.origin &&
+  (destination.pathname === '/admin' ||
+    destination.pathname.startsWith('/admin/') ||
+    ((destination.pathname === '/' || destination.pathname === '/about') &&
+      destination.searchParams.get('preview') === 'draft')) &&
+  !destination.pathname.startsWith('/admin/login')
+    ? destination.pathname + destination.search
+    : '/admin';
+const session = await auth.api.getSession({ headers: Astro.request.headers });
+if (session) return Astro.redirect(redirectTo, 302);
+---
+
+<AdminLayout title="Login" guest>
+  <main class="login-page" id="admin-content" tabindex="-1">
+    <section class="login-story" aria-labelledby="welcome-title">
+      <a class="admin-brand" href="/">
+        <img
+          src="/brand/logo-stacked-light.svg"
+          alt="LebihJauh — Go Further."
+          width="170"
+          height="220"
+        />
+      </a>
+      <div>
+        <p class="eyebrow">RUANG KELOLA PERJALANAN</p>
+        <h1 id="welcome-title">
+          Cerita baru.
+          <br />
+          Dimulai dari
+          <br />
+          rencana yang baik.
+        </h1>
+        <p>
+          Tempat menyiapkan perjalanan, merapikan detail,
+          <br />
+          dan membuka langkah berikutnya.
+        </p>
+      </div>
+      <span class="stamp" aria-hidden="true">
+        PLAN IT.
+        <br />
+        MAKE IT HAPPEN. ↗
+      </span>
+    </section>
+    <section class="login-form-area" aria-labelledby="login-title">
+      <div class="login-card">
+        <p class="eyebrow">SELAMAT DATANG KEMBALI</p>
+        <h2 id="login-title">Masuk ke ruang admin.</h2>
+        <p class="muted">
+          Gunakan akun admin untuk mengelola perjalanan LebihJauh.
+        </p>
+        <form id="login-form">
+          <label for="email">
+            Email
+            <input
+              type="email"
+              id="email"
+              name="email"
+              autocomplete="username"
+              required
+              placeholder="nama@lebihjauh.com"
+            />
+          </label>
+          <label for="password">
+            Password
+            <input
+              type="password"
+              id="password"
+              name="password"
+              autocomplete="current-password"
+              required
+            />
+          </label>
+          <p
+            class="error-msg"
+            id="form-error"
+            role="alert"
+            style="display:none"
+          ></p>
+          <button class="primary" type="submit" id="submit-btn">
+            Masuk <span aria-hidden="true">↗</span>
+          </button>
+        </form>
+        <a class="back" href="/">
+          ← Kembali ke website
+        </a>
+      </div>
+    </section>
+  </main>
+</AdminLayout>
+
+<script define:vars={{ redirectTo }} is:inline>
+  const form = document.getElementById('login-form');
+  const errorEl = document.getElementById('form-error');
+  const submitBtn = document.getElementById('submit-btn');
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (!form.reportValidity()) return;
+    errorEl.style.display = 'none';
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Masuk...';
+
+    const email = form.email.value.trim();
+    const password = form.password.value;
+
+    try {
+      const res = await fetch('/api/auth/sign-in/email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
+
+      if (res.ok) {
+        window.location.href = redirectTo;
+        return;
+      }
+
+      const data = await res.json().catch(() => ({}));
+      const msg =
+        res.status === 401 || data.code === 'INVALID_EMAIL_OR_PASSWORD'
+          ? 'Email atau password salah.'
+          : data.code === 'INVALID_ORIGIN'
+            ? 'Alamat website ini belum diizinkan untuk login. Periksa konfigurasi origin admin.'
+            : 'Login belum berhasil. Silakan coba lagi.';
+
+      errorEl.textContent = msg;
+      errorEl.style.display = 'block';
+    } catch {
+      errorEl.textContent = 'Gagal terhubung ke server.';
+      errorEl.style.display = 'block';
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Masuk';
+    }
+  });
+</script>

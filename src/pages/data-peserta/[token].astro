@@ -1,0 +1,601 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import FileUploadControl from '../../components/FileUploadControl.astro';
+import SiteHeader from '../../components/SiteHeader.astro';
+import { getParticipantDataAccess } from '../../lib/participant-safety';
+
+export const prerender = false;
+
+const token = Astro.params.token ?? '';
+Astro.response.headers.set('Cache-Control', 'private, no-store');
+Astro.response.headers.set('Referrer-Policy', 'no-referrer');
+Astro.response.headers.set('X-Robots-Tag', 'noindex, nofollow');
+const access = await getParticipantDataAccess(token);
+if (!access) Astro.response.status = 404;
+const formValues = access?.formValues ?? {};
+const date = new Intl.DateTimeFormat('id-ID', {
+  dateStyle: 'full',
+  timeStyle: 'short',
+  timeZone: 'Asia/Jakarta',
+});
+---
+
+<Layout title="Data peserta | LebihJauh">
+  <SiteHeader active="trips" />
+  <main id="main" class="public-trip-page participant-data-page">
+    <section class="section participant-data-wrap">
+      {access ? (
+        <div class="participant-data-layout participant-single-layout">
+          <header class="participant-data-heading">
+            <p class="eyebrow">
+              <span></span> DATA KESELAMATAN PESERTA
+            </p>
+            <h1>
+              Lengkapi data,
+              <br />
+              <span class="handwritten">jalan lebih tenang.</span>
+            </h1>
+            <p>
+              Form ini khusus untuk peserta <strong>{access.fullName}</strong>.
+              Data hanya digunakan untuk keselamatan dan operasional perjalanan.
+            </p>
+          </header>
+
+          <aside
+            class="participant-data-summary"
+            aria-label="Ringkasan perjalanan"
+          >
+            <p class="eyebrow">PERJALANANMU</p>
+            <h2>{access.tripName}</h2>
+            <dl>
+              <div>
+                <dt>Nomor booking</dt>
+                <dd>{access.bookingNumber}</dd>
+              </div>
+              <div>
+                <dt>Peserta</dt>
+                <dd>
+                  {access.position}. {access.fullName}
+                </dd>
+              </div>
+              <div>
+                <dt>Keberangkatan</dt>
+                <dd>{date.format(access.startAt)}</dd>
+              </div>
+            </dl>
+            <p>
+              Tautan ini hanya membuka data milikmu sendiri dan memiliki masa
+              berlaku.
+            </p>
+          </aside>
+
+          <form
+            id="participant-data-form"
+            class="participant-data-form"
+            novalidate
+          >
+            <div class="participant-progress" aria-live="polite">
+              <div>
+                <strong id="participant-progress-label">Progres 0%</strong>
+                <span id="participant-draft-status">
+                  {access.draftSavedAt
+                    ? `Draf terakhir ${date.format(access.draftSavedAt)}`
+                    : access.completedAt
+                      ? 'Data sebelumnya sudah dimuat kembali.'
+                      : 'Isian belum disimpan.'}
+                </span>
+              </div>
+              <span class="participant-progress-track" aria-hidden="true">
+                <i id="participant-progress-bar"></i>
+              </span>
+            </div>
+            {access.safetyStatus === 'needs_revision' && (
+              <p class="booking-error" role="status">
+                <strong>Admin meminta perbaikan:</strong>{' '}
+                {access.reviewNote ??
+                  'Periksa kembali data dan foto identitas.'}
+              </p>
+            )}
+            <fieldset>
+              <legend>
+                <span>01</span> Identitas peserta
+              </legend>
+              <label>
+                Nama lengkap sesuai dokumen
+                <input
+                  name="fullName"
+                  maxlength="120"
+                  autocomplete="name"
+                  value={formValues.fullName || access.fullName}
+                  required
+                />
+              </label>
+              <label>
+                Alamat lengkap
+                <textarea
+                  name="address"
+                  maxlength="1000"
+                  rows="4"
+                  autocomplete="street-address"
+                  placeholder="Tulis alamat domisili yang dapat dihubungi."
+                  required
+                >{formValues.address ?? ''}</textarea>
+              </label>
+              <label>
+                Nomor WhatsApp peserta <small>Opsional</small>
+                <input
+                  name="participantWhatsApp"
+                  inputmode="tel"
+                  autocomplete="tel"
+                  maxlength="20"
+                  placeholder="Contoh: 0812…"
+                  value={formValues.participantWhatsApp ?? ''}
+                />
+              </label>
+            </fieldset>
+
+            <fieldset>
+              <legend>
+                <span>02</span> Kontak darurat
+              </legend>
+              <p class="field-note">
+                Hubungi orang yang tidak ikut dalam perjalanan dan dapat
+                membantu bila ada keadaan darurat.
+              </p>
+              <div class="form-two-columns">
+                <label>
+                  Nama kontak darurat
+                  <input
+                    name="emergencyName"
+                    maxlength="120"
+                    value={formValues.emergencyName ?? ''}
+                    required
+                  />
+                </label>
+                <label>
+                  Hubungan
+                  <input
+                    name="emergencyRelationship"
+                    maxlength="80"
+                    placeholder="Contoh: Orang tua"
+                    value={formValues.emergencyRelationship ?? ''}
+                    required
+                  />
+                </label>
+              </div>
+              <label>
+                WhatsApp kontak darurat
+                <input
+                  name="emergencyWhatsApp"
+                  inputmode="tel"
+                  autocomplete="tel"
+                  maxlength="20"
+                  value={formValues.emergencyWhatsApp ?? ''}
+                  required
+                />
+              </label>
+            </fieldset>
+
+            <fieldset>
+              <legend>
+                <span>03</span> Dokumen identitas
+              </legend>
+              <div class="form-two-columns">
+                <label>
+                  Jenis dokumen
+                  <select name="identityType" required>
+                    <option value="">Pilih dokumen</option>
+                    <option
+                      value="ktp"
+                      selected={formValues.identityType === 'ktp'}
+                    >
+                      KTP
+                    </option>
+                    <option
+                      value="sim"
+                      selected={formValues.identityType === 'sim'}
+                    >
+                      SIM
+                    </option>
+                    <option
+                      value="student_card"
+                      selected={formValues.identityType === 'student_card'}
+                    >
+                      Kartu pelajar / KIA
+                    </option>
+                    <option
+                      value="passport"
+                      selected={formValues.identityType === 'passport'}
+                    >
+                      Paspor
+                    </option>
+                    <option
+                      value="kitas"
+                      selected={formValues.identityType === 'kitas'}
+                    >
+                      KITAS
+                    </option>
+                  </select>
+                </label>
+                <label>
+                  Nomor dokumen
+                  <input
+                    name="identityNumber"
+                    maxlength="40"
+                    autocomplete="off"
+                    value={formValues.identityNumber ?? ''}
+                    required
+                  />
+                </label>
+              </div>
+              <div class="participant-document-field">
+                <p>
+                  Foto identitas
+                  <span class="field-note">
+                    Pastikan seluruh bagian dokumen terlihat dan terbaca jelas.
+                  </span>
+                </p>
+                <FileUploadControl
+                  id="participant-document-file"
+                  title={
+                    access.hasDocument
+                      ? 'Foto tersimpan · pilih untuk mengganti'
+                      : 'Ambil atau pilih foto identitas'
+                  }
+                  hint="KTP, SIM, paspor, atau kartu identitas · JPEG, PNG, atau WebP · maksimal 8 MB"
+                  accept="image/jpeg,image/png,image/webp"
+                  icon="identity"
+                  actionLabel={access.hasDocument ? 'Ganti foto' : 'Pilih foto'}
+                />
+              </div>
+              <div
+                id="participant-document-preview"
+                class="participant-document-preview"
+                hidden
+              >
+                <img alt="Pratinjau dokumen identitas" />
+                <div>
+                  <strong id="participant-document-name"></strong>
+                  <span id="participant-document-size"></span>
+                </div>
+                <button
+                  id="remove-participant-document"
+                  class="button-link"
+                  type="button"
+                >
+                  Ganti / hapus
+                </button>
+              </div>
+            </fieldset>
+
+            <fieldset class="participant-data-consent">
+              <legend>
+                <span>04</span> Konfirmasi
+              </legend>
+              <label class="checkbox-label">
+                <input name="consent" type="checkbox" required />
+                <span>
+                  Saya menyatakan data ini benar dan menyetujui penggunaannya
+                  untuk keselamatan serta operasional perjalanan ini.
+                </span>
+              </label>
+              <p class="privacy-note">
+                Jangan kirim foto identitas lewat WhatsApp. Setelah tersimpan,
+                tim operasi hanya mengakses data ini bila diperlukan untuk
+                perjalanan.
+              </p>
+            </fieldset>
+            <p
+              id="participant-data-error"
+              class="booking-error"
+              role="alert"
+              hidden
+            ></p>
+            <p
+              id="participant-data-success"
+              class="participant-data-success"
+              role="status"
+              hidden
+            ></p>
+            <div class="participant-form-actions">
+              <button
+                class="button button-dark"
+                id="participant-save-draft"
+                type="button"
+              >
+                Simpan draf
+              </button>
+              <button
+                class="button button-orange"
+                id="participant-data-submit"
+                type="submit"
+              >
+                Simpan data keselamatan ↗
+              </button>
+            </div>
+          </form>
+        </div>
+      ) : (
+        <article class="participant-data-unavailable">
+          <p class="eyebrow">TAUTAN PRIVAT</p>
+          <h1>
+            Tautan ini
+            <br />
+            <span class="handwritten">tidak berlaku.</span>
+          </h1>
+          <p>
+            Mintalah admin atau PIC mengirim tautan data peserta yang baru bila
+            kamu masih perlu melengkapi data.
+          </p>
+          <a class="button button-dark" href="/trip">
+            Lihat perjalanan
+          </a>
+        </article>
+      )}
+    </section>
+  </main>
+  {access && <script
+    is:inline
+    define:vars={{ token, hasExistingDocument: access.hasDocument }}
+  >
+    const form = document.querySelector('#participant-data-form');
+    const fileInput = document.querySelector('#participant-document-file');
+    const preview = document.querySelector('#participant-document-preview');
+    const previewImage = preview?.querySelector('img');
+    const previewName = document.querySelector('#participant-document-name');
+    const previewSize = document.querySelector('#participant-document-size');
+    const removeFile = document.querySelector('#remove-participant-document');
+    const error = document.querySelector('#participant-data-error');
+    const success = document.querySelector('#participant-data-success');
+    const submit = document.querySelector('#participant-data-submit');
+    const saveDraft = document.querySelector('#participant-save-draft');
+    const draftStatus = document.querySelector('#participant-draft-status');
+    const progressLabel = document.querySelector('#participant-progress-label');
+    const progressBar = document.querySelector('#participant-progress-bar');
+    let selectedFile = null;
+    let previewUrl = null;
+    const progressFields = [
+      'fullName',
+      'address',
+      'emergencyName',
+      'emergencyRelationship',
+      'emergencyWhatsApp',
+      'identityType',
+      'identityNumber',
+    ];
+    const updateProgress = () => {
+      const values = new FormData(form);
+      const complete =
+        progressFields.filter((field) => String(values.get(field) ?? '').trim())
+          .length + (selectedFile || hasExistingDocument ? 1 : 0);
+      const percent = Math.round(
+        (complete / (progressFields.length + 1)) * 100,
+      );
+      progressLabel.textContent = `Progres ${percent}%`;
+      progressBar.style.width = `${percent}%`;
+    };
+    const formatSize = (size) =>
+      size < 1024 * 1024
+        ? `${Math.ceil(size / 1024)} KB`
+        : `${(size / (1024 * 1024)).toFixed(1)} MB`;
+    const showError = (message = '') => {
+      error.textContent = message;
+      error.hidden = !message;
+    };
+    const clearPreview = () => {
+      selectedFile = null;
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+      previewUrl = null;
+      fileInput.value = '';
+      preview.hidden = true;
+      updateProgress();
+    };
+    const chooseFile = (file) => {
+      showError();
+      if (!file) return clearPreview();
+      if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type))
+        return showError('Gunakan foto JPEG, PNG, atau WebP.');
+      if (file.size < 1 || file.size > 8 * 1024 * 1024)
+        return showError('Ukuran foto maksimal 8 MB.');
+      selectedFile = file;
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+      previewUrl = URL.createObjectURL(file);
+      previewImage.src = previewUrl;
+      previewName.textContent = file.name;
+      previewSize.textContent = formatSize(file.size);
+      preview.hidden = false;
+      updateProgress();
+    };
+    fileInput.addEventListener('change', () =>
+      chooseFile(fileInput.files?.[0]),
+    );
+    removeFile.addEventListener('click', clearPreview);
+    form.addEventListener('input', updateProgress);
+    updateProgress();
+    saveDraft.addEventListener('click', async () => {
+      showError();
+      saveDraft.disabled = true;
+      saveDraft.textContent = 'Menyimpan…';
+      try {
+        const values = Object.fromEntries(new FormData(form));
+        const response = await fetch(`/api/participant-data/${token}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(values),
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.message);
+        draftStatus.textContent = 'Draf aman tersimpan di server.';
+      } catch (saveError) {
+        showError(saveError.message || 'Draf belum dapat disimpan.');
+      } finally {
+        saveDraft.disabled = false;
+        saveDraft.textContent = 'Simpan draf';
+      }
+    });
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      showError();
+      success.hidden = true;
+      if (!form.reportValidity()) return;
+      if (!selectedFile && !hasExistingDocument)
+        return showError('Unggah foto identitas terlebih dahulu.');
+      submit.disabled = true;
+      submit.textContent = 'Mengunggah dokumen…';
+      try {
+        let documentObjectKey = '';
+        if (selectedFile) {
+          const presignResponse = await fetch(
+            `/api/participant-data/${token}/presign`,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                fileName: selectedFile.name,
+                contentType: selectedFile.type,
+                size: selectedFile.size,
+              }),
+            },
+          );
+          const presign = await presignResponse.json();
+          if (!presignResponse.ok) throw new Error(presign.message);
+          const uploadResponse = await fetch(presign.upload.uploadUrl, {
+            method: 'PUT',
+            headers: { 'Content-Type': selectedFile.type },
+            body: selectedFile,
+          });
+          if (!uploadResponse.ok)
+            throw new Error('Foto identitas belum dapat diunggah. Coba lagi.');
+          documentObjectKey = presign.upload.objectKey;
+        }
+        submit.textContent = 'Menyimpan data…';
+        const values = Object.fromEntries(new FormData(form));
+        const response = await fetch(`/api/participant-data/${token}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ...values,
+            consent: values.consent === 'on',
+            documentObjectKey,
+          }),
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.message);
+        success.textContent = 'Data keselamatan sudah tersimpan. Terima kasih.';
+        success.hidden = false;
+        submit.textContent = 'Data sudah tersimpan';
+        submit.disabled = true;
+      } catch (saveError) {
+        showError(
+          saveError.message ||
+            'Data belum dapat disimpan. Isianmu tetap ada, coba lagi.',
+        );
+        submit.disabled = false;
+        submit.textContent = 'Simpan data keselamatan ↗';
+      }
+    });
+  </script>}
+</Layout>
+
+<style>
+  .participant-progress {
+    display: grid;
+    gap: 10px;
+    padding: 16px;
+    border: 1px solid var(--line);
+    background: #f7f6f0;
+  }
+  .participant-progress > div {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    font-size: 12px;
+  }
+  .participant-progress-track {
+    height: 6px;
+    overflow: hidden;
+    background: #deded5;
+  }
+  .participant-progress-track i {
+    display: block;
+    width: 0;
+    height: 100%;
+    background: var(--orange);
+    transition: width 180ms ease;
+  }
+  .participant-document-field {
+    display: grid;
+    gap: 7px;
+    margin-top: 14px;
+  }
+  .participant-document-field > p {
+    font-size: 12px;
+    font-weight: 700;
+  }
+  .participant-document-field > p .field-note {
+    display: block;
+    margin-top: 5px;
+    font-weight: 400;
+  }
+  .participant-form-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+  }
+  @media (min-width: 801px) {
+    .participant-single-layout {
+      grid-template-columns: minmax(300px, 0.72fr) minmax(0, 1.35fr);
+      column-gap: 42px;
+      row-gap: 38px;
+    }
+    .participant-single-layout .participant-data-heading {
+      grid-column: 1 / -1;
+    }
+    .participant-single-layout .participant-data-summary {
+      grid-column: 1;
+      grid-row: 2;
+      width: 100%;
+    }
+    .participant-single-layout .participant-data-form {
+      grid-column: 2;
+      grid-row: 2;
+      gap: 16px;
+    }
+    .participant-single-layout .participant-progress {
+      padding: 18px;
+      background: #fffefa;
+    }
+    .participant-single-layout .participant-data-form fieldset {
+      padding: 24px 24px 26px;
+      border: 1px solid var(--line);
+      background: #fffefa;
+    }
+    .participant-single-layout .participant-data-form legend {
+      margin: 0 0 18px;
+      padding: 0 7px 0 0;
+      background: #fffefa;
+    }
+    .participant-single-layout .participant-data-consent {
+      background: #eef0e9;
+    }
+    .participant-single-layout .participant-data-consent legend {
+      background: #eef0e9;
+    }
+    .participant-single-layout .participant-form-actions {
+      padding: 14px;
+      border: 1px solid var(--line);
+      background: rgba(246, 245, 240, 0.96);
+      box-shadow: 0 10px 28px rgba(25, 27, 24, 0.12);
+      backdrop-filter: blur(8px);
+    }
+  }
+  @media (max-width: 640px) {
+    .participant-progress > div,
+    .participant-form-actions {
+      flex-direction: column;
+    }
+    .participant-form-actions > * {
+      width: 100%;
+    }
+  }
+</style>

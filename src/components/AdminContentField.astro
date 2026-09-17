@@ -1,0 +1,40 @@
+---
+interface Props {
+  name: string;
+  label: string;
+  value: string;
+  required?: boolean;
+  type?: 'text' | 'url';
+  textarea?: boolean;
+  rows?: number;
+}
+const {
+  name,
+  label,
+  value,
+  required = true,
+  type = 'text',
+  textarea = false,
+  rows = 4,
+} = Astro.props;
+---
+
+<label>
+  {label}
+  {textarea ? (
+    <textarea
+      name={name}
+      rows={rows}
+      maxlength="2000"
+      required={required}
+    >{value}</textarea>
+  ) : (
+    <input
+      name={name}
+      value={value}
+      type={type}
+      maxlength="600"
+      required={required}
+    />
+  )}
+</label>

@@ -1,0 +1,106 @@
+---
+import Icon from './Icon.astro';
+import type { PublicTrip } from '../lib/public-trips';
+
+interface Props {
+  item: PublicTrip;
+  index: number;
+  loading?: 'eager' | 'lazy';
+}
+
+const { item, index, loading = 'lazy' } = Astro.props;
+const schedule = item.departures[0];
+const money = new Intl.NumberFormat('id-ID');
+const date = new Intl.DateTimeFormat('id-ID', {
+  dateStyle: 'medium',
+  timeZone: 'Asia/Jakarta',
+});
+const pickupPoints = schedule.pickupOptions ?? [];
+const meetingPoint = pickupPoints.length
+  ? `${pickupPoints[0].zoneName}${pickupPoints.length > 1 ? ` +${pickupPoints.length - 1} titik` : ''}`
+  : '';
+const destination = String(item.locationLabel ?? '').trim();
+const start = new Date(schedule.startAt);
+const end = new Date(schedule.endAt);
+const tripDate =
+  start.toDateString() === end.toDateString()
+    ? date.format(start)
+    : `${date.format(start)} — ${date.format(end)}`;
+const days = Math.max(
+  1,
+  Math.ceil((end.getTime() - start.getTime()) / 86_400_000),
+);
+const tripDuration = days === 1 ? '1 hari' : `${days} hari, ${days - 1} malam`;
+const summary =
+  String(item.description ?? '')
+    .split('\n')
+    .map((line) => line.trim())
+    .find(Boolean) ?? '';
+const cardSummary =
+  summary.length > 84 ? `${summary.slice(0, 81).trimEnd()}…` : summary;
+---
+
+<article class="trip-card public-trip-card">
+  <a
+    class="trip-image-link"
+    href={`/trip/${item.slug}`}
+    aria-label={`Lihat detail trip ${item.name}`}
+  >
+    {item.coverImageUrl ? (
+      <img
+        src={String(item.coverImageUrl)}
+        alt={`Foto ${item.name}`}
+        loading={loading}
+      />
+    ) : (
+      <div class="public-image-placeholder">Foto trip segera hadir</div>
+    )}
+    <span class:list={['trip-tag', `trip-tag-${index % 3}`]}>
+      {item.category}
+    </span>
+    <span
+      class:list={[
+        'trip-image-bottom',
+        { 'trip-image-bottom-empty': !destination },
+      ]}
+    >
+      {destination && (
+        <span class="trip-image-label trip-location-label">
+          <Icon name="pin" size={14} /> {destination}
+        </span>
+      )}
+      <span class="image-arrow">
+        <Icon name="arrow-up" size={20} />
+      </span>
+    </span>
+  </a>
+  <div class="trip-card-content">
+    <div class="trip-title-row">
+      <h3>{item.name}</h3>
+      <span class="trip-number">/ {String(index + 1).padStart(2, '0')}</span>
+    </div>
+    <p class="trip-subtitle">
+      {cardSummary || 'Detail perjalanan segera hadir.'}
+    </p>
+    <div class="trip-meta">
+      <span>
+        <Icon name="clock" size={15} /> {tripDuration}
+      </span>
+      <span class="trip-date">{tripDate}</span>
+    </div>
+    <p class="meeting-point">
+      <Icon name="pin" size={14} /> Titik kumpul: {meetingPoint || 'Menyusul'}
+    </p>
+    <div class="trip-card-footer">
+      <div>
+        <span class="price-caption">Mulai dari</span>
+        <p class="price">
+          Rp{money.format(Number(schedule.unitPrice))} <small>/ orang</small>
+        </p>
+      </div>
+      <a class="text-button" href={`/trip/${item.slug}`}>
+        Lihat trip <Icon name="arrow-up" size={16} />
+      </a>
+    </div>
+  </div>
+</article>

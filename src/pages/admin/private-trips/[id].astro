@@ -1,0 +1,1061 @@
+---
+import { asc, eq } from 'drizzle-orm';
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import { getDb } from '../../../db/client';
+import { privateTripOffer, privateTripRequest } from '../../../db/schema';
+
+export const prerender = false;
+const id = Astro.params.id ?? '';
+const db = getDb();
+const [request] = await db
+  .select()
+  .from(privateTripRequest)
+  .where(eq(privateTripRequest.id, id))
+  .limit(1);
+if (!request) Astro.response.status = 404;
+const offers = request
+  ? await db
+      .select()
+      .from(privateTripOffer)
+      .where(eq(privateTripOffer.requestId, request.id))
+      .orderBy(asc(privateTripOffer.revision))
+  : [];
+const draftOffer = [...offers]
+  .reverse()
+  .find((offer) => offer.state === 'draft');
+const date = new Intl.DateTimeFormat('id-ID', {
+  dateStyle: 'full',
+  timeStyle: 'short',
+  timeZone: 'Asia/Jakarta',
+});
+const money = new Intl.NumberFormat('id-ID');
+const toInput = (value: Date) => {
+  const shifted = new Date(value.getTime() + 7 * 60 * 60 * 1000);
+  return shifted.toISOString().slice(0, 16);
+};
+const fallbackStart = request ? toInput(request.startDate) : '';
+const fallbackEnd = request
+  ? toInput(
+      request.endDate ??
+        new Date(request.startDate.getTime() + 24 * 60 * 60 * 1000),
+    )
+  : '';
+const validUntil = toInput(new Date(Date.now() + 3 * 24 * 60 * 60 * 1000));
+const labels: Record<string, string> = {
+  new: 'Baru',
+  contacted: 'Dihubungi',
+  offer_sent: 'Penawaran dikirim',
+  accepted: 'Disepakati',
+  declined: 'Ditolak',
+  expired: 'Kedaluwarsa',
+  converted: 'Menjadi booking',
+  draft: 'Draf',
+  sent: 'Terkirim',
+  superseded: 'Digantikan',
+};
+---
+
+<AdminLayout
+  title={
+    request ? `Private ${request.publicNumber}` : 'Permintaan tidak ditemukan'
+  }
+  active="privateTrips"
+>
+  {request ? (
+    <>
+      <div class="page-title private-detail-title">
+        <div>
+          <a class="back-link" href="/admin/private-trips">
+            ← Semua Private Trip
+          </a>
+          <p class="eyebrow">{request.publicNumber} / PRIVATE TRIP</p>
+          <h1>{request.destination}</h1>
+          <p class="muted">
+            Masuk {date.format(request.createdAt)} · {request.pax} pax · status{' '}
+            <strong>{labels[request.state]}</strong>
+          </p>
+        </div>
+        <div class="private-actions">
+          <a
+            class="button-link"
+            target="_blank"
+            rel="noopener"
+            href={`https://wa.me/${request.picWhatsApp.replace(/\D/g, '').replace(/^0/, '62')}?text=${encodeURIComponent(`Halo ${request.picName}, kami dari LebihJauh terkait permintaan Private Trip ${request.publicNumber} ke ${request.destination}.`)}`}
+          >
+            Hubungi PIC via WhatsApp ↗
+          </a>
+          {request.state === 'new' && (
+            <button
+              id="mark-contacted"
+              data-request-id={request.id}
+              class="button-link"
+              type="button"
+            >
+              Tandai sudah dihubungi
+            </button>
+          )}
+        </div>
+      </div>
+      <div class="private-detail-grid">
+        <section class="panel request-card">
+          <p class="eyebrow">DETAIL PERMINTAAN</p>
+          <h2>Yang dibutuhkan.</h2>
+          <dl>
+            <div>
+              <dt>Jadwal yang diinginkan</dt>
+              <dd>
+                {date.format(request.startDate)}
+                {request.endDate
+                  ? ` sampai ${date.format(request.endDate)}`
+                  : ''}
+              </dd>
+            </div>
+            <div>
+              <dt>PIC</dt>
+              <dd>
+                {request.picName}
+                <br />
+                {request.picWhatsApp}
+                {request.picEmail && (
+                  <>
+                    <br />
+                    {request.picEmail}
+                  </>
+                )}
+              </dd>
+            </div>
+            <div>
+              <dt>Jumlah peserta</dt>
+              <dd>{request.pax} pax</dd>
+            </div>
+            <div>
+              <dt>Kebutuhan tambahan</dt>
+              <dd>{request.needs || 'Belum ada kebutuhan tambahan.'}</dd>
+            </div>
+          </dl>
+        </section>
+        <section class="panel offer-guide">
+          <p class="eyebrow">ATURAN ALUR</p>
+          <h2>Sepakat dulu.</h2>
+          <p class="muted">
+            Penawaran tersimpan sebagai revisi. Tekan{' '}
+            <strong>kirim ke PIC</strong> hanya setelah detail sudah benar;
+            keputusan WhatsApp kemudian dicatat di bawah agar jejaknya jelas.
+          </p>
+          <ul>
+            <li>Permintaan ini tidak menahan kuota Open Trip.</li>
+            <li>
+              Harga penawaran dihitung per pax agar total dan down payment
+              transparan.
+            </li>
+            <li>
+              Booking dan invoice dibuat pada langkah konversi setelah
+              kesepakatan.
+            </li>
+          </ul>
+        </section>
+      </div>
+      <section class="panel private-offer-panel">
+        <div class="panel-head">
+          <div>
+            <p class="eyebrow">PENAWARAN BARU</p>
+            <h2>Susun detail perjalanan.</h2>
+          </div>
+          <span class="pill">REVISI {offers.length + 1}</span>
+        </div>
+        {['accepted', 'declined', 'expired', 'converted'].includes(
+          request.state,
+        ) ? (
+          <p class="notice" data-type="warning">
+            Permintaan berstatus {labels[request.state].toLowerCase()} sehingga
+            penawaran baru tidak dapat dibuat.
+          </p>
+        ) : (
+          <form id="private-offer-form" class="private-offer-form">
+            <input name="requestId" type="hidden" value={request.id} />
+            <div class="form-grid">
+              <label>
+                Judul penawaran
+                <input
+                  name="title"
+                  required
+                  maxlength="160"
+                  value={
+                    draftOffer?.title ?? `${request.destination} — Private Trip`
+                  }
+                />
+              </label>
+              <label>
+                Jumlah pax
+                <input
+                  name="pax"
+                  type="number"
+                  min="1"
+                  max="10000"
+                  value={draftOffer?.pax ?? request.pax}
+                  required
+                />
+              </label>
+              <label>
+                Mulai perjalanan
+                <input
+                  name="startAt"
+                  type="datetime-local"
+                  value={
+                    draftOffer ? toInput(draftOffer.startAt) : fallbackStart
+                  }
+                  required
+                />
+              </label>
+              <label>
+                Selesai perjalanan
+                <input
+                  name="endAt"
+                  type="datetime-local"
+                  value={draftOffer ? toInput(draftOffer.endAt) : fallbackEnd}
+                  required
+                />
+              </label>
+              <label>
+                Harga per pax
+                <input
+                  name="unitPrice"
+                  class="money-input"
+                  inputmode="numeric"
+                  required
+                  placeholder="Contoh: 1.500.000"
+                  value={draftOffer?.unitPrice ?? undefined}
+                />
+              </label>
+              <label>
+                Jenis down payment
+                <select name="dpMode">
+                  <option
+                    value="percent"
+                    selected={draftOffer?.dpMode === 'percent'}
+                  >
+                    Persentase
+                  </option>
+                  <option
+                    value="amount"
+                    selected={draftOffer?.dpMode === 'amount'}
+                  >
+                    Nominal Rupiah
+                  </option>
+                </select>
+              </label>
+              <label>
+                Nilai down payment
+                <input
+                  name="dpValue"
+                  class="money-input"
+                  inputmode="numeric"
+                  required
+                  value={draftOffer?.dpValue ?? '30'}
+                />
+              </label>
+              <label>
+                Penawaran berlaku sampai
+                <input
+                  name="validUntil"
+                  type="datetime-local"
+                  value={
+                    draftOffer ? toInput(draftOffer.validUntil) : validUntil
+                  }
+                  required
+                />
+              </label>
+            </div>
+            <div class="form-grid">
+              <label>
+                Termasuk
+                <textarea
+                  name="included"
+                  rows="5"
+                  placeholder="Satu item per baris"
+                >{draftOffer?.included ?? ''}</textarea>
+              </label>
+              <label>
+                Tidak termasuk
+                <textarea
+                  name="excluded"
+                  rows="5"
+                  placeholder="Satu item per baris"
+                >{draftOffer?.excluded ?? ''}</textarea>
+              </label>
+            </div>
+            <fieldset class="offer-structured-fieldset">
+              <legend>01 · Titik jemput yang disepakati</legend>
+              <p class="muted">
+                Data ini ikut tersimpan di booking, invoice, dan rundown. Waktu
+                boleh dikosongkan bila masih akan dikonfirmasi lewat WhatsApp.
+              </p>
+              <div class="form-grid">
+                <label>
+                  Zona keberangkatan
+                  <input
+                    name="pickupZoneName"
+                    required
+                    maxlength="120"
+                    placeholder="Contoh: Jakarta"
+                    value={draftOffer?.pickupDetails.zoneName ?? ''}
+                  />
+                </label>
+                <label>
+                  Nama lokasi
+                  <input
+                    name="pickupLocationName"
+                    required
+                    maxlength="180"
+                    placeholder="Contoh: Halim, Jakarta Timur"
+                    value={draftOffer?.pickupDetails.locationName ?? ''}
+                  />
+                </label>
+                <label>
+                  Waktu pickup <small>Opsional</small>
+                  <input
+                    name="pickupAt"
+                    type="datetime-local"
+                    value={
+                      draftOffer?.pickupDetails.pickupAt
+                        ? toInput(new Date(draftOffer.pickupDetails.pickupAt))
+                        : undefined
+                    }
+                  />
+                </label>
+                <label>
+                  Tautan Google Maps <small>Opsional · HTTPS</small>
+                  <input
+                    name="pickupMapsUrl"
+                    type="url"
+                    inputmode="url"
+                    placeholder="https://maps.google.com/…"
+                    value={draftOffer?.pickupDetails.mapsUrl ?? undefined}
+                  />
+                </label>
+              </div>
+              <label>
+                Alamat / petunjuk lokasi
+                <textarea
+                  name="pickupAddress"
+                  rows="2"
+                  maxlength="1000"
+                >{draftOffer?.pickupDetails.address ?? ''}</textarea>
+              </label>
+              <label>
+                Instruksi pickup
+                <textarea
+                  name="pickupInstructions"
+                  rows="2"
+                  maxlength="2000"
+                  placeholder="Contoh: tunggu di pintu utama dan gunakan jaket tim."
+                >{draftOffer?.pickupDetails.instructions ?? ''}</textarea>
+              </label>
+            </fieldset>
+            <fieldset class="offer-structured-fieldset">
+              <legend>02 · Itinerary per hari</legend>
+              <p class="muted">
+                Satu kartu untuk satu hari. Tulis satu kegiatan per baris dengan
+                format <strong>jam | kegiatan | lokasi</strong>.
+              </p>
+              <input name="itineraryStages" type="hidden" />
+              <div
+                id="private-itinerary-days"
+                class="private-itinerary-days"
+                data-draft-itinerary={JSON.stringify(
+                  draftOffer?.itineraryStages ?? [],
+                )}
+              >
+                <article class="private-itinerary-day">
+                  <div class="private-itinerary-day-head">
+                    <strong>Hari 1</strong>
+                    <button
+                      class="button-link remove-itinerary-day"
+                      type="button"
+                      hidden
+                    >
+                      Hapus hari
+                    </button>
+                  </div>
+                  <div class="form-grid">
+                    <label>
+                      Label hari
+                      <input
+                        data-stage-day
+                        maxlength="40"
+                        value="Hari 1"
+                        required
+                      />
+                    </label>
+                    <label>
+                      Judul perjalanan
+                      <input
+                        data-stage-title
+                        maxlength="180"
+                        placeholder="Jakarta → Basecamp"
+                        required
+                      />
+                    </label>
+                  </div>
+                  <label>
+                    Daftar kegiatan
+                    <textarea
+                      data-stage-activities
+                      rows="5"
+                      placeholder={
+                        '20:00 | Berkumpul di meeting point | Halim\n21:00 | Berangkat menuju basecamp | Jakarta'
+                      }
+                      required
+                    ></textarea>
+                  </label>
+                  <label>
+                    Catatan hari <small>Opsional</small>
+                    <textarea
+                      data-stage-details
+                      rows="2"
+                      maxlength="2000"
+                    ></textarea>
+                  </label>
+                </article>
+              </div>
+              <button id="add-itinerary-day" class="button-link" type="button">
+                + Tambah hari perjalanan
+              </button>
+            </fieldset>
+            <label>
+              Yang perlu disiapkan peserta
+              <textarea
+                name="preparation"
+                rows="4"
+                placeholder="Satu item per baris"
+              >{draftOffer?.preparation ?? ''}</textarea>
+            </label>
+            <label>
+              Catatan untuk PIC{' '}
+              <small>
+                Contoh: jadwal dan harga dapat disesuaikan sebelum persetujuan.
+              </small>
+              <textarea
+                name="notes"
+                rows="3"
+              >{draftOffer?.notes ?? ''}</textarea>
+            </label>
+            <p id="offer-error" class="error-msg" hidden></p>
+            <div class="private-offer-actions">
+              <button class="button-link" type="submit" data-send="false">
+                Simpan sebagai draf
+              </button>
+              <button class="primary" type="submit" data-send="true">
+                Simpan & kirim ke PIC ↗
+              </button>
+            </div>
+          </form>
+        )}
+      </section>
+      <section class="panel private-offer-history">
+        <div class="panel-head">
+          <div>
+            <p class="eyebrow">RIWAYAT PENAWARAN</p>
+            <h2>{offers.length} revisi tersimpan</h2>
+          </div>
+        </div>
+        {offers.length ? (
+          <div class="private-offers">
+            {offers.map((offer) => {
+              const total = BigInt(offer.unitPrice) * BigInt(offer.pax);
+              return (
+                <article>
+                  <div>
+                    <span class:list={['state', `offer-${offer.state}`]}>
+                      {labels[offer.state] ?? offer.state}
+                    </span>
+                    <h3>
+                      Revisi {offer.revision} · {offer.title}
+                    </h3>
+                    <p>
+                      {date.format(offer.startAt)} – {date.format(offer.endAt)}{' '}
+                      · berlaku hingga {date.format(offer.validUntil)}
+                    </p>
+                  </div>
+                  <div class="offer-money">
+                    <strong>Rp{money.format(Number(total))}</strong>
+                    <span>
+                      {offer.pax} pax · Rp
+                      {money.format(Number(offer.unitPrice))}/pax
+                    </span>
+                    <span>
+                      Down payment min. Rp
+                      {money.format(Number(offer.minimumDp))}
+                    </span>
+                  </div>
+                  {offer.state === 'sent' && (
+                    <div class="offer-controls">
+                      <a
+                        class="button-link"
+                        href={`/private-trip-offer/${offer.id}`}
+                        target="_blank"
+                        rel="noopener"
+                      >
+                        Buka detail PIC ↗
+                      </a>
+                      <button
+                        class="button-link"
+                        type="button"
+                        data-offer={offer.id}
+                        data-action="declined"
+                      >
+                        Tidak jadi
+                      </button>
+                      <button
+                        class="primary accept-offer"
+                        type="button"
+                        data-offer={offer.id}
+                      >
+                        Tandai disepakati
+                      </button>
+                    </div>
+                  )}
+                  {offer.state === 'accepted' && !offer.convertedBookingId && (
+                    <div class="offer-controls">
+                      <a
+                        class="primary convert-offer"
+                        href={`/admin/private-trips/${request.id}/convert/${offer.id}`}
+                      >
+                        Buat booking & invoice ↗
+                      </a>
+                    </div>
+                  )}
+                  {offer.state === 'accepted' && offer.acceptedNote && (
+                    <p class="offer-note">
+                      <strong>Catatan:</strong> {offer.acceptedNote}
+                    </p>
+                  )}
+                  {offer.convertedBookingId && (
+                    <p class="offer-note">
+                      <strong>Sudah menjadi booking.</strong>{' '}
+                      <a href={`/admin/orders/${offer.convertedBookingId}`}>
+                        Buka order ↗
+                      </a>
+                    </p>
+                  )}
+                </article>
+              );
+            })}
+          </div>
+        ) : (
+          <p class="muted">
+            Belum ada penawaran. Isi detail di atas untuk membuat revisi
+            pertama.
+          </p>
+        )}
+      </section>
+      <dialog id="offer-accept-dialog" class="admin-confirm-dialog">
+        <form method="dialog" class="confirm-dialog-content">
+          <p class="eyebrow">KONFIRMASI PERSETUJUAN</p>
+          <h2>Simpan persetujuan PIC?</h2>
+          <p class="muted">
+            Status penawaran akan diubah menjadi disepakati. Booking dan invoice
+            belum dibuat pada tahap ini dan dapat dilanjutkan setelahnya.
+          </p>
+          <p id="offer-accept-error" class="error-msg" hidden></p>
+          <div class="confirm-dialog-actions">
+            <button class="button-link" value="cancel">
+              Batal
+            </button>
+            <button id="offer-accept-save" class="primary" value="confirm">
+              Simpan persetujuan
+            </button>
+          </div>
+        </form>
+      </dialog>
+    </>
+  ) : (
+    <section class="panel">
+      <h1>Permintaan tidak ditemukan.</h1>
+      <a class="button-link" href="/admin/private-trips">
+        Kembali ke antrean
+      </a>
+    </section>
+  )}
+  <script>
+    import { bindRupiahInput } from '../../../scripts/money-input';
+    document
+      .querySelectorAll<HTMLInputElement>('.money-input')
+      .forEach((input) => bindRupiahInput(input));
+    const offerForm = document.querySelector<HTMLFormElement>(
+      '#private-offer-form',
+    );
+    const offerError = document.querySelector<HTMLElement>('#offer-error');
+    const itineraryDays = document.querySelector<HTMLElement>(
+      '#private-itinerary-days',
+    );
+    const itineraryInput = offerForm?.querySelector<HTMLInputElement>(
+      '[name="itineraryStages"]',
+    );
+    const updateItineraryLabels = () => {
+      itineraryDays
+        ?.querySelectorAll<HTMLElement>('.private-itinerary-day')
+        .forEach((day, index, all) => {
+          const heading = day.querySelector<HTMLElement>(
+            '.private-itinerary-day-head strong',
+          );
+          const label = day.querySelector<HTMLInputElement>('[data-stage-day]');
+          const remove = day.querySelector<HTMLButtonElement>(
+            '.remove-itinerary-day',
+          );
+          if (heading) heading.textContent = `Hari ${index + 1}`;
+          if (label && (!label.value || /^Hari \d+$/i.test(label.value)))
+            label.value = `Hari ${index + 1}`;
+          if (remove) remove.hidden = all.length === 1;
+        });
+    };
+    const draftItinerary = JSON.parse(
+      itineraryDays?.dataset.draftItinerary || '[]',
+    );
+    if (Array.isArray(draftItinerary) && draftItinerary.length) {
+      const first = itineraryDays?.querySelector<HTMLElement>(
+        '.private-itinerary-day',
+      );
+      draftItinerary.slice(0, 20).forEach((stage, index) => {
+        const dayNode = index === 0 ? first : first?.cloneNode(true);
+        if (!dayNode || !itineraryDays || !(dayNode instanceof HTMLElement))
+          return;
+        if (index > 0) itineraryDays.append(dayNode);
+        const stageRow = stage as Record<string, unknown>;
+        dayNode.querySelector<HTMLInputElement>('[data-stage-day]')!.value =
+          typeof stageRow.day === 'string' ? stageRow.day : '';
+        dayNode.querySelector<HTMLInputElement>('[data-stage-title]')!.value =
+          typeof stageRow.title === 'string' ? stageRow.title : '';
+        dayNode.querySelector<HTMLTextAreaElement>(
+          '[data-stage-activities]',
+        )!.value = (
+          Array.isArray(stageRow.activities) ? stageRow.activities : []
+        )
+          .map((activity: Record<string, unknown>) =>
+            [activity.time, activity.activity, activity.location]
+              .filter((value) => typeof value === 'string' && value)
+              .join(' | '),
+          )
+          .join('\n');
+        dayNode.querySelector<HTMLTextAreaElement>(
+          '[data-stage-details]',
+        )!.value = typeof stageRow.details === 'string' ? stageRow.details : '';
+      });
+      updateItineraryLabels();
+    }
+    itineraryDays?.addEventListener('click', (event) => {
+      const remove = (event.target as HTMLElement).closest<HTMLButtonElement>(
+        '.remove-itinerary-day',
+      );
+      if (!remove) return;
+      remove.closest('.private-itinerary-day')?.remove();
+      updateItineraryLabels();
+    });
+    document
+      .querySelector<HTMLButtonElement>('#add-itinerary-day')
+      ?.addEventListener('click', () => {
+        const first = itineraryDays?.querySelector<HTMLElement>(
+          '.private-itinerary-day',
+        );
+        if (!first || !itineraryDays) return;
+        const copy = first.cloneNode(true) as HTMLElement;
+        copy
+          .querySelectorAll<HTMLInputElement | HTMLTextAreaElement>(
+            'input, textarea',
+          )
+          .forEach((field) => (field.value = ''));
+        itineraryDays.append(copy);
+        updateItineraryLabels();
+        copy.querySelector<HTMLInputElement>('[data-stage-title]')?.focus();
+      });
+    const collectItinerary = () =>
+      [
+        ...(itineraryDays?.querySelectorAll<HTMLElement>(
+          '.private-itinerary-day',
+        ) ?? []),
+      ].map((day) => ({
+        day:
+          day.querySelector<HTMLInputElement>('[data-stage-day]')?.value ?? '',
+        title:
+          day.querySelector<HTMLInputElement>('[data-stage-title]')?.value ??
+          '',
+        activities: (
+          day.querySelector<HTMLTextAreaElement>('[data-stage-activities]')
+            ?.value ?? ''
+        )
+          .split('\n')
+          .map((line) => line.trim())
+          .filter(Boolean)
+          .map((line) => {
+            const [time = '', activity = '', ...location] = line
+              .split('|')
+              .map((part) => part.trim());
+            return { time, activity, location: location.join(' | ') };
+          }),
+        details:
+          day.querySelector<HTMLTextAreaElement>('[data-stage-details]')
+            ?.value ?? '',
+      }));
+    updateItineraryLabels();
+    let sendOffer = false;
+    offerForm
+      ?.querySelectorAll<HTMLButtonElement>('[data-send]')
+      .forEach((button) =>
+        button.addEventListener('click', () => {
+          sendOffer = button.dataset.send === 'true';
+        }),
+      );
+    offerForm?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      if (itineraryInput)
+        itineraryInput.value = JSON.stringify(collectItinerary());
+      if (!offerForm.reportValidity()) return;
+      const formData = Object.fromEntries(new FormData(offerForm));
+      formData.send = String(sendOffer);
+      const response = await fetch('/api/admin/private-trips/offers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData),
+      });
+      const result = await response.json();
+      if (!response.ok) {
+        if (offerError) {
+          offerError.hidden = false;
+          offerError.textContent = result.message;
+        }
+        return;
+      }
+      sessionStorage.setItem(
+        'lebihjauh-admin-notification',
+        JSON.stringify({
+          type: 'success',
+          message: sendOffer
+            ? 'Penawaran disimpan dan ditandai terkirim ke PIC.'
+            : 'Draf penawaran disimpan.',
+        }),
+      );
+      location.reload();
+    });
+    document
+      .querySelector<HTMLButtonElement>('#mark-contacted')
+      ?.addEventListener('click', async (event) => {
+        const id = (event.currentTarget as HTMLButtonElement).dataset.requestId;
+        const response = await fetch('/api/admin/private-trips', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id, state: 'contacted' }),
+        });
+        const result = await response.json();
+        if (!response.ok) {
+          window.adminNotify({ type: 'error', message: result.message });
+          return;
+        }
+        location.reload();
+      });
+    const dialog = document.querySelector<HTMLDialogElement>(
+      '#offer-accept-dialog',
+    );
+    let selectedOffer = '';
+    document
+      .querySelectorAll<HTMLButtonElement>('.accept-offer')
+      .forEach((button) =>
+        button.addEventListener('click', () => {
+          selectedOffer = button.dataset.offer ?? '';
+          dialog?.showModal();
+        }),
+      );
+    document
+      .querySelector<HTMLButtonElement>('#offer-accept-save')
+      ?.addEventListener('click', async (event) => {
+        event.preventDefault();
+        const response = await fetch('/api/admin/private-trips/offers', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            offerId: selectedOffer,
+            state: 'accepted',
+          }),
+        });
+        const result = await response.json();
+        const error = document.querySelector<HTMLElement>(
+          '#offer-accept-error',
+        );
+        if (!response.ok) {
+          if (error) {
+            error.hidden = false;
+            error.textContent = result.message;
+          }
+          return;
+        }
+        dialog?.close();
+        sessionStorage.setItem(
+          'lebihjauh-admin-notification',
+          JSON.stringify({
+            type: 'success',
+            message:
+              'Kesepakatan PIC dicatat. Langkah berikutnya: buat booking dan invoice.',
+          }),
+        );
+        location.reload();
+      });
+    document
+      .querySelectorAll<HTMLButtonElement>('[data-action="declined"]')
+      .forEach((button) =>
+        button.addEventListener('click', async () => {
+          if (
+            !(await window.adminConfirm({
+              title: 'Tandai penawaran ditolak?',
+              message:
+                'Status ini dapat dicatat sebagai riwayat; buat revisi baru bila PIC berubah pikiran.',
+              confirmLabel: 'Tandai ditolak',
+              destructive: false,
+            }))
+          )
+            return;
+          const response = await fetch('/api/admin/private-trips/offers', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              offerId: button.dataset.offer,
+              state: 'declined',
+              note: '',
+            }),
+          });
+          const result = await response.json();
+          if (!response.ok) {
+            window.adminNotify({ type: 'error', message: result.message });
+            return;
+          }
+          location.reload();
+        }),
+      );
+  </script>
+</AdminLayout>
+
+<style>
+  .private-detail-title {
+    align-items: flex-start;
+  }
+  .back-link {
+    display: inline-block;
+    margin-bottom: 16px;
+    font-size: 12px;
+  }
+  .private-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .private-detail-grid {
+    display: grid;
+    grid-template-columns: 1.1fr 0.9fr;
+    gap: 20px;
+    margin-bottom: 20px;
+  }
+  .request-card dl {
+    display: grid;
+    gap: 18px;
+    margin: 24px 0 0;
+  }
+  .request-card dl div {
+    padding-top: 14px;
+    border-top: 1px solid var(--line);
+  }
+  .request-card dt {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--muted);
+  }
+  .request-card dd {
+    margin: 5px 0 0;
+    white-space: pre-line;
+  }
+  .offer-guide ul {
+    padding-left: 18px;
+    color: var(--muted);
+    font-size: 12px;
+  }
+  .private-offer-panel,
+  .private-offer-history {
+    margin-bottom: 20px;
+  }
+  .private-offer-form {
+    display: grid;
+    gap: 18px;
+  }
+  .form-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+  }
+  .private-offer-form label {
+    display: grid;
+    gap: 6px;
+    font-size: 12px;
+    font-weight: 700;
+  }
+  .private-offer-form small {
+    font-weight: 400;
+    color: var(--muted);
+  }
+  .private-offer-form input,
+  .private-offer-form select,
+  .private-offer-form textarea {
+    width: 100%;
+    min-height: 44px;
+    padding: 9px 10px;
+    border: 1px solid var(--line);
+    background: #fffefa;
+    color: var(--ink);
+    font: inherit;
+  }
+  .private-offer-form textarea {
+    resize: vertical;
+  }
+  .offer-structured-fieldset {
+    display: grid;
+    gap: 14px;
+    margin: 0;
+    padding: 18px;
+    border: 1px solid var(--line);
+    background: #f8f7f2;
+  }
+  .offer-structured-fieldset legend {
+    padding: 0 8px;
+    color: var(--ink);
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .private-itinerary-days {
+    display: grid;
+    gap: 12px;
+  }
+  .private-itinerary-day {
+    display: grid;
+    gap: 12px;
+    padding: 16px;
+    border-left: 3px solid var(--orange);
+    background: #fffefa;
+  }
+  .private-itinerary-day-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .private-offer-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+  }
+  .private-offers {
+    display: grid;
+    gap: 12px;
+  }
+  .private-offers article {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    gap: 20px;
+    align-items: center;
+    border-top: 1px solid var(--line);
+    padding: 18px 0;
+  }
+  .private-offers h3 {
+    margin: 8px 0 4px;
+  }
+  .private-offers p {
+    font-size: 12px;
+    color: var(--muted);
+    margin: 0;
+  }
+  .offer-money {
+    display: grid;
+    gap: 3px;
+    text-align: right;
+    font-size: 11px;
+    color: var(--muted);
+  }
+  .offer-money strong {
+    color: var(--ink);
+    font-size: 16px;
+  }
+  .offer-controls {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  .offer-note {
+    grid-column: 1/-1;
+    padding: 10px 12px;
+    background: #f4efe7;
+  }
+  .offer-accepted {
+    background: #e6ece1;
+    color: #355131;
+  }
+  .offer-sent,
+  .private-offer_sent {
+    background: #fff1df;
+    color: #884600;
+  }
+  @media (max-width: 800px) {
+    .private-detail-grid,
+    .form-grid {
+      grid-template-columns: 1fr;
+    }
+    .private-offers article {
+      grid-template-columns: 1fr;
+    }
+    .offer-money {
+      text-align: left;
+    }
+    .private-offer-actions {
+      justify-content: stretch;
+    }
+    .private-offer-actions > * {
+      flex: 1;
+    }
+    .private-actions {
+      margin-top: 20px;
+    }
+  }
+  .convert-dialog {
+    max-width: 720px;
+  }
+  .convert-participants {
+    display: grid;
+    gap: 10px;
+    max-height: 48vh;
+    overflow: auto;
+    margin: 16px 0;
+  }
+  .convert-participant {
+    display: grid;
+    grid-template-columns: 80px 1fr 1fr;
+    gap: 10px;
+    align-items: end;
+    border-top: 1px solid var(--line);
+    padding-top: 10px;
+  }
+  .convert-participant label {
+    display: grid;
+    gap: 5px;
+    font-size: 11px;
+  }
+  .convert-participant input {
+    min-height: 40px;
+    border: 1px solid var(--line);
+    padding: 8px;
+    background: #fffefa;
+  }
+  @media (max-width: 620px) {
+    .convert-participant {
+      grid-template-columns: 1fr;
+    }
+    .convert-participant strong {
+      color: var(--orange);
+    }
+  }
+</style>

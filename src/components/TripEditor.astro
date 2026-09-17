@@ -1,0 +1,2166 @@
+---
+import FileUploadControl from './FileUploadControl.astro';
+
+interface Props {
+  tripId?: string;
+}
+const { tripId } = Astro.props;
+---
+
+<div id="trip-editor" data-trip-id={tripId ?? ''}>
+  <div class="page-title">
+    <div>
+      <p class="eyebrow">01 / {tripId ? 'KELOLA PAKET' : 'PAKET BARU'}</p>
+      <h1 id="package-page-title">{tripId ? 'Memuat paket…' : 'Buat trip.'}</h1>
+      {tripId && (
+        <p class="page-lead">
+          Kelola keberangkatan, atau pilih bagian paket yang ingin diubah.
+        </p>
+      )}
+    </div>
+    <div class="page-title-actions">
+      <a id="public-trip-link" class="link-button" href="/trip" hidden>
+        Lihat halaman publik ↗
+      </a>
+      <a class="link-button" href="/admin/trips">
+        ← Daftar trip
+      </a>
+    </div>
+  </div>
+  <p class="notice" id="notice" hidden role="status"></p>
+
+  {tripId && (
+    <nav
+      class="package-tabs"
+      role="tablist"
+      aria-label="Bagian pengelolaan open trip"
+    >
+      <button
+        type="button"
+        role="tab"
+        id="tab-schedules"
+        aria-controls="schedule-list-panel"
+        aria-selected="true"
+        data-package-tab="schedules"
+      >
+        Jadwal
+      </button>
+      <button
+        type="button"
+        role="tab"
+        id="tab-package"
+        aria-controls="package-editor"
+        aria-selected="false"
+        tabindex="-1"
+        data-package-tab="package"
+      >
+        Data paket
+      </button>
+      <button
+        type="button"
+        role="tab"
+        id="tab-pickups"
+        aria-controls="pickup-master-editor"
+        aria-selected="false"
+        tabindex="-1"
+        data-package-tab="pickups"
+      >
+        Titik jemput
+      </button>
+    </nav>
+  )}
+
+  <div class:list={['trip-editor-layout', { 'editor-layout-single': !tripId }]}>
+    <section
+      class="panel package-editor-panel"
+      aria-labelledby="trip-form-title"
+      id="package-editor"
+      hidden={!!tripId}
+    >
+      <div class="panel-head">
+        <div>
+          <p class="eyebrow">01 / DATA PAKET</p>
+          <h2 id="trip-form-title">Buat trip</h2>
+        </div>
+      </div>
+      <p class="muted">
+        Mulai dari ceritanya. Lengkapi paket yang akan dibaca calon peserta.
+      </p>
+      <form id="trip-form">
+        <input type="hidden" name="id" />
+        <input type="hidden" name="slug" />
+        <input type="hidden" name="coverImageUrl" />
+        <!-- Kompatibilitas teks lama; lokasi baru memakai katalog titik jemput. -->
+        <input type="hidden" name="meetingPoint" />
+        <details open>
+          <summary>01 · Informasi utama</summary>
+          <div class="package-main-fields">
+            <label>
+              Nama trip{' '}
+              <input
+                name="name"
+                maxlength="120"
+                required
+                placeholder="Labuan Bajo Sailing"
+              />
+            </label>
+            <div class="generated-slug" aria-live="polite">
+              <span>URL otomatis</span>
+              <output id="slug-preview">/trip/—</output>
+            </div>
+            <label>
+              Jenis trip{' '}
+              <select name="category" id="trip-category" required>
+                <option value="">Pilih jenis trip</option>
+                <option value="Petualangan & Pendakian">
+                  Petualangan & Pendakian
+                </option>
+                <option value="Bahari & Sailing">Bahari & Sailing</option>
+                <option value="Camping & Glamping">Camping & Glamping</option>
+                <option value="Overland & Road Trip">
+                  Overland & Road Trip
+                </option>
+                <option value="Budaya & Sejarah">Budaya & Sejarah</option>
+                <option value="Ekowisata">Ekowisata</option>
+                <option value="Wellness & Retreat">Wellness & Retreat</option>
+                <option value="Keluarga & Edukasi">Keluarga & Edukasi</option>
+                <option value="__custom">Lainnya — tulis sendiri</option>
+              </select>
+            </label>
+            <label id="custom-category-field" hidden>
+              Jenis trip kustom{' '}
+              <input
+                name="customCategory"
+                maxlength="60"
+                placeholder="Contoh: Fotografi alam"
+              />
+            </label>
+            <label>
+              Label lokasi <small>Opsional</small>
+              <input
+                name="locationLabel"
+                maxlength="80"
+                placeholder="Contoh: Bandung · Jawa Barat"
+              />
+              <small class="field-note">
+                Tampil pada foto kartu katalog. Kosongkan untuk menyembunyikan
+                label tanpa mengganggu trip lama.
+              </small>
+            </label>
+            <div class="cover-field">
+              <span class="form-label">Foto utama</span>
+              <div class="cover-upload">
+                <FileUploadControl
+                  id="cover-file"
+                  title="Unggah foto utama trip"
+                  hint="Foto landscape · JPEG, PNG, atau WebP · maksimal 8 MB"
+                  accept="image/jpeg,image/png,image/webp"
+                  icon="photo"
+                  size="large"
+                  actionLabel="Pilih foto"
+                />
+                <div class="cover-preview" id="cover-preview" hidden>
+                  <img
+                    id="cover-preview-image"
+                    alt="Pratinjau foto utama trip"
+                  />
+                  <div>
+                    <strong id="cover-preview-name"></strong>
+                    <span id="cover-preview-size"></span>
+                    <button type="button" class="link-button" id="remove-cover">
+                      Hapus foto
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <small class="field-note">
+                Foto akan diunggah saat trip disimpan.
+              </small>
+            </div>
+            <label>
+              Tentang trip{' '}
+              <textarea
+                name="description"
+                required
+                maxlength="12000"
+                rows="5"
+              ></textarea>
+            </label>
+          </div>
+        </details>
+        <details>
+          <summary>02 · Info trek &amp; tingkat aktivitas</summary>
+          <p class="field-note activity-profile-intro">
+            Bantu peserta menilai kecocokan perjalanan sebelum booking. Semua
+            field opsional dan hanya tampil di halaman publik bila terisi.
+          </p>
+          <div class="trip-activity-fields">
+            <label>
+              Tingkat aktivitas
+              <select name="difficultyLevel">
+                <option value="">Belum ditentukan</option>
+                <option value="beginner">Beginner — ramah pemula</option>
+                <option value="intermediate">
+                  Intermediate — perlu kebugaran dasar
+                </option>
+                <option value="advanced">Advanced — perlu pengalaman</option>
+                <option value="expert">Expert — medan teknis/khusus</option>
+              </select>
+            </label>
+            <label>
+              Ketinggian destinasi <small>mdpl</small>
+              <input
+                name="elevationMeters"
+                type="number"
+                min="1"
+                max="10000"
+                step="1"
+                placeholder="2050"
+              />
+            </label>
+            <label>
+              Jarak trek <small>km</small>
+              <input
+                name="trailDistanceKm"
+                type="number"
+                min="0.01"
+                max="1000"
+                step="0.01"
+                placeholder="8.5"
+              />
+            </label>
+            <label>
+              Total kenaikan elevasi <small>meter</small>
+              <input
+                name="elevationGainMeters"
+                type="number"
+                min="0"
+                max="20000"
+                step="1"
+                placeholder="750"
+              />
+            </label>
+            <label>
+              Durasi trek minimal <small>jam</small>
+              <input
+                name="trekDurationMinHours"
+                type="number"
+                min="0.5"
+                max="168"
+                step="0.5"
+                placeholder="4"
+              />
+            </label>
+            <label>
+              Durasi trek maksimal <small>jam</small>
+              <input
+                name="trekDurationMaxHours"
+                type="number"
+                min="0.5"
+                max="168"
+                step="0.5"
+                placeholder="5"
+              />
+            </label>
+            <label>
+              Nama jalur/rute
+              <input
+                name="routeName"
+                maxlength="120"
+                placeholder="Contoh: Via Mawar"
+              />
+            </label>
+            <label class="activity-terrain-field">
+              Karakter medan
+              <textarea
+                name="terrainSummary"
+                maxlength="500"
+                rows="3"
+                placeholder="Contoh: Jalur tanah dan akar, beberapa tanjakan berbatu tanpa bagian teknis."
+              ></textarea>
+            </label>
+            <div class="activity-map-field">
+              <label for="trail-map-embed-url">
+                Peta jalur pendakian <small>Opsional</small>
+              </label>
+              <textarea
+                id="trail-map-embed-url"
+                name="trailMapEmbedUrl"
+                maxlength="4000"
+                rows="3"
+                placeholder="Tempel URL atau kode iframe dari uMap"
+              ></textarea>
+              <small class="field-note">
+                Rekomendasi: unggah GPX ke{' '}
+                <a
+                  href="https://umap.openstreetmap.fr/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  uMap ↗
+                </a>
+                , publikasikan, lalu salin kode <em>Embed the map</em>. Google
+                My Maps juga didukung. Kosongkan bila trip tidak membutuhkan
+                peta jalur.
+              </small>
+            </div>
+          </div>
+          <p class="field-note difficulty-guidance">
+            Beginner: jalur jelas dan nonteknis · Intermediate: ada bagian
+            curam/tidak rata · Advanced: panjang, curam, atau berbatu · Expert:
+            membutuhkan kemampuan teknis, navigasi, atau perlengkapan khusus.
+          </p>
+        </details>
+        <details>
+          <summary>03 · Fasilitas paket</summary>
+          <label>
+            Termasuk{' '}
+            <textarea
+              name="included"
+              maxlength="12000"
+              rows="3"
+              placeholder="Satu item per baris"
+            ></textarea>
+          </label>
+          <label>
+            Tidak termasuk{' '}
+            <textarea name="excluded" maxlength="12000" rows="3"></textarea>
+          </label>
+        </details>
+        <details>
+          {/* 4J: label diperbarui — itinerary ini adalah itinerary inti paket */}
+          <summary>04 · Itinerary inti perjalanan</summary>
+          <input name="itineraryStages" type="hidden" value="[]" />
+          <div class="itinerary-editor" aria-labelledby="itinerary-title">
+            <div class="itinerary-editor-head">
+              <div>
+                <span class="form-label" id="itinerary-title">
+                  Itinerary inti perjalanan
+                </span>
+                <small class="field-note">
+                  Itinerary yang dialami semua peserta setelah perjalanan
+                  dimulai. Muncul satu kali di halaman detail trip dan menjadi
+                  dasar rundown peserta. Satu kartu = satu hari atau tahap;
+                  bukan daftar per baris kegiatan.
+                </small>
+              </div>
+              <button
+                class="link-button"
+                id="add-itinerary-stage"
+                type="button"
+              >
+                + Tambah tahap
+              </button>
+            </div>
+            <div id="itinerary-stages" class="itinerary-stages"></div>
+            <p class="empty itinerary-empty" id="itinerary-empty">
+              Belum ada tahap. Tambahkan agar peserta memahami alur perjalanan.
+            </p>
+          </div>
+          <p class="field-note itinerary-meeting-point-note">
+            Lokasi meeting point dikelola pada bagian{' '}
+            <strong>Titik jemput</strong>. Setelah jadwal dibuat, pilih titik
+            yang aktif lalu tentukan harga dan rundownnya.
+          </p>
+        </details>
+        <details>
+          <summary>05 · Persiapan & ketentuan peserta</summary>
+          <label>
+            Persiapan{' '}
+            <textarea name="preparation" maxlength="12000" rows="3"></textarea>
+          </label>
+          <label>
+            Ketentuan{' '}
+            <textarea name="terms" maxlength="16000" rows="4"></textarea>
+          </label>
+        </details>
+        {tripId && (
+          <label class="version-propagation-option">
+            <input type="checkbox" name="applyToUnbookedDepartures" checked />
+            <span>
+              <strong>Terapkan ke jadwal tanpa booking</strong>
+              <small>
+                Jadwal yang sudah memiliki booking tetap memakai versi lama agar
+                data peserta tidak berubah.
+              </small>
+            </span>
+          </label>
+        )}
+        <button class="primary" type="submit">
+          Simpan trip
+        </button>
+      </form>
+    </section>
+
+    {tripId && (
+      <section
+        class="panel pickup-master-panel"
+        aria-labelledby="pickup-master-title"
+        id="pickup-master-editor"
+        hidden
+      >
+        <div class="panel-head">
+          <div>
+            <p class="eyebrow">02 / TITIK JEMPUT</p>
+            <h2 id="pickup-master-title">Lokasi tersimpan</h2>
+            <p class="muted">
+              Lokasi disimpan sekali untuk paket ini. Harga dan rundown khusus
+              baru ditentukan pada tiap jadwal.
+            </p>
+          </div>
+          <button type="button" class="primary" id="add-pickup-master">
+            + Tambah lokasi
+          </button>
+        </div>
+        <div class="pickup-master-workspace">
+          <div class="pickup-master-library">
+            <span class="muted" id="pickup-master-count">
+              Memuat lokasi…
+            </span>
+            <div id="pickup-master-list" class="pickup-master-list"></div>
+          </div>
+          <form id="pickup-master-form" class="pickup-master-form" hidden>
+            <div class="subsection-heading">
+              <strong id="pickup-form-title">Tambah lokasi</strong>
+              <span>Isi alamat tetapnya; jam jemput tidak perlu di sini.</span>
+            </div>
+            <input name="id" type="hidden" />
+            <div class="form-two-columns">
+              <label>
+                Lokasi meeting point
+                <input
+                  name="zoneName"
+                  maxlength="120"
+                  required
+                  placeholder="Contoh: Jakarta"
+                />
+              </label>
+              <label>
+                Nama lokasi
+                <input
+                  name="locationName"
+                  maxlength="160"
+                  required
+                  placeholder="Contoh: Halim Perdanakusuma"
+                />
+              </label>
+            </div>
+            <label>
+              Alamat
+              <textarea
+                name="address"
+                maxlength="1000"
+                rows="2"
+                required
+              ></textarea>
+            </label>
+            <label>
+              Tautan Google Maps <small>Opsional</small>
+              <input
+                name="mapsUrl"
+                type="url"
+                maxlength="2000"
+                placeholder="https://maps.google.com/..."
+              />
+            </label>
+            <label>
+              Petunjuk dasar <small>Opsional</small>
+              <textarea
+                name="instructions"
+                maxlength="2000"
+                rows="2"
+                placeholder="Patokan lokasi atau informasi yang jarang berubah."
+              ></textarea>
+            </label>
+            <div class="pickup-master-actions">
+              <button
+                id="cancel-pickup-master"
+                class="button-link"
+                type="button"
+              >
+                Tutup form
+              </button>
+              <button class="primary" type="submit">
+                Simpan lokasi ↗
+              </button>
+            </div>
+          </form>
+        </div>
+      </section>
+    )}
+
+    <section
+      class="panel list-panel schedule-overview-panel"
+      aria-labelledby="trip-list-title"
+      id="schedule-list-panel"
+      hidden={!tripId}
+    >
+      <div class="panel-head">
+        <div>
+          <h2 id="trip-list-title">Jadwal tersimpan</h2>
+          <p class="muted">
+            Pilih jadwal untuk mengelola meeting point, peserta, dan keuangan.
+          </p>
+        </div>
+        <div class="schedule-overview-actions">
+          <span id="loading">Memuat…</span>
+          <button type="button" class="primary" id="add-departure">
+            + Tambah jadwal
+          </button>
+        </div>
+      </div>
+      <div id="trip-list" class="trip-list"></div>
+    </section>
+
+    <section
+      class="panel departure-editor-panel"
+      aria-labelledby="departure-form-title"
+      id="departure-editor"
+      hidden
+    >
+      <div class="panel-head">
+        <div>
+          <h2 id="departure-form-title">Buat jadwal</h2>
+        </div>
+        <button class="link-button" type="button" id="new-departure" hidden>
+          Kembali ke daftar
+        </button>
+      </div>
+      <p class="muted">
+        Atur keberangkatan dan kuota. Jadwal memakai versi paket yang terkunci;
+        meeting point hanya menyimpan detail penjemputan.
+      </p>
+      <form id="departure-form">
+        <input type="hidden" name="id" />
+        <label hidden>
+          Trip{' '}
+          <select name="tripId" required id="departure-trip">
+            <option value="">Pilih trip dahulu</option>
+          </select>
+        </label>
+        <div class="departure-form-grid">
+          <fieldset class="date-fieldset schedule-form-card">
+            <legend>Waktu & kuota · WIB</legend>
+            <input type="hidden" name="timezone" value="Asia/Jakarta" />
+            <div class="two-col date-time-grid">
+              <label>
+                Tanggal mulai <input type="date" name="startDate" required />
+              </label>
+              <label>
+                Jam mulai
+                <input type="time" name="startTime" step="60" required />
+              </label>
+              <label>
+                Tanggal selesai <input type="date" name="endDate" required />
+              </label>
+              <label>
+                Jam selesai
+                <input type="time" name="endTime" step="60" required />
+              </label>
+            </div>
+            <p
+              class="date-summary"
+              id="trip-duration-summary"
+              aria-live="polite"
+            >
+              Pilih tanggal mulai untuk menghitung durasi.
+            </p>
+            <label>
+              Kuota total
+              <input
+                type="number"
+                name="capacity"
+                min="1"
+                max="10000"
+                step="1"
+                required
+                placeholder="20"
+              />
+              <small>Total kursi untuk seluruh meeting point.</small>
+            </label>
+          </fieldset>
+
+          <fieldset
+            class="date-fieldset schedule-form-card"
+            id="initial-pickup-fields"
+          >
+            <legend>Meeting point pertama</legend>
+            <label>
+              Pilih lokasi tersimpan
+              <select name="initialPickupPointId" required>
+                <option value="">Memuat lokasi…</option>
+              </select>
+            </label>
+            <p class="field-note" id="initial-pickup-address">
+              Alamat mengikuti lokasi tersimpan. Rundown pickup bersifat
+              opsional dan diatur setelah jadwal dibuat.
+            </p>
+            <button type="button" class="link-button" id="go-to-pickups" hidden>
+              Tambahkan lokasi di Titik jemput
+            </button>
+            <label>
+              Harga meeting point / pax
+              <input
+                type="text"
+                name="unitPrice"
+                inputmode="numeric"
+                autocomplete="off"
+                required
+                placeholder="Rp2.500.000"
+              />
+              <small>
+                Langsung menjadi harga jual lokasi ini. Tambah lokasi lain
+                melalui Kelola jadwal.
+              </small>
+            </label>
+          </fieldset>
+        </div>
+        <p class="policy" id="existing-pickup-note" hidden>
+          Harga mengikuti meeting point yang sudah tersimpan. Ubah melalui
+          Kelola jadwal.
+        </p>
+        <details id="schedule-payment-settings" class="schedule-settings">
+          <summary>
+            Aturan pembayaran & publikasi{' '}
+            <span id="schedule-policy-summary">DP 30% · Draft</span>
+          </summary>
+          <div class="departure-form-grid">
+            <fieldset class="date-fieldset schedule-form-card">
+              <legend>Down payment & status</legend>
+              <div class="two-col">
+                <label>
+                  Down payment
+                  <select name="dpMode">
+                    <option value="percent">Persentase</option>
+                    <option value="amount">Nominal</option>
+                  </select>
+                </label>
+                <label>
+                  Nilai down payment
+                  <input
+                    type="text"
+                    name="dpValue"
+                    inputmode="numeric"
+                    autocomplete="off"
+                    required
+                    placeholder="30"
+                    value="30"
+                  />
+                </label>
+              </div>
+              <small>DP dihitung dari total pesanan.</small>
+              <label>
+                Status jadwal
+                <select name="publicationState">
+                  <option value="draft">Draft — belum tampil</option>
+                  <option value="open">Buka — bisa dipesan</option>
+                  <option value="closed">Tutup — hentikan pesanan</option>
+                </select>
+              </label>
+            </fieldset>
+
+            <fieldset class="date-fieldset schedule-form-card">
+              <legend>Tenggat · WIB</legend>
+              <div class="two-col date-time-grid">
+                <label>
+                  Tutup booking
+                  <input type="date" name="bookingCutoffDate" required />
+                </label>
+                <label>
+                  Jam tutup
+                  <input
+                    type="time"
+                    name="bookingCutoffTime"
+                    step="60"
+                    required
+                  />
+                </label>
+                <label>
+                  Tenggat pelunasan <input type="date" name="balanceDueDate" />
+                </label>
+                <label>
+                  Jam pelunasan
+                  <input type="time" name="balanceDueTime" step="60" />
+                </label>
+              </div>
+              <p class="date-summary" id="deadline-summary" aria-live="polite">
+                Pilih tanggal mulai untuk menyiapkan tenggat.
+              </p>
+              <small>
+                Pelunasan boleh dikosongkan. Batas paling akhir adalah hari
+                terakhir trip (hari turun).
+              </small>
+            </fieldset>
+          </div>
+        </details>
+        <details id="schedule-itinerary-settings" class="schedule-settings">
+          <summary>
+            Itinerary & versi paket{' '}
+            <span id="schedule-version-summary">Versi terbaru</span>
+          </summary>
+          <div class="schedule-form-card">
+            <p class="field-note" id="schedule-version-note">
+              Jadwal baru memakai versi paket terbaru.
+            </p>
+            <label id="latest-version-option" hidden>
+              <span>
+                <input type="checkbox" name="useLatestTripVersion" />
+                Pindahkan jadwal ini ke versi paket terbaru
+              </span>
+              <small>
+                Aksi ini eksplisit. Jadwal lama tetap memakai versinya sampai
+                pilihan ini dicentang.
+              </small>
+            </label>
+            <label>
+              <span>
+                <input type="checkbox" name="useItineraryOverride" />
+                Gunakan itinerary khusus jadwal ini
+              </span>
+              <small>
+                Kosong berarti mengikuti itinerary inti versi paket. Override
+                hanya untuk jadwal dengan rute penuh yang benar-benar berbeda.
+              </small>
+            </label>
+            <input name="itineraryOverride" type="hidden" value="[]" />
+            <div id="schedule-itinerary-editor" class="itinerary-editor" hidden>
+              <div class="itinerary-editor-head">
+                <div>
+                  <span class="form-label">Itinerary khusus jadwal</span>
+                  <small class="field-note">
+                    Disimpan sebagai pengganti itinerary inti hanya untuk
+                    keberangkatan ini.
+                  </small>
+                </div>
+                <button
+                  class="link-button"
+                  id="add-schedule-itinerary-stage"
+                  type="button"
+                >
+                  + Tambah tahap
+                </button>
+              </div>
+              <div
+                id="schedule-itinerary-stages"
+                class="itinerary-stages"
+              ></div>
+              <p class="empty itinerary-empty" id="schedule-itinerary-empty">
+                Belum ada tahap. Salin itinerary inti atau tambah tahap.
+              </p>
+              <button
+                type="button"
+                class="button-link"
+                id="copy-core-itinerary"
+              >
+                Salin itinerary inti sebagai titik awal
+              </button>
+            </div>
+          </div>
+        </details>
+        <div class="departure-submit-bar">
+          <div>
+            <strong id="schedule-save-hint">
+              Lokasi dan harga tersimpan bersama jadwal.
+            </strong>
+            <span>Periksa tanggal serta kuota sebelum menyimpan.</span>
+          </div>
+          <button class="primary" type="submit">
+            Simpan jadwal
+          </button>
+        </div>
+      </form>
+    </section>
+  </div>
+
+  <script is:inline>
+    const editorTripId = document.getElementById('trip-editor').dataset.tripId;
+    const tripForm = document.getElementById('trip-form');
+    const departureForm = document.getElementById('departure-form');
+    const list = document.getElementById('trip-list');
+    const tripSelect = document.getElementById('departure-trip');
+    const notice = document.getElementById('notice');
+    const loading = document.getElementById('loading');
+    const coverFileInput = document.getElementById('cover-file');
+    const coverPreview = document.getElementById('cover-preview');
+    const coverPreviewImage = document.getElementById('cover-preview-image');
+    const coverPreviewName = document.getElementById('cover-preview-name');
+    const coverPreviewSize = document.getElementById('cover-preview-size');
+    const categorySelect = document.getElementById('trip-category');
+    const customCategoryField = document.getElementById(
+      'custom-category-field',
+    );
+    const customCategoryInput = tripForm.elements.customCategory;
+    const slugPreview = document.getElementById('slug-preview');
+    const tripDurationSummary = document.getElementById(
+      'trip-duration-summary',
+    );
+    const itineraryStagesField = tripForm.elements.itineraryStages;
+    const itineraryStagesElement = document.getElementById('itinerary-stages');
+    const itineraryEmpty = document.getElementById('itinerary-empty');
+    const scheduleItineraryStagesField =
+      departureForm.elements.itineraryOverride;
+    const scheduleItineraryStagesElement = document.getElementById(
+      'schedule-itinerary-stages',
+    );
+    const scheduleItineraryEmpty = document.getElementById(
+      'schedule-itinerary-empty',
+    );
+    const scheduleItineraryToggle = departureForm.elements.useItineraryOverride;
+    const scheduleItineraryEditor = document.getElementById(
+      'schedule-itinerary-editor',
+    );
+    const latestVersionOption = document.getElementById(
+      'latest-version-option',
+    );
+    const pickupMasterForm = document.getElementById('pickup-master-form');
+    const pickupMasterList = document.getElementById('pickup-master-list');
+    const pickupMasterCount = document.getElementById('pickup-master-count');
+    const cancelPickupMaster = document.getElementById('cancel-pickup-master');
+    const deadlineSummary = document.getElementById('deadline-summary');
+    const publicTripLink = document.getElementById('public-trip-link');
+    const pickupStepStatus = document.getElementById('pickup-step-status');
+    const scheduleStepStatus = document.getElementById('schedule-step-status');
+    const departureEditor = document.getElementById('departure-editor');
+    const schedulePanel = document.getElementById('schedule-list-panel');
+    const initialPickupFields = document.getElementById(
+      'initial-pickup-fields',
+    );
+    const initialPickupSelect = departureForm.elements.initialPickupPointId;
+    const tabs = [...document.querySelectorAll('[data-package-tab]')];
+    let departureEditorOpen = false;
+    const scheduleDrafts = new Map();
+    function rememberScheduleDraft() {
+      const fields = [...departureForm.elements].filter(
+        (field) => field.name && 'value' in field,
+      );
+      scheduleDrafts.set(departureForm.elements.id.value, {
+        values: Object.fromEntries(
+          fields.map((field) => [field.name, field.value]),
+        ),
+        checks: Object.fromEntries(
+          fields
+            .filter((field) => field.type === 'checkbox')
+            .map((field) => [field.name, field.checked]),
+        ),
+        endIsAutomatic,
+        cutoffIsAutomatic,
+        selectedDurationDays,
+      });
+    }
+    function restoreScheduleDraft(id) {
+      const draft = scheduleDrafts.get(id);
+      if (!draft) return;
+      for (const [name, value] of Object.entries(draft.values))
+        departureForm.elements[name].value = value;
+      for (const [name, checked] of Object.entries(draft.checks || {}))
+        departureForm.elements[name].checked = checked;
+      endIsAutomatic = draft.endIsAutomatic;
+      cutoffIsAutomatic = draft.cutoffIsAutomatic;
+      selectedDurationDays = draft.selectedDurationDays;
+      setScheduleItineraryStages(
+        JSON.parse(departureForm.elements.itineraryOverride.value || '[]'),
+      );
+      syncScheduleItineraryMode();
+      syncPickupMode();
+      syncScheduleSummary();
+      document.dispatchEvent(new Event('rupiah:sync'));
+    }
+    function selectSection(section, updateHash = true) {
+      if (!editorTripId) return;
+      for (const tab of tabs) {
+        const selected = tab.dataset.packageTab === section;
+        tab.setAttribute('aria-selected', String(selected));
+        tab.tabIndex = selected ? 0 : -1;
+      }
+      document.getElementById('package-editor').hidden = section !== 'package';
+      document.getElementById('pickup-master-editor').hidden =
+        section !== 'pickups';
+      schedulePanel.hidden = section !== 'schedules' || departureEditorOpen;
+      departureEditor.hidden = section !== 'schedules' || !departureEditorOpen;
+      document
+        .getElementById('tab-schedules')
+        .setAttribute(
+          'aria-controls',
+          departureEditorOpen ? 'departure-editor' : 'schedule-list-panel',
+        );
+      if (updateHash) history.replaceState(null, '', `#${section}`);
+    }
+    tabs.forEach((tab, index) => {
+      tab.addEventListener('click', () =>
+        selectSection(tab.dataset.packageTab),
+      );
+      tab.addEventListener('keydown', (event) => {
+        const next =
+          event.key === 'ArrowRight'
+            ? (index + 1) % tabs.length
+            : event.key === 'ArrowLeft'
+              ? (index + tabs.length - 1) % tabs.length
+              : event.key === 'Home'
+                ? 0
+                : event.key === 'End'
+                  ? tabs.length - 1
+                  : null;
+        if (next === null) return;
+        event.preventDefault();
+        tabs[next].focus();
+        selectSection(tabs[next].dataset.packageTab);
+      });
+    });
+    function openDepartureEditor() {
+      if (
+        !departureForm.elements.id.value &&
+        !departureForm.elements.startDate.value
+      )
+        selectedDurationDays = Math.max(1, itineraryStages.length);
+      departureEditorOpen = true;
+      selectSection('schedules');
+      document.getElementById('new-departure').hidden = false;
+    }
+    function syncPickupMode() {
+      const editing = !!departureForm.elements.id.value;
+      initialPickupFields.hidden = editing;
+      initialPickupFields.disabled = editing;
+      document.getElementById('existing-pickup-note').hidden = !editing;
+      document.getElementById('schedule-save-hint').textContent = editing
+        ? 'Perubahan ini menyimpan waktu, kuota, dan aturan jadwal.'
+        : 'Lokasi dan harga tersimpan bersama jadwal.';
+    }
+    function syncScheduleItineraryMode() {
+      scheduleItineraryEditor.hidden = !scheduleItineraryToggle.checked;
+      for (const field of scheduleItineraryEditor.querySelectorAll(
+        'input, textarea, button',
+      ))
+        field.disabled = !scheduleItineraryToggle.checked;
+    }
+    function syncPolicySummary() {
+      const dp =
+        departureForm.elements.dpMode.value === 'percent'
+          ? `${departureForm.elements.dpValue.value || '0'}%`
+          : `Rp${formatMoney.format(Number(String(departureForm.elements.dpValue.value).replace(/\D/g, '')))}`;
+      const state = { draft: 'Draft', open: 'Buka', closed: 'Tutup' }[
+        departureForm.elements.publicationState.value
+      ];
+      const cutoff = departureForm.elements.bookingCutoffDate.value;
+      document.getElementById('schedule-policy-summary').textContent =
+        `DP ${dp} · ${state}${cutoff ? ` · Tutup ${dateLabel(cutoff)}` : ' · Tutup booking H-1'}`;
+    }
+    function syncInitialPickup() {
+      const point = pickupMasters.find(
+        (item) => item.id === initialPickupSelect.value,
+      );
+      document.getElementById('initial-pickup-address').textContent = point
+        ? `${point.address} · Rundown pickup tambahan dapat diatur setelah jadwal disimpan.`
+        : 'Pilih lokasi dari tab Titik jemput.';
+    }
+    let trips = [];
+    let selectedCoverFile = null;
+    let uploadedCover = null;
+    let previewObjectUrl = null;
+    let selectedDurationDays = 1;
+    let endIsAutomatic = true;
+    let cutoffIsAutomatic = true;
+    let itineraryStages = [];
+    let scheduleItineraryStages = [];
+    let activeSchedule = null;
+    let pickupMasters = [];
+    const tripFields = [
+      'name',
+      'coverImageUrl',
+      'locationLabel',
+      'difficultyLevel',
+      'elevationMeters',
+      'trailDistanceKm',
+      'elevationGainMeters',
+      'routeName',
+      'terrainSummary',
+      'trailMapEmbedUrl',
+      'description',
+      'included',
+      'excluded',
+      'meetingPoint',
+      'preparation',
+      'terms',
+    ];
+    const departureFields = [
+      'tripId',
+      'timezone',
+      'capacity',
+      'unitPrice',
+      'dpMode',
+      'dpValue',
+      'publicationState',
+    ];
+    const departureDateParts = {
+      startAt: ['startDate', 'startTime'],
+      endAt: ['endDate', 'endTime'],
+      bookingCutoffAt: ['bookingCutoffDate', 'bookingCutoffTime'],
+      balanceDueAt: ['balanceDueDate', 'balanceDueTime'],
+    };
+    const formatMoney = new Intl.NumberFormat('id-ID');
+    const dateFormat = new Intl.DateTimeFormat('id-ID', {
+      dateStyle: 'medium',
+      timeStyle: 'short',
+      timeZone: 'Asia/Jakarta',
+    });
+    function showNotice(message, type = 'success') {
+      if (window.adminNotify) {
+        window.adminNotify({ message, type });
+        notice.hidden = true;
+        return;
+      }
+      notice.textContent = message;
+      notice.hidden = false;
+      notice.dataset.type = type;
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+    function cleanItineraryStage(value = {}) {
+      const oldActivity = value.activity
+        ? [
+            {
+              time: value.time || '',
+              activity: value.activity,
+              location: value.location || '',
+            },
+          ]
+        : [];
+      return {
+        day: String(value.day || value.stage || ''),
+        title: String(value.title || value.activity || ''),
+        activities:
+          Array.isArray(value.activities) && value.activities.length
+            ? value.activities.map((item) => ({
+                time: String(item.time || ''),
+                activity: String(item.activity || ''),
+                location: String(item.location || ''),
+              }))
+            : oldActivity,
+        details: String(value.details || ''),
+      };
+    }
+    function legacyItineraryStages(value) {
+      const lines = String(value || '')
+        .split('\n')
+        .map((line) => line.trim())
+        .filter(Boolean);
+      const output = [];
+      for (const line of lines) {
+        const heading = line.match(/^(Hari\s*\d+|Tahap\s*\d+)\s*[—-]\s*(.+)$/i);
+        if (heading)
+          output.push(
+            cleanItineraryStage({
+              day: heading[1],
+              title: heading[2],
+              activities: [{ activity: heading[2] }],
+            }),
+          );
+        else if (output.length)
+          output[output.length - 1].details = [
+            output[output.length - 1].details,
+            line,
+          ]
+            .filter(Boolean)
+            .join(' ');
+      }
+      return output;
+    }
+    function renderStageEditor(stages, element, empty, hiddenField) {
+      const sync = () => {
+        hiddenField.value = JSON.stringify(stages);
+        empty.hidden = stages.length > 0;
+      };
+      const rerender = () =>
+        renderStageEditor(stages, element, empty, hiddenField);
+      const stageField = (
+        labelText,
+        key,
+        value,
+        options = {},
+        activityIndex = null,
+        stageIndex,
+      ) => {
+        const label = document.createElement('label');
+        label.textContent = labelText;
+        const input = options.multiline
+          ? document.createElement('textarea')
+          : document.createElement('input');
+        if (options.multiline) input.rows = 2;
+        input.maxLength = options.maxLength || 2000;
+        input.value = value;
+        input.placeholder = options.placeholder || '';
+        if (options.required) input.required = true;
+        input.addEventListener('input', () => {
+          if (activityIndex === null) stages[stageIndex][key] = input.value;
+          else stages[stageIndex].activities[activityIndex][key] = input.value;
+          sync();
+        });
+        label.append(input);
+        return label;
+      };
+      element.replaceChildren();
+      stages.forEach((stage, index) => {
+        const card = document.createElement('article');
+        card.className = 'itinerary-stage-card';
+        const head = document.createElement('div');
+        head.className = 'itinerary-stage-head';
+        const title = document.createElement('strong');
+        title.textContent = `${String(index + 1).padStart(2, '0')} / TAHAP PERJALANAN`;
+        const remove = document.createElement('button');
+        remove.className = 'button-link';
+        remove.type = 'button';
+        remove.textContent = 'Hapus tahap';
+        remove.addEventListener('click', () => {
+          stages.splice(index, 1);
+          rerender();
+        });
+        head.append(title, remove);
+        const grid = document.createElement('div');
+        grid.className = 'form-two-columns';
+        grid.append(
+          stageField(
+            'Hari',
+            'day',
+            stage.day,
+            {
+              required: true,
+              maxLength: 80,
+              placeholder: 'Contoh: Hari 1',
+            },
+            null,
+            index,
+          ),
+          stageField(
+            'Judul perjalanan hari ini',
+            'title',
+            stage.title,
+            {
+              maxLength: 80,
+              required: true,
+              placeholder: 'Contoh: Basecamp → Puncak Ungaran',
+            },
+            null,
+            index,
+          ),
+        );
+        card.append(head, grid);
+        const activities = document.createElement('div');
+        activities.className = 'itinerary-activities';
+        const activityTitle = document.createElement('strong');
+        activityTitle.textContent = 'RUNDOWN KEGIATAN';
+        activities.append(activityTitle);
+        stage.activities.forEach((activity, activityIndex) => {
+          const row = document.createElement('div');
+          row.className = 'itinerary-activity-row';
+          row.append(
+            stageField(
+              'Waktu',
+              'time',
+              activity.time,
+              { maxLength: 80, placeholder: '20.00' },
+              activityIndex,
+              index,
+            ),
+            stageField(
+              'Kegiatan',
+              'activity',
+              activity.activity,
+              {
+                required: true,
+                maxLength: 240,
+                placeholder: 'Perjalanan menuju basecamp',
+              },
+              activityIndex,
+              index,
+            ),
+            stageField(
+              'Lokasi',
+              'location',
+              activity.location,
+              { maxLength: 180, placeholder: 'Opsional' },
+              activityIndex,
+              index,
+            ),
+          );
+          const removeActivity = document.createElement('button');
+          removeActivity.type = 'button';
+          removeActivity.className = 'button-link';
+          removeActivity.textContent = 'Hapus';
+          removeActivity.addEventListener('click', () => {
+            stage.activities.splice(activityIndex, 1);
+            rerender();
+          });
+          row.append(removeActivity);
+          activities.append(row);
+        });
+        const addActivity = document.createElement('button');
+        addActivity.type = 'button';
+        addActivity.className = 'button-link';
+        addActivity.textContent = '+ Tambah kegiatan';
+        addActivity.addEventListener('click', () => {
+          stage.activities.push({ time: '', activity: '', location: '' });
+          rerender();
+        });
+        activities.append(addActivity);
+        card.append(
+          activities,
+          stageField(
+            'Catatan hari ini',
+            'details',
+            stage.details,
+            {
+              multiline: true,
+              maxLength: 2000,
+              placeholder:
+                'Contoh: Itinerary dapat berubah sesuai kondisi lapangan.',
+            },
+            null,
+            index,
+          ),
+        );
+        element.append(card);
+      });
+      sync();
+    }
+    function renderItineraryStages() {
+      renderStageEditor(
+        itineraryStages,
+        itineraryStagesElement,
+        itineraryEmpty,
+        itineraryStagesField,
+      );
+    }
+    function setItineraryStages(stages) {
+      itineraryStages = Array.isArray(stages)
+        ? stages.map((stage) => cleanItineraryStage(stage))
+        : [];
+      renderItineraryStages();
+    }
+    function renderScheduleItineraryStages() {
+      renderStageEditor(
+        scheduleItineraryStages,
+        scheduleItineraryStagesElement,
+        scheduleItineraryEmpty,
+        scheduleItineraryStagesField,
+      );
+    }
+    function setScheduleItineraryStages(stages) {
+      scheduleItineraryStages = Array.isArray(stages)
+        ? stages.map((stage) => cleanItineraryStage(stage))
+        : [];
+      renderScheduleItineraryStages();
+    }
+    function resetPickupMaster() {
+      pickupMasterForm?.reset();
+      if (pickupMasterForm) pickupMasterForm.elements.id.value = '';
+      if (pickupMasterForm) {
+        pickupMasterForm.hidden = true;
+        document.getElementById('pickup-form-title').textContent =
+          'Tambah lokasi';
+      }
+    }
+    function renderPickupMasters() {
+      if (!pickupMasterList) return;
+      pickupMasterList.replaceChildren();
+      const activePickupCount = pickupMasters.filter(
+        (item) => item.isActive,
+      ).length;
+      const selectedPickup = initialPickupSelect.value;
+      initialPickupSelect.replaceChildren(new Option('Pilih titik jemput', ''));
+      for (const point of pickupMasters.filter((item) => item.isActive))
+        initialPickupSelect.add(
+          new Option(`${point.zoneName} · ${point.locationName}`, point.id),
+        );
+      if (
+        [...initialPickupSelect.options].some(
+          (option) => option.value === selectedPickup,
+        )
+      )
+        initialPickupSelect.value = selectedPickup;
+      if (activePickupCount === 1 && !initialPickupSelect.value)
+        initialPickupSelect.selectedIndex = 1;
+      document.getElementById('go-to-pickups').hidden = activePickupCount > 0;
+      syncInitialPickup();
+      if (pickupMasterCount)
+        pickupMasterCount.textContent = `${activePickupCount} titik`;
+      if (pickupStepStatus)
+        pickupStepStatus.textContent = activePickupCount
+          ? `${activePickupCount} lokasi aktif`
+          : 'Belum ada lokasi';
+      if (!pickupMasters.length) {
+        const empty = document.createElement('p');
+        empty.className = 'empty';
+        empty.textContent =
+          'Belum ada lokasi. Pilih Tambah lokasi untuk menyiapkan titik jemput paket ini.';
+        pickupMasterList.append(empty);
+        return;
+      }
+      pickupMasters.forEach((point) => {
+        const card = document.createElement('article');
+        card.className = `pickup-master-card${point.isActive ? '' : ' inactive'}`;
+        const copy = document.createElement('div');
+        const title = document.createElement('strong');
+        title.textContent = `${point.zoneName} · ${point.locationName}`;
+        const address = document.createElement('span');
+        address.textContent = point.address;
+        copy.append(title, address);
+        const actions = document.createElement('div');
+        if (point.isActive) {
+          const edit = document.createElement('button');
+          edit.type = 'button';
+          edit.className = 'button-link';
+          edit.textContent = 'Edit';
+          edit.onclick = () => {
+            for (const field of [
+              'id',
+              'zoneName',
+              'locationName',
+              'address',
+              'mapsUrl',
+              'instructions',
+            ])
+              pickupMasterForm.elements[field].value = point[field] || '';
+            cancelPickupMaster.hidden = false;
+            pickupMasterForm.hidden = false;
+            document.getElementById('pickup-form-title').textContent =
+              'Edit lokasi';
+            pickupMasterForm.scrollIntoView({
+              behavior: 'smooth',
+              block: 'center',
+            });
+          };
+          const deactivate = document.createElement('button');
+          deactivate.type = 'button';
+          deactivate.className = 'danger-button';
+          deactivate.textContent = 'Nonaktifkan';
+          deactivate.onclick = async () => {
+            if (
+              !(await window.adminConfirm({
+                title: 'Nonaktifkan titik jemput?',
+                message: `${point.zoneName} tidak dapat dipilih pada jadwal baru. Jadwal dan booking lama tetap aman.`,
+                confirmLabel: 'Nonaktifkan',
+                destructive: true,
+              }))
+            )
+              return;
+            try {
+              await save(
+                `/api/admin/trips/${editorTripId}/pickup-points`,
+                'PATCH',
+                { id: point.id, action: 'deactivate' },
+              );
+              showNotice('Titik jemput dinonaktifkan.');
+              await loadPickupMasters();
+            } catch (error) {
+              showNotice(error.message, 'error');
+            }
+          };
+          actions.append(edit, deactivate);
+        } else {
+          const state = document.createElement('span');
+          state.className = 'pill';
+          state.textContent = 'Nonaktif';
+          actions.append(state);
+        }
+        card.append(copy, actions);
+        pickupMasterList.append(card);
+      });
+    }
+    async function loadPickupMasters() {
+      if (!editorTripId || !pickupMasterList) return;
+      try {
+        const response = await fetch(
+          `/api/admin/trips/${editorTripId}/pickup-points`,
+        );
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.message);
+        if (!Array.isArray(result.pickupPoints))
+          throw new Error(
+            'Lokasi belum dapat dimuat. Muat ulang halaman untuk mencoba lagi.',
+          );
+        pickupMasters = result.pickupPoints;
+        renderPickupMasters();
+      } catch (error) {
+        if (pickupMasterCount)
+          pickupMasterCount.textContent = 'Gagal memuat lokasi';
+        showNotice(error.message || 'Titik jemput gagal dimuat.', 'error');
+      }
+    }
+    function wibParts(date) {
+      if (!date) return { date: '', time: '' };
+      const value = new Date(date);
+      if (Number.isNaN(value.valueOf())) return { date: '', time: '' };
+      const wib = new Date(value.valueOf() + 7 * 3600000).toISOString();
+      return { date: wib.slice(0, 10), time: wib.slice(11, 16) };
+    }
+    function setTimeOptions(select, selected = '') {
+      select.value = selected;
+    }
+    function addDays(date, days) {
+      if (!date) return '';
+      const [year, month, day] = date.split('-').map(Number);
+      const value = new Date(Date.UTC(year, month - 1, day + days));
+      return value.toISOString().slice(0, 10);
+    }
+    function slugify(value) {
+      return value
+        .normalize('NFKD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/(^-|-$)/g, '');
+    }
+    function syncSlug() {
+      const slug = slugify(tripForm.elements.name.value);
+      tripForm.elements.slug.value = slug;
+      slugPreview.textContent = slug ? `/trip/${slug}` : '/trip/—';
+    }
+    function syncCategory(customValue = '') {
+      const isCustom = categorySelect.value === '__custom';
+      customCategoryField.hidden = !isCustom;
+      customCategoryInput.required = isCustom;
+      if (isCustom) customCategoryInput.value = customValue;
+    }
+    function setCategory(value) {
+      const isKnown = Array.from(categorySelect.options).some(
+        (option) => option.value === value && value !== '__custom',
+      );
+      categorySelect.value = isKnown ? value : '__custom';
+      syncCategory(isKnown ? '' : value);
+    }
+    function dateLabel(date) {
+      return new Intl.DateTimeFormat('id-ID', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+        timeZone: 'UTC',
+      }).format(new Date(`${date}T00:00:00Z`));
+    }
+    function syncScheduleSummary() {
+      syncPolicySummary();
+      const startDate = departureForm.elements.startDate.value;
+      const endDate = departureForm.elements.endDate.value;
+      if (!startDate) {
+        departureForm.elements.endDate.min = '';
+        departureForm.elements.bookingCutoffDate.max = '';
+        departureForm.elements.balanceDueDate.max = '';
+        tripDurationSummary.textContent =
+          'Pilih tanggal mulai untuk menghitung durasi.';
+        deadlineSummary.textContent =
+          'Pilih tanggal mulai untuk menyiapkan tenggat.';
+        return;
+      }
+      departureForm.elements.endDate.min = startDate;
+      departureForm.elements.bookingCutoffDate.max = startDate;
+      departureForm.elements.balanceDueDate.max = endDate || startDate;
+      if (endDate) {
+        const length =
+          Math.round(
+            (Date.parse(`${endDate}T00:00:00Z`) -
+              Date.parse(`${startDate}T00:00:00Z`)) /
+              86_400_000,
+          ) + 1;
+        tripDurationSummary.textContent =
+          length > 0
+            ? `Perjalanan: ${length} hari · ${dateLabel(startDate)}–${dateLabel(endDate)}.`
+            : 'Tanggal selesai perlu setelah tanggal mulai.';
+      }
+      const cutoff = departureForm.elements.bookingCutoffDate.value;
+      const balance = departureForm.elements.balanceDueDate.value;
+      deadlineSummary.textContent = [
+        cutoff ? `Booking: ${dateLabel(cutoff)}` : 'Booking belum diatur',
+        balance ? `Pelunasan: ${dateLabel(balance)}` : 'Pelunasan opsional',
+      ].join(' · ');
+    }
+    function applyDuration(days = selectedDurationDays) {
+      const startDate = departureForm.elements.startDate.value;
+      if (!startDate) return;
+      selectedDurationDays = days;
+      departureForm.elements.endDate.value = addDays(startDate, days - 1);
+      departureForm.elements.endTime.value = '17:00';
+      if (days === 1 && departureForm.elements.startTime.value >= '17:00') {
+        const finish = wibParts(
+          new Date(
+            new Date(
+              `${startDate}T${departureForm.elements.startTime.value}:00+07:00`,
+            ).getTime() + 3600000,
+          ),
+        );
+        departureForm.elements.endDate.value = finish.date;
+        departureForm.elements.endTime.value = finish.time;
+      }
+      endIsAutomatic = true;
+    }
+    function applyCutoff(days = 1) {
+      const startDate = departureForm.elements.startDate.value;
+      if (!startDate) return;
+      departureForm.elements.bookingCutoffDate.value = addDays(
+        startDate,
+        -days,
+      );
+      departureForm.elements.bookingCutoffTime.value = '20:00';
+      cutoffIsAutomatic = true;
+    }
+    function setDepartureDefaults() {
+      const startDate = departureForm.elements.startDate.value;
+      if (!startDate) return syncScheduleSummary();
+      if (!departureForm.elements.startTime.value)
+        departureForm.elements.startTime.value = '08:00';
+      if (endIsAutomatic || !departureForm.elements.endDate.value)
+        applyDuration(selectedDurationDays);
+      if (cutoffIsAutomatic || !departureForm.elements.bookingCutoffDate.value)
+        applyCutoff(1);
+      // Pelunasan opsional: jangan membuat tenggat tanpa pilihan admin.
+      syncScheduleSummary();
+    }
+    function isoFromWib(date, time, required = false) {
+      if (!date && !time && !required) return '';
+      if (!date || !time)
+        throw new Error('Lengkapi tanggal dan jam terlebih dahulu.');
+      return new Date(`${date}T${time}:00+07:00`).toISOString();
+    }
+    function departurePayload(form) {
+      const data = Object.fromEntries(new FormData(form).entries());
+      data.useItineraryOverride = scheduleItineraryToggle.checked;
+      data.itineraryOverride = JSON.stringify(scheduleItineraryStages);
+      data.useLatestTripVersion = form.elements.useLatestTripVersion.checked;
+      for (const [serverName, [dateName, timeName]] of Object.entries(
+        departureDateParts,
+      )) {
+        data[serverName] = isoFromWib(
+          data[dateName],
+          data[timeName],
+          serverName !== 'balanceDueAt',
+        );
+        delete data[dateName];
+        delete data[timeName];
+      }
+      if (new Date(data.endAt) <= new Date(data.startAt))
+        throw new Error('Waktu selesai harus setelah waktu mulai.');
+      if (new Date(data.bookingCutoffAt) > new Date(data.startAt))
+        throw new Error('Tutup booking tidak boleh setelah keberangkatan.');
+      if (
+        data.balanceDueAt &&
+        wibParts(data.balanceDueAt).date > wibParts(data.endAt).date
+      )
+        throw new Error(
+          'Pelunasan tidak boleh setelah hari terakhir trip (hari turun).',
+        );
+      if (!data.id)
+        data.unitPrice = String(data.unitPrice ?? '').replace(/\D/g, '');
+      if (data.dpMode === 'amount')
+        data.dpValue = String(data.dpValue ?? '').replace(/\D/g, '');
+      return data;
+    }
+    function clearCoverPreview(removeStoredCover = false) {
+      if (previewObjectUrl) URL.revokeObjectURL(previewObjectUrl);
+      previewObjectUrl = null;
+      selectedCoverFile = null;
+      uploadedCover = null;
+      coverFileInput.value = '';
+      coverPreview.hidden = true;
+      coverPreviewImage.removeAttribute('src');
+      coverPreviewName.textContent = '';
+      coverPreviewSize.textContent = '';
+      if (removeStoredCover) tripForm.elements.coverImageUrl.value = '';
+    }
+    function showCoverPreview(source, name, size) {
+      coverPreviewImage.src = source;
+      coverPreviewName.textContent = name;
+      coverPreviewSize.textContent = size
+        ? `${(size / 1024 / 1024).toFixed(1)} MB`
+        : 'Foto tersimpan';
+      coverPreview.hidden = false;
+    }
+    function chooseCover(file) {
+      const supported = ['image/jpeg', 'image/png', 'image/webp'];
+      if (!file) return clearCoverPreview();
+      if (!supported.includes(file.type))
+        throw new Error('Gunakan foto JPEG, PNG, atau WebP.');
+      if (file.size > 8 * 1024 * 1024)
+        throw new Error('Ukuran foto maksimal 8 MB.');
+      if (previewObjectUrl) URL.revokeObjectURL(previewObjectUrl);
+      previewObjectUrl = URL.createObjectURL(file);
+      selectedCoverFile = file;
+      uploadedCover = null;
+      tripForm.elements.coverImageUrl.value = '';
+      showCoverPreview(previewObjectUrl, file.name, file.size);
+    }
+    async function uploadSelectedCover() {
+      if (!selectedCoverFile) return;
+      if (uploadedCover?.file === selectedCoverFile) {
+        tripForm.elements.coverImageUrl.value = uploadedCover.publicUrl;
+        return;
+      }
+      const signed = await save('/api/admin/media/presign', 'POST', {
+        fileName: selectedCoverFile.name,
+        contentType: selectedCoverFile.type,
+        size: selectedCoverFile.size,
+      });
+      const response = await fetch(signed.uploadUrl, {
+        method: 'PUT',
+        headers: { 'Content-Type': signed.contentType },
+        body: selectedCoverFile,
+      });
+      if (!response.ok)
+        throw new Error(
+          'Upload foto gagal. Periksa konfigurasi R2 lalu coba lagi.',
+        );
+      uploadedCover = { file: selectedCoverFile, publicUrl: signed.publicUrl };
+      tripForm.elements.coverImageUrl.value = signed.publicUrl;
+      if (previewObjectUrl) {
+        URL.revokeObjectURL(previewObjectUrl);
+        previewObjectUrl = null;
+      }
+      showCoverPreview(
+        signed.publicUrl,
+        selectedCoverFile.name,
+        selectedCoverFile.size,
+      );
+    }
+    async function save(url, method, body) {
+      const response = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok)
+        throw new Error(data.message || 'Data tidak dapat disimpan.');
+      return data;
+    }
+    function tripPayload() {
+      const data = Object.fromEntries(new FormData(tripForm).entries());
+      data.itineraryStages = JSON.stringify(itineraryStages);
+      for (const [hoursField, minutesField] of [
+        ['trekDurationMinHours', 'trekDurationMinMinutes'],
+        ['trekDurationMaxHours', 'trekDurationMaxMinutes'],
+      ]) {
+        const rawHours = String(data[hoursField] || '').trim();
+        data[minutesField] = rawHours
+          ? String(Math.round(Number(rawHours) * 60))
+          : '';
+        delete data[hoursField];
+      }
+      if (data.category === '__custom') {
+        const custom = String(data.customCategory || '').trim();
+        if (!custom)
+          throw new Error('Tulis jenis trip kustom terlebih dahulu.');
+        data.category = custom;
+      }
+      delete data.customCategory;
+      return data;
+    }
+    function resetTrip() {
+      tripForm.reset();
+      clearCoverPreview();
+      setItineraryStages([]);
+      tripForm.elements.id.value = '';
+      syncSlug();
+      syncCategory();
+      document.getElementById('trip-form-title').textContent = 'Buat trip';
+    }
+    function resetDeparture() {
+      departureForm.reset();
+      activeSchedule = null;
+      setScheduleItineraryStages([]);
+      syncScheduleItineraryMode();
+      latestVersionOption.hidden = true;
+      document.getElementById('schedule-version-summary').textContent =
+        'Versi terbaru';
+      document.getElementById('schedule-version-note').textContent =
+        'Jadwal baru memakai versi paket terbaru.';
+      departureForm.elements.id.value = '';
+      syncPickupMode();
+      if (initialPickupSelect.options.length === 2)
+        initialPickupSelect.selectedIndex = 1;
+      syncInitialPickup();
+      setTimeOptions(departureForm.elements.startTime, '08:00');
+      setTimeOptions(departureForm.elements.endTime, '17:00');
+      setTimeOptions(departureForm.elements.bookingCutoffTime, '20:00');
+      setTimeOptions(departureForm.elements.balanceDueTime);
+      selectedDurationDays = 1;
+      endIsAutomatic = true;
+      cutoffIsAutomatic = true;
+      document.getElementById('schedule-payment-settings').open = false;
+      document.dispatchEvent(new Event('rupiah:sync'));
+      syncScheduleSummary();
+      document.getElementById('departure-form-title').textContent =
+        'Buat jadwal';
+      document.getElementById('add-departure').textContent = '+ Tambah jadwal';
+      document.getElementById('new-departure').hidden = true;
+    }
+    function editTrip(item) {
+      for (const field of tripFields)
+        tripForm.elements[field].value = item[field] ?? '';
+      tripForm.elements.trekDurationMinHours.value =
+        item.trekDurationMinMinutes == null
+          ? ''
+          : item.trekDurationMinMinutes / 60;
+      tripForm.elements.trekDurationMaxHours.value =
+        item.trekDurationMaxMinutes == null
+          ? ''
+          : item.trekDurationMaxMinutes / 60;
+      setItineraryStages(
+        Array.isArray(item.itineraryStages) && item.itineraryStages.length
+          ? item.itineraryStages
+          : legacyItineraryStages(item.itinerary),
+      );
+      syncSlug();
+      setCategory(item.category);
+      clearCoverPreview();
+      if (item.coverImageUrl)
+        showCoverPreview(item.coverImageUrl, 'Foto tersimpan', 0);
+      tripForm.elements.id.value = item.id;
+      document.getElementById('trip-form-title').textContent =
+        `Edit: ${item.name}`;
+    }
+    function editDeparture(item, schedule) {
+      rememberScheduleDraft();
+      activeSchedule = schedule;
+      for (const field of departureFields)
+        departureForm.elements[field].value =
+          field === 'tripId' ? item.id : schedule[field];
+      for (const [serverName, [dateName, timeName]] of Object.entries(
+        departureDateParts,
+      )) {
+        const parts = wibParts(schedule[serverName]);
+        departureForm.elements[dateName].value = parts.date;
+        departureForm.elements[timeName].value = parts.time;
+      }
+      departureForm.elements.id.value = schedule.id;
+      scheduleItineraryToggle.checked = Array.isArray(
+        schedule.itineraryOverride,
+      );
+      setScheduleItineraryStages(
+        schedule.itineraryOverride ?? schedule.tripVersionItineraryStages ?? [],
+      );
+      syncScheduleItineraryMode();
+      const isOlderVersion = schedule.tripVersionNumber < item.version;
+      latestVersionOption.hidden = !isOlderVersion;
+      departureForm.elements.useLatestTripVersion.checked = false;
+      document.getElementById('schedule-version-summary').textContent =
+        `Versi ${schedule.tripVersionNumber}${isOlderVersion ? ` · terbaru v${item.version}` : ' · terbaru'}`;
+      document.getElementById('schedule-version-note').textContent =
+        `Jadwal ini terkunci pada versi paket ${schedule.tripVersionNumber}.`;
+      syncPickupMode();
+      selectedDurationDays =
+        Math.round(
+          (Date.parse(`${departureForm.elements.endDate.value}T00:00:00Z`) -
+            Date.parse(`${departureForm.elements.startDate.value}T00:00:00Z`)) /
+            86_400_000,
+        ) + 1;
+      endIsAutomatic = false;
+      cutoffIsAutomatic = false;
+      restoreScheduleDraft(schedule.id);
+      document.dispatchEvent(new Event('rupiah:sync'));
+      syncScheduleSummary();
+      document.getElementById('departure-form-title').textContent =
+        `Edit jadwal: ${item.name}`;
+      document.getElementById('new-departure').hidden = false;
+      openDepartureEditor();
+      departureForm.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+    async function deleteDeparture(item, schedule, button) {
+      if (schedule.canDelete === false) {
+        showNotice(schedule.deleteReason, 'warning');
+        return;
+      }
+      const approved = await window.adminConfirm({
+        title: 'Hapus jadwal?',
+        message: `${dateFormat.format(new Date(schedule.startAt))} untuk ${item.name} akan dihapus permanen. Aksi ini belum bisa dibatalkan.`,
+        confirmLabel: 'Hapus jadwal',
+        destructive: true,
+      });
+      if (!approved) return;
+      button.disabled = true;
+      try {
+        await save('/api/admin/departures', 'DELETE', { id: schedule.id });
+        showNotice('Jadwal dihapus.');
+        await load();
+      } catch (error) {
+        showNotice(error.message || 'Jadwal tidak dapat dihapus.', 'error');
+        button.disabled = false;
+      }
+    }
+    function render() {
+      if (!editorTripId) return;
+      const item = trips.find((trip) => trip.id === editorTripId);
+      list.replaceChildren();
+      if (!item) {
+        const empty = document.createElement('p');
+        empty.className = 'empty';
+        empty.textContent = 'Trip tidak ditemukan atau sudah diarsipkan.';
+        list.append(empty);
+        return;
+      }
+      if (!tripForm.elements.id.value) editTrip(item);
+      document.getElementById('package-page-title').textContent = item.name;
+      tripSelect.replaceChildren(new Option(item.name, item.id));
+      tripSelect.value = item.id;
+      if (publicTripLink) {
+        publicTripLink.href = `/trip/${item.slug}`;
+        publicTripLink.hidden = false;
+      }
+      if (scheduleStepStatus)
+        scheduleStepStatus.textContent = item.departures.length
+          ? `${item.departures.length} jadwal tersimpan`
+          : 'Belum ada jadwal';
+      const schedules = document.createElement('ul');
+      schedules.className = 'schedules';
+      if (!item.departures.length) {
+        const row = document.createElement('li');
+        row.textContent =
+          'Belum ada keberangkatan. Pilih Tambah jadwal untuk memulai.';
+        schedules.append(row);
+      }
+      for (const schedule of item.departures) {
+        const row = document.createElement('li');
+        const info = document.createElement('span');
+        info.className = 'schedule-list-copy';
+        const title = document.createElement('strong');
+        title.textContent = dateFormat.format(new Date(schedule.startAt));
+        const meta = document.createElement('small');
+        meta.textContent = `Sampai ${dateFormat.format(new Date(schedule.endAt))} · Paket v${schedule.tripVersionNumber}${schedule.itineraryOverride ? ' · itinerary khusus' : ''} · ${schedule.capacity} pax · ${schedule.minimumPickupPrice ? `mulai Rp${formatMoney.format(schedule.minimumPickupPrice)}/pax` : 'Harga meeting point belum diatur'}`;
+        info.append(title, meta);
+        const status = document.createElement('span');
+        status.className = `state ${schedule.publicationState}`;
+        status.textContent = { draft: 'Draft', open: 'Buka', closed: 'Tutup' }[
+          schedule.publicationState
+        ];
+        const operateSchedule = document.createElement('a');
+        operateSchedule.className = 'button-link';
+        operateSchedule.href = `/admin/departures/${schedule.id}`;
+        operateSchedule.textContent = 'Kelola jadwal';
+        const editSchedule = document.createElement('button');
+        editSchedule.type = 'button';
+        editSchedule.textContent = 'Edit jadwal';
+        editSchedule.onclick = () => editDeparture(item, schedule);
+        const removeSchedule = document.createElement('button');
+        removeSchedule.type = 'button';
+        removeSchedule.className = 'danger-button';
+        removeSchedule.textContent = 'Hapus jadwal';
+        if (schedule.canDelete === false) {
+          removeSchedule.disabled = true;
+          removeSchedule.title = schedule.deleteReason;
+          removeSchedule.setAttribute(
+            'aria-label',
+            `Jadwal tidak dapat dihapus: ${schedule.deleteReason}`,
+          );
+        }
+        removeSchedule.onclick = () =>
+          deleteDeparture(item, schedule, removeSchedule);
+        const more = document.createElement('details');
+        more.className = 'schedule-more';
+        const moreLabel = document.createElement('summary');
+        moreLabel.textContent = 'Lainnya';
+        more.append(moreLabel, editSchedule, removeSchedule);
+        row.append(info, status, operateSchedule, more);
+        if (schedule.canDelete === false) {
+          const reason = document.createElement('span');
+          reason.className = 'action-unavailable';
+          reason.textContent = schedule.deleteReason;
+          more.append(reason);
+        }
+        schedules.append(row);
+      }
+      list.append(schedules);
+    }
+    async function load() {
+      loading.textContent = 'Memuat…';
+      list.setAttribute('aria-busy', 'true');
+      try {
+        const response = await fetch('/api/admin/trips');
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.message);
+        trips = data.trips;
+        render();
+        loading.textContent = editorTripId ? 'Siap dikelola' : '';
+      } catch (error) {
+        loading.textContent = 'Gagal dimuat';
+        showNotice(error.message || 'Gagal memuat data trip.', 'error');
+      } finally {
+        list.setAttribute('aria-busy', 'false');
+      }
+    }
+    tripForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const submit = event.currentTarget.querySelector('button[type="submit"]');
+      submit.disabled = true;
+      try {
+        const id = tripForm.elements.id.value;
+        await uploadSelectedCover();
+        const saved = await save(
+          '/api/admin/trips',
+          id ? 'PATCH' : 'POST',
+          tripPayload(),
+        );
+        if (!id) {
+          try {
+            sessionStorage.setItem(
+              'lebihjauh-admin-notification',
+              JSON.stringify({
+                message:
+                  'Trip dibuat. Sekarang tambahkan jadwal keberangkatan pertamanya.',
+                type: 'success',
+              }),
+            );
+          } catch {
+            // Redirect tetap berjalan bila storage browser tidak tersedia.
+          }
+          window.location.href = `/admin/trips/${saved.trip.id}`;
+          return;
+        }
+        const updatedScheduleCount = Number(saved.updatedScheduleCount || 0);
+        showNotice(
+          updatedScheduleCount
+            ? `Versi paket ${saved.version.version} dibuat dan ${updatedScheduleCount} jadwal tanpa booking diperbarui.`
+            : `Versi paket ${saved.version.version} dibuat. Jadwal dengan booking tetap memakai versi sebelumnya.`,
+        );
+        resetTrip();
+        await load();
+      } catch (error) {
+        showNotice(error.message, 'error');
+      } finally {
+        submit.disabled = false;
+      }
+    });
+    pickupMasterForm?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      if (!pickupMasterForm.reportValidity()) return;
+      const submit = pickupMasterForm.querySelector('button[type="submit"]');
+      submit.disabled = true;
+      try {
+        const data = Object.fromEntries(
+          new FormData(pickupMasterForm).entries(),
+        );
+        const id = data.id;
+        await save(
+          `/api/admin/trips/${editorTripId}/pickup-points`,
+          id ? 'PATCH' : 'POST',
+          data,
+        );
+        showNotice(
+          id ? 'Titik jemput diperbarui.' : 'Titik jemput ditambahkan.',
+        );
+        resetPickupMaster();
+        await loadPickupMasters();
+      } catch (error) {
+        showNotice(
+          error.message || 'Titik jemput belum dapat disimpan.',
+          'error',
+        );
+      } finally {
+        submit.disabled = false;
+      }
+    });
+    cancelPickupMaster?.addEventListener('click', () => {
+      pickupMasterForm.hidden = true;
+    });
+    document
+      .getElementById('add-pickup-master')
+      ?.addEventListener('click', () => {
+        pickupMasterForm.hidden = false;
+        pickupMasterForm.elements.zoneName.focus();
+      });
+    initialPickupSelect.addEventListener('change', syncInitialPickup);
+    document
+      .getElementById('go-to-pickups')
+      .addEventListener('click', () => selectSection('pickups'));
+    document.getElementById('add-departure').addEventListener('click', () => {
+      if (departureForm.elements.id.value) {
+        rememberScheduleDraft();
+        resetDeparture();
+        restoreScheduleDraft('');
+      }
+      openDepartureEditor();
+    });
+    departureForm.addEventListener('input', syncPolicySummary);
+    // Reveal invalid fields before native validation moves focus into them.
+    for (const form of [tripForm, departureForm])
+      form.addEventListener(
+        'invalid',
+        (event) => {
+          let group = event.target.closest('details');
+          while (group) {
+            group.open = true;
+            group = group.parentElement.closest('details');
+          }
+        },
+        true,
+      );
+    departureForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const submit = event.currentTarget.querySelector('button[type="submit"]');
+      submit.disabled = true;
+      try {
+        const id = departureForm.elements.id.value;
+        const payload = departurePayload(departureForm);
+        const itineraryChanged =
+          activeSchedule &&
+          (JSON.stringify(activeSchedule.itineraryOverride ?? null) !==
+            JSON.stringify(
+              scheduleItineraryToggle.checked ? scheduleItineraryStages : null,
+            ) ||
+            departureForm.elements.useLatestTripVersion.checked);
+        if (itineraryChanged && activeSchedule.orderCount > 0) {
+          const approved = await window.adminConfirm({
+            title: 'Ubah itinerary jadwal berisi booking?',
+            message: `Ada ${activeSchedule.orderCount} booking pada jadwal ini. Booking lama tetap memakai snapshot sebelumnya; perubahan hanya berlaku untuk tampilan dan booking berikutnya.`,
+            confirmLabel: 'Ya, terapkan perubahan',
+          });
+          if (!approved) return;
+          payload.confirmBookedItineraryChange = true;
+        }
+        await save('/api/admin/departures', id ? 'PATCH' : 'POST', payload);
+        showNotice(id ? 'Jadwal diperbarui.' : 'Jadwal disimpan.');
+        scheduleDrafts.delete(id);
+        resetDeparture();
+        departureEditorOpen = false;
+        selectSection('schedules');
+        await load();
+      } catch (error) {
+        showNotice(error.message, 'error');
+      } finally {
+        submit.disabled = false;
+      }
+    });
+    document.getElementById('new-departure').onclick = () => {
+      departureEditorOpen = false;
+      selectSection('schedules');
+    };
+    document.getElementById('add-itinerary-stage').onclick = () => {
+      itineraryStages.push(
+        cleanItineraryStage({
+          day: `Hari ${itineraryStages.length + 1}`,
+          activities: [{ time: '', activity: '', location: '' }],
+        }),
+      );
+      renderItineraryStages();
+      itineraryStagesElement.lastElementChild?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'nearest',
+      });
+    };
+    scheduleItineraryToggle.addEventListener(
+      'change',
+      syncScheduleItineraryMode,
+    );
+    document.getElementById('copy-core-itinerary').onclick = () => {
+      setScheduleItineraryStages(itineraryStages);
+    };
+    document.getElementById('add-schedule-itinerary-stage').onclick = () => {
+      scheduleItineraryStages.push(
+        cleanItineraryStage({
+          day: `Hari ${scheduleItineraryStages.length + 1}`,
+          activities: [{ time: '', activity: '', location: '' }],
+        }),
+      );
+      renderScheduleItineraryStages();
+      scheduleItineraryStagesElement.lastElementChild?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'nearest',
+      });
+    };
+    coverFileInput.addEventListener('change', () => {
+      try {
+        chooseCover(coverFileInput.files?.[0]);
+      } catch (error) {
+        clearCoverPreview();
+        showNotice(error.message, 'error');
+      }
+    });
+    document.getElementById('remove-cover').onclick = () =>
+      clearCoverPreview(true);
+    tripForm.elements.name.addEventListener('input', syncSlug);
+    categorySelect.addEventListener('change', () => syncCategory());
+    for (const [select, defaultValue] of [
+      [departureForm.elements.startTime, '08:00'],
+      [departureForm.elements.endTime, '17:00'],
+      [departureForm.elements.bookingCutoffTime, '20:00'],
+      [departureForm.elements.balanceDueTime, ''],
+    ])
+      setTimeOptions(select, defaultValue);
+    departureForm.elements.startDate.addEventListener(
+      'change',
+      setDepartureDefaults,
+    );
+    departureForm.elements.startTime.addEventListener('change', () => {
+      if (endIsAutomatic) applyDuration(selectedDurationDays);
+      syncScheduleSummary();
+    });
+    for (const field of ['endDate', 'endTime']) {
+      departureForm.elements[field].addEventListener('change', () => {
+        endIsAutomatic = false;
+        syncScheduleSummary();
+      });
+    }
+    for (const field of ['bookingCutoffDate', 'bookingCutoffTime']) {
+      departureForm.elements[field].addEventListener('change', () => {
+        cutoffIsAutomatic = false;
+        syncScheduleSummary();
+      });
+    }
+    for (const field of ['balanceDueDate', 'balanceDueTime']) {
+      departureForm.elements[field].addEventListener('change', () => {
+        syncScheduleSummary();
+      });
+    }
+    syncSlug();
+    syncCategory();
+    setItineraryStages([]);
+    setScheduleItineraryStages([]);
+    syncScheduleItineraryMode();
+    syncScheduleSummary();
+    syncPickupMode();
+    const requestedSection = location.hash.slice(1);
+    selectSection(
+      ['package', 'pickups', 'schedules'].includes(requestedSection)
+        ? requestedSection
+        : 'schedules',
+      false,
+    );
+    load();
+    loadPickupMasters();
+  </script>
+  <script>
+    import {
+      bindRupiahInput,
+      rupiahDigits,
+      setRupiahInput,
+    } from '../scripts/money-input';
+
+    const form = document.querySelector<HTMLFormElement>('#departure-form');
+    const unitPrice = form?.elements.namedItem('unitPrice');
+    const dpValue = form?.elements.namedItem('dpValue');
+    const dpMode = form?.elements.namedItem('dpMode');
+    const isTextInput = (value: unknown): value is HTMLInputElement =>
+      value instanceof HTMLInputElement;
+    const isSelect = (value: unknown): value is HTMLSelectElement =>
+      value instanceof HTMLSelectElement;
+    if (isTextInput(unitPrice) && isTextInput(dpValue) && isSelect(dpMode)) {
+      const syncUnitPrice = bindRupiahInput(unitPrice);
+      const syncDpValue = bindRupiahInput(
+        dpValue,
+        () => dpMode.value === 'amount',
+      );
+      const syncDpMode = () => {
+        const nominal = dpMode.value === 'amount';
+        dpValue.placeholder = nominal ? 'Rp300.000' : '30';
+        dpValue.setAttribute(
+          'aria-label',
+          nominal
+            ? 'Nilai down payment dalam Rupiah'
+            : 'Nilai down payment dalam persen',
+        );
+        if (nominal) setRupiahInput(dpValue, dpValue.value);
+        else dpValue.value = rupiahDigits(dpValue.value);
+      };
+      dpMode.addEventListener('change', syncDpMode);
+      document.addEventListener('rupiah:sync', () => {
+        syncUnitPrice();
+        syncDpMode();
+        syncDpValue();
+      });
+      syncDpMode();
+    }
+  </script>
+</div>

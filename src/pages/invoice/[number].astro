@@ -1,0 +1,608 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import FileUploadControl from '../../components/FileUploadControl.astro';
+import SiteHeader from '../../components/SiteHeader.astro';
+import { getCookie, getGuestScope } from '../../lib/booking-security';
+import { getPublicInvoice } from '../../lib/booking-service';
+import { activePaymentMethods } from '../../lib/payment-methods';
+
+export const prerender = false;
+
+const number = Astro.params.number ?? '';
+const guest = getGuestScope(Astro.request);
+if (guest.setCookie)
+  Astro.response.headers.append('Set-Cookie', guest.setCookie);
+Astro.response.headers.set('Cache-Control', 'private, no-store');
+Astro.response.headers.set('Referrer-Policy', 'no-referrer');
+
+const invoice = await getPublicInvoice(
+  number,
+  guest.hash,
+  getCookie(Astro.request, 'lj_invoice_access'),
+);
+const paymentMethods = invoice?.canManage ? await activePaymentMethods() : [];
+const money = new Intl.NumberFormat('id-ID');
+const when = new Intl.DateTimeFormat('id-ID', {
+  dateStyle: 'full',
+  timeStyle: 'short',
+  timeZone: 'Asia/Jakarta',
+});
+const snapshot = invoice?.packageSnapshot as
+  | {
+      tripName?: string;
+      startAt?: string;
+      endAt?: string;
+      meetingPoint?: string;
+      pickup?: {
+        zoneName?: string;
+        locationName?: string;
+        address?: string;
+        pickupAt?: string;
+        mapsUrl?: string | null;
+        instructions?: string;
+      };
+    }
+  | undefined;
+const isWaiting = invoice?.bookingState === 'awaiting_payment';
+const verifiedAmount = invoice ? BigInt(invoice.paymentSummary.verified) : 0n;
+const submittedAmount = invoice ? BigInt(invoice.paymentSummary.submitted) : 0n;
+const remainingAmount = invoice ? BigInt(invoice.total) - verifiedAmount : 0n;
+// Bukti yang sudah dikirim tetapi belum diperiksa tetap mengurangi batas
+// pengiriman, supaya total konfirmasi tidak pernah melewati nilai invoice.
+const paymentSubmitAvailable =
+  remainingAmount > submittedAmount ? remainingAmount - submittedAmount : 0n;
+const paymentState = invoice
+  ? verifiedAmount >= BigInt(invoice.total)
+    ? 'LUNAS'
+    : verifiedAmount >= BigInt(invoice.minimumDp)
+      ? 'DP TERVERIFIKASI'
+      : 'BELUM ADA PEMBAYARAN TERVERIFIKASI'
+  : '';
+const bookingWhatsApp = process.env.BOOKING_WHATSAPP_NUMBER?.replace(/\D/g, '');
+const paymentHelpHref =
+  bookingWhatsApp && invoice
+    ? `https://wa.me/${bookingWhatsApp}?text=${encodeURIComponent(
+        [
+          'Halo Admin LebihJauh, saya membutuhkan bantuan terkait pembayaran booking berikut.',
+          '',
+          `Nomor invoice: ${invoice.number}`,
+          `Trip: ${snapshot?.tripName ?? 'LebihJauh Open Trip'}`,
+          `Nama PIC: ${invoice.picName}`,
+          '',
+          'Kendala saya:',
+        ].join('\n'),
+      )}`
+    : null;
+---
+
+<Layout>
+  <SiteHeader active="trips" />
+  <main id="main" class="public-trip-page invoice-page">
+    <section class="section invoice-wrap">
+      {invoice ? (
+        <article class="invoice-card">
+          <header class="invoice-print-header" aria-hidden="true">
+            <div class="invoice-print-brand">
+              <img
+                src="/brand/logo-stacked-mono.svg"
+                alt="LebihJauh — Go Further."
+                width="170"
+                height="220"
+              />
+            </div>
+            <div>
+              <span>
+                {invoice.bookingSource === 'private_trip'
+                  ? 'INVOICE PRIVATE TRIP'
+                  : 'INVOICE OPEN TRIP'}
+              </span>
+              <strong>{invoice.number}</strong>
+            </div>
+          </header>
+          <div class="invoice-topline">
+            <p class="eyebrow">
+              <span></span> BOOKING BERHASIL DIBUAT
+            </p>
+            <span class:list={['invoice-state', { waiting: isWaiting }]}>
+              {isWaiting
+                ? 'MENUNGGU PEMBAYARAN'
+                : invoice.bookingState.replace('_', ' ')}
+            </span>
+          </div>
+          <h1>
+            Sampai
+            <br />
+            <span class="handwritten">ketemu di jalan.</span>
+          </h1>
+          <p class="invoice-intro">
+            Simpan nomor booking ini. Kursi baru teralokasi untuk rombonganmu
+            setelah pembayaran diverifikasi pada fase berikutnya.
+          </p>
+
+          <div class="invoice-number">
+            <span>Nomor invoice</span>
+            <strong>{invoice.number}</strong>
+            <button type="button" id="copy-invoice">
+              Salin nomor
+            </button>
+          </div>
+
+          <div class="invoice-grid">
+            <section>
+              <p class="eyebrow">DETAIL PERJALANAN</p>
+              <h2>{snapshot?.tripName ?? 'Trip LebihJauh'}</h2>
+              <dl class="invoice-details">
+                <div>
+                  <dt>Peserta</dt>
+                  <dd>{invoice.pax} orang</dd>
+                </div>
+                <div>
+                  <dt>Berangkat</dt>
+                  <dd>
+                    {snapshot?.startAt
+                      ? when.format(new Date(snapshot.startAt))
+                      : 'Menyusul'}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Meeting point</dt>
+                  <dd>
+                    {snapshot?.pickup?.locationName ??
+                      snapshot?.meetingPoint ??
+                      'Menyusul'}
+                  </dd>
+                </div>
+                {snapshot?.pickup?.pickupAt && (
+                  <div>
+                    <dt>Waktu kumpul</dt>
+                    <dd>{when.format(new Date(snapshot.pickup.pickupAt))}</dd>
+                  </div>
+                )}
+                <div>
+                  <dt>PIC</dt>
+                  <dd>{invoice.picName}</dd>
+                </div>
+                <div>
+                  <dt>WhatsApp</dt>
+                  <dd>{invoice.picWhatsApp}</dd>
+                </div>
+              </dl>
+            </section>
+            <section class="invoice-payment">
+              <p class="eyebrow">RINGKASAN PEMBAYARAN</p>
+              <div>
+                <span>Total pesanan</span>
+                <strong>Rp{money.format(Number(invoice.total))}</strong>
+              </div>
+              <div>
+                <span>Down payment minimum</span>
+                <strong>Rp{money.format(Number(invoice.minimumDp))}</strong>
+              </div>
+              <div>
+                <span>Sudah terverifikasi</span>
+                <strong>Rp{money.format(Number(verifiedAmount))}</strong>
+              </div>
+              <div>
+                <span>Sisa pembayaran</span>
+                <strong>Rp{money.format(Number(remainingAmount))}</strong>
+              </div>
+              <div>
+                <span>Status pembayaran</span>
+                <strong>{paymentState}</strong>
+              </div>
+              <p>
+                Invoice diterbitkan {when.format(invoice.issuedAt)}. Batas hold
+                kursi: <strong>{when.format(invoice.holdExpiresAt)}</strong>.
+              </p>
+            </section>
+          </div>
+          {snapshot?.pickup?.mapsUrl && (
+            <a
+              class="invoice-map-link"
+              href={snapshot.pickup.mapsUrl}
+              target="_blank"
+              rel="noopener"
+            >
+              Buka lokasi meeting point di peta ↗
+            </a>
+          )}
+          <aside class="invoice-security-note">
+            <strong>Data peserta tercatat aman.</strong> Setelah down payment
+            terverifikasi, setiap peserta akan menerima tautan privat untuk
+            melengkapi data keselamatan dan dokumen identitasnya.
+          </aside>
+          {remainingAmount > 0n &&
+            ['awaiting_payment', 'confirmed'].includes(
+              invoice.bookingState,
+            ) && (
+              <section
+                class="invoice-payment-next"
+                aria-labelledby="payment-next-title"
+              >
+                <div>
+                  <p class="eyebrow">04 / LANJUTKAN PEMBAYARAN</p>
+                  <h2 id="payment-next-title">
+                    Pilih metode, lalu kirim bukti.
+                  </h2>
+                  <p>
+                    Lihat rekening, e-wallet, atau QRIS yang tersedia. Transfer
+                    sesuai nominal invoice, lalu unggah bukti pada form di
+                    bawah. Admin akan mencocokkan mutasi sebelum status
+                    pembayaran berubah.
+                  </p>
+                </div>
+                <div class="invoice-payment-next-actions">
+                  <a class="button button-dark" href="/pembayaran">
+                    Lihat metode pembayaran ↗
+                  </a>
+                  {paymentHelpHref && (
+                    <a
+                      class="button button-outline"
+                      href={paymentHelpHref}
+                      target="_blank"
+                      rel="noopener"
+                    >
+                      Hubungi admin via WhatsApp ↗
+                    </a>
+                  )}
+                </div>
+                <p class="invoice-payment-help">
+                  Kirim bukti lewat form ini agar tercatat. WhatsApp dipakai
+                  bila ada kendala atau perlu berbicara dengan admin.
+                </p>
+                {submittedAmount > 0n && (
+                  <p class="invoice-payment-pending">
+                    Rp{money.format(Number(submittedAmount))} dari bukti yang
+                    dikirim masih menunggu verifikasi admin.
+                  </p>
+                )}
+                {paymentSubmitAvailable > 0n && paymentMethods.length > 0 && (
+                  <form id="buyer-payment-form" class="buyer-payment-form">
+                    <p class="eyebrow">KONFIRMASI TRANSFER</p>
+                    <h3>Sudah melakukan pembayaran?</h3>
+                    <p>
+                      Unggah bukti transfer di sini. Admin akan mencocokkan
+                      mutasi sebelum pembayaran dihitung.
+                    </p>
+                    <label>
+                      Metode pembayaran
+                      <select name="paymentMethodId" required>
+                        {paymentMethods.map((method) => (
+                          <option value={method.id}>
+                            {method.name} · {method.kind.replace('_', ' ')}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <div class="form-two-columns">
+                      <label>
+                        Nominal transfer
+                        <input
+                          name="amount"
+                          inputmode="numeric"
+                          autocomplete="off"
+                          value={`Rp${money.format(Number(paymentSubmitAvailable))}`}
+                          aria-describedby="buyer-payment-amount-note"
+                          required
+                        />
+                        <small
+                          id="buyer-payment-amount-note"
+                          class="field-note"
+                        >
+                          Maksimal Rp
+                          {money.format(Number(paymentSubmitAvailable))}.
+                          Nominal tidak dapat melebihi sisa tagihan.
+                        </small>
+                      </label>
+                      <label>
+                        Tanggal dan waktu transfer
+                        <input
+                          name="reportedTransferAt"
+                          type="datetime-local"
+                          required
+                        />
+                        <small class="field-note">
+                          Digunakan admin untuk mencari mutasi. Waktu final
+                          tetap mengikuti rekening penerima.
+                        </small>
+                      </label>
+                      <label>
+                        Referensi transfer
+                        <input
+                          name="reference"
+                          maxlength="500"
+                          placeholder="Nama pengirim / kode mutasi"
+                          required
+                        />
+                      </label>
+                    </div>
+                    <div class="buyer-payment-proof-field">
+                      <span class="form-label">Bukti pembayaran</span>
+                      <FileUploadControl
+                        id="buyer-payment-proof"
+                        name="proof"
+                        title="Unggah bukti transfer"
+                        hint="Foto atau tangkapan layar mutasi · JPEG, PNG, atau WebP · maksimal 8 MB"
+                        accept="image/jpeg,image/png,image/webp"
+                        icon="receipt"
+                        size="compact"
+                        actionLabel="Pilih bukti"
+                        required
+                      />
+                    </div>
+                    <div
+                      id="buyer-payment-preview"
+                      class="buyer-payment-preview"
+                      hidden
+                    >
+                      <img alt="Pratinjau bukti pembayaran" />
+                      <div>
+                        <strong></strong>
+                        <span></span>
+                      </div>
+                      <button
+                        id="remove-buyer-payment-proof"
+                        class="button-link"
+                        type="button"
+                      >
+                        Hapus
+                      </button>
+                    </div>
+                    <p
+                      id="buyer-payment-error"
+                      class="booking-error"
+                      role="alert"
+                      hidden
+                    ></p>
+                    <p
+                      id="buyer-payment-success"
+                      class="participant-data-success"
+                      role="status"
+                      hidden
+                    ></p>
+                    <button class="button button-orange" type="submit">
+                      Kirim bukti pembayaran ↗
+                    </button>
+                  </form>
+                )}
+                {paymentSubmitAvailable === 0n && submittedAmount > 0n && (
+                  <p class="invoice-payment-waiting">
+                    Bukti pembayaran sudah mencakup sisa tagihan. Tunggu
+                    verifikasi admin sebelum mengirim bukti tambahan.
+                  </p>
+                )}
+              </section>
+            )}
+          <div class="invoice-actions">
+            <a
+              class="button button-outline"
+              href={`/rundown/${invoice.number}`}
+            >
+              Rundown perjalanan
+            </a>
+            <a class="button button-dark" href="/trip">
+              Lihat trip lain
+            </a>
+            <button
+              id="print-invoice"
+              class="button button-outline"
+              type="button"
+            >
+              Cetak / simpan PDF
+            </button>
+          </div>
+          <footer class="invoice-print-footer" aria-hidden="true">
+            <span>LebihJauh · Dokumen booking</span>
+            <span>Disimpan langsung dari halaman invoice</span>
+          </footer>
+        </article>
+      ) : (
+        <article
+          id="invoice-unavailable"
+          class="invoice-card invoice-unavailable"
+        >
+          <p class="eyebrow">INVOICE TIDAK DITEMUKAN</p>
+          <h1>
+            Cek lagi
+            <br />
+            <span class="handwritten">nomornya.</span>
+          </h1>
+          <p id="invoice-unavailable-message">
+            Invoice dengan nomor ini tidak ditemukan. Periksa kembali nomor
+            booking yang kamu terima.
+          </p>
+          <div class="invoice-actions">
+            <a class="button button-dark" href="/cek-booking">
+              Cek booking
+            </a>
+            <a class="button button-outline" href="/trip">
+              Kembali ke katalog
+            </a>
+          </div>
+        </article>
+      )}
+    </section>
+  </main>
+  <script
+    is:inline
+    define:vars={{
+      invoiceNumber: invoice?.number ?? '',
+      paymentMaximum: paymentSubmitAvailable.toString(),
+    }}
+  >
+    const fragment = new URLSearchParams(window.location.hash.slice(1));
+    const accessToken = fragment.get('access');
+    if (accessToken) {
+      const message = document.querySelector('#invoice-unavailable-message');
+      if (message) message.textContent = 'Memverifikasi tautan invoice…';
+      fetch('/api/invoice-access/exchange', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: accessToken }),
+      })
+        .then(async (response) => {
+          const result = await response.json();
+          if (!response.ok) throw new Error(result.message);
+          history.replaceState({}, '', window.location.pathname);
+          window.location.replace(result.invoicePath);
+        })
+        .catch((error) => {
+          if (message)
+            message.textContent =
+              error.message || 'Tautan invoice tidak berlaku.';
+        });
+    }
+    document
+      .querySelector('#copy-invoice')
+      ?.addEventListener('click', async () => {
+        const value =
+          document.querySelector('.invoice-number strong')?.textContent ?? '';
+        await navigator.clipboard?.writeText(value);
+        const button = document.querySelector('#copy-invoice');
+        if (button) button.textContent = 'Tersalin';
+      });
+    document
+      .querySelector('#print-invoice')
+      ?.addEventListener('click', () => window.print());
+    const buyerForm = document.querySelector('#buyer-payment-form');
+    const reportedTransferAt =
+      buyerForm?.elements.namedItem('reportedTransferAt');
+    if (reportedTransferAt && !reportedTransferAt.value) {
+      const localNow = new Date(Date.now() + 7 * 60 * 60 * 1000);
+      reportedTransferAt.value = localNow.toISOString().slice(0, 16);
+    }
+    const buyerProof = document.querySelector('#buyer-payment-proof');
+    const buyerPreview = document.querySelector('#buyer-payment-preview');
+    const buyerPreviewImage = buyerPreview?.querySelector('img');
+    const buyerPreviewName = buyerPreview?.querySelector('strong');
+    const buyerPreviewSize = buyerPreview?.querySelector('span');
+    const buyerError = document.querySelector('#buyer-payment-error');
+    const buyerSuccess = document.querySelector('#buyer-payment-success');
+    const buyerAmount = buyerForm?.elements.namedItem('amount');
+    const buyerMaximum = BigInt(paymentMaximum || '0');
+    const formatBuyerRupiah = (amount) =>
+      `Rp${new Intl.NumberFormat('id-ID').format(amount)}`;
+    let buyerProofUrl = null;
+    const showBuyerError = (message = '') => {
+      if (!buyerError) return;
+      buyerError.textContent = message;
+      buyerError.hidden = !message;
+    };
+    const clearBuyerProof = (clearInput = true) => {
+      if (buyerProofUrl) URL.revokeObjectURL(buyerProofUrl);
+      buyerProofUrl = null;
+      if (clearInput && buyerProof) buyerProof.value = '';
+      if (buyerPreview) buyerPreview.hidden = true;
+    };
+    buyerAmount?.addEventListener('input', () => {
+      const digits = buyerAmount.value.replace(/\D/g, '');
+      if (!digits) {
+        buyerAmount.value = '';
+        return;
+      }
+      const entered = BigInt(digits);
+      buyerAmount.value = formatBuyerRupiah(
+        entered > buyerMaximum ? buyerMaximum : entered,
+      );
+      if (entered > buyerMaximum) {
+        showBuyerError(
+          `Nominal otomatis dibatasi ke sisa tagihan: ${formatBuyerRupiah(buyerMaximum)}.`,
+        );
+      } else {
+        showBuyerError();
+      }
+    });
+    buyerProof?.addEventListener('change', () => {
+      showBuyerError();
+      const file = buyerProof.files?.[0];
+      clearBuyerProof(false);
+      if (!file) return;
+      if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+        return showBuyerError(
+          'Bukti pembayaran harus berupa JPEG, PNG, atau WebP.',
+        );
+      }
+      if (file.size < 1 || file.size > 8 * 1024 * 1024) {
+        return showBuyerError('Ukuran bukti pembayaran maksimal 8 MB.');
+      }
+      buyerProofUrl = URL.createObjectURL(file);
+      buyerPreviewImage.src = buyerProofUrl;
+      buyerPreviewName.textContent = file.name;
+      buyerPreviewSize.textContent =
+        file.size < 1024 * 1024
+          ? `${Math.ceil(file.size / 1024)} KB`
+          : `${(file.size / (1024 * 1024)).toFixed(1)} MB`;
+      buyerPreview.hidden = false;
+    });
+    document
+      .querySelector('#remove-buyer-payment-proof')
+      ?.addEventListener('click', clearBuyerProof);
+    buyerForm?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      showBuyerError();
+      if (buyerSuccess) buyerSuccess.hidden = true;
+      if (!buyerForm.reportValidity()) return;
+      const formData = new FormData(buyerForm);
+      const submittedAmount = String(formData.get('amount') ?? '').replace(
+        /\D/g,
+        '',
+      );
+      if (!submittedAmount || BigInt(submittedAmount) > buyerMaximum) {
+        return showBuyerError(
+          `Nominal maksimal yang dapat dikirim adalah ${formatBuyerRupiah(buyerMaximum)}.`,
+        );
+      }
+      const file = formData.get('proof');
+      if (!(file instanceof File) || !file.size) {
+        return showBuyerError('Pilih bukti pembayaran terlebih dahulu.');
+      }
+      const submit = buyerForm.querySelector('button[type="submit"]');
+      submit.disabled = true;
+      try {
+        const prepared = await fetch('/api/payment-proofs/presign', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            invoiceNumber,
+            fileName: file.name,
+            contentType: file.type,
+            size: file.size,
+          }),
+        });
+        const preparedResult = await prepared.json();
+        if (!prepared.ok) throw new Error(preparedResult.message);
+        const upload = preparedResult.upload;
+        const put = await fetch(upload.uploadUrl, {
+          method: 'PUT',
+          headers: { 'Content-Type': upload.contentType },
+          body: file,
+        });
+        if (!put.ok)
+          throw new Error('Bukti pembayaran belum dapat diunggah. Coba lagi.');
+        const response = await fetch('/api/payments', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            invoiceNumber,
+            paymentMethodId: formData.get('paymentMethodId'),
+            amount: submittedAmount,
+            reportedTransferAt: formData.get('reportedTransferAt'),
+            reference: formData.get('reference'),
+            proofObjectKey: upload.objectKey,
+          }),
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.message);
+        buyerSuccess.textContent =
+          'Bukti pembayaran sudah dikirim dan menunggu verifikasi admin.';
+        buyerSuccess.hidden = false;
+        submit.textContent = 'Bukti sudah dikirim';
+      } catch (paymentError) {
+        showBuyerError(
+          paymentError.message || 'Konfirmasi transfer belum dapat dikirim.',
+        );
+        submit.disabled = false;
+      }
+    });
+  </script>
+</Layout>

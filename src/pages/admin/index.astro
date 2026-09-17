@@ -1,0 +1,97 @@
+---
+import AdminLayout from '../../layouts/AdminLayout.astro';
+const user = Astro.locals.user;
+const upcoming = [
+  {
+    name: 'Booking & order',
+    description: 'Pesanan, detail peserta, dan invoice dalam satu tempat.',
+  },
+  {
+    name: 'Pembayaran',
+    description: 'Pemeriksaan transfer, down payment, dan pelunasan.',
+  },
+  {
+    name: 'Private Trip',
+    description: 'Request perjalanan, penawaran, dan kesepakatan rombongan.',
+  },
+  {
+    name: 'Konten & galeri',
+    description: 'Foto perjalanan, cerita, dan kabar terbaru.',
+  },
+];
+---
+
+<AdminLayout title="Dashboard" active="dashboard">
+  <div class="page-title">
+    <div>
+      <p class="eyebrow">00 / RUANG KELOLA PERJALANAN</p>
+      <h1>
+        Perjalanan baik.
+        <br />
+        Dimulai dari sini.
+      </h1>
+      <p class="muted">
+        Selamat datang, {user?.name ?? 'Admin'}. Siapkan cerita perjalanan
+        berikutnya.
+      </p>
+    </div>
+    <span class="stamp" aria-hidden="true">
+      PLAN IT.
+      <br />
+      MAKE IT HAPPEN. ↗
+    </span>
+  </div>
+  <div class="layout">
+    <section class="panel dashboard-feature">
+      <div class="panel-head">
+        <h2>Trip &amp; jadwal</h2>
+        <span class="pill olive">Tersedia</span>
+      </div>
+      <p>
+        Kelola cerita, fasilitas, dan keberangkatan. Satu paket bisa punya
+        banyak jadwal dengan harga, kuota, dan aturan down payment
+        masing-masing.
+      </p>
+      <a class="primary" href="/admin/trips">
+        Kelola trip &amp; jadwal <span aria-hidden="true">↗</span>
+      </a>
+    </section>
+    <section class="panel">
+      <p class="eyebrow">DARI RENCANA KE PERJALANAN</p>
+      <h2>Siapkan tiga hal ini.</h2>
+      <ol class="dashboard-steps">
+        <li>
+          <div>
+            <strong>Ceritakan paketnya</strong>
+            <p>Isi deskripsi, foto, fasilitas, dan itinerary.</p>
+          </div>
+        </li>
+        <li>
+          <div>
+            <strong>Atur keberangkatannya</strong>
+            <p>Tentukan tanggal, harga, kuota, dan tenggat.</p>
+          </div>
+        </li>
+        <li>
+          <div>
+            <strong>Periksa sebelum dibuka</strong>
+            <p>Pastikan detail dan ketentuan siap untuk peserta.</p>
+          </div>
+        </li>
+      </ol>
+    </section>
+  </div>
+  <section aria-labelledby="upcoming-title" class="list-panel">
+    <p class="eyebrow">RUANG YANG AKAN DATANG</p>
+    <h2 id="upcoming-title">Satu tempat untuk mengelola semuanya.</h2>
+    <div class="upcoming-grid">
+      {upcoming.map((item) => (
+        <article class="panel">
+          <span class="pill">Segera hadir</span>
+          <h3>{item.name}</h3>
+          <p class="muted">{item.description}</p>
+        </article>
+      ))}
+    </div>
+  </section>
+</AdminLayout>

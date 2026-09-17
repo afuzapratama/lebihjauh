@@ -1,0 +1,644 @@
+---
+import AdminLayout from '../../../../../layouts/AdminLayout.astro';
+import { getPrivateConversionContext } from '../../../../../lib/private-trip-service';
+
+export const prerender = false;
+
+const requestId = Astro.params.id ?? '';
+const offerId = Astro.params.offerId ?? '';
+const context =
+  /^[0-9a-f-]{36}$/i.test(requestId) && /^[0-9a-f-]{36}$/i.test(offerId)
+    ? await getPrivateConversionContext(requestId, offerId)
+    : null;
+if (!context) Astro.response.status = 404;
+
+const money = new Intl.NumberFormat('id-ID');
+const date = new Intl.DateTimeFormat('id-ID', {
+  dateStyle: 'full',
+  timeStyle: 'short',
+  timeZone: 'Asia/Jakarta',
+});
+const draftByPosition = new Map(
+  context?.draft?.participants.map((participant) => [
+    participant.position,
+    participant,
+  ]) ?? [],
+);
+const initialPicIsParticipant = context?.draft?.picIsParticipant ?? true;
+---
+
+<AdminLayout
+  title={
+    context
+      ? `Booking private ${context.request.publicNumber}`
+      : 'Penawaran tidak ditemukan'
+  }
+  active="privateTrips"
+>
+  {context ? (
+    <>
+      <div class="page-title private-convert-title">
+        <div>
+          <a
+            class="back-link"
+            href={`/admin/private-trips/${context.request.id}`}
+          >
+            ← Kembali ke detail Private Trip
+          </a>
+          <p class="eyebrow">04 / BUAT BOOKING PRIVATE</p>
+          <h1>Siapkan rombongannya.</h1>
+          <p class="muted">
+            Booking dan invoice baru dibuat setelah manifest lengkap
+            dikonfirmasi.
+          </p>
+        </div>
+      </div>
+
+      <div class="private-convert-layout">
+        <form id="private-convert-page-form" class="private-convert-form">
+          <section class="panel">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">01 / MANIFEST PESERTA</p>
+                <h2>Nama sesuai identitas.</h2>
+              </div>
+              <span class="pill olive">{context.offer.pax} peserta</span>
+            </div>
+            <p class="muted">
+              PIC adalah kontak penanggung jawab dan dapat dipilih ikut atau
+              tidak ikut sebagai peserta. Di tahap ini nama roster sudah cukup;
+              data identitas lengkap dikumpulkan melalui tautan peserta setelah
+              down payment terverifikasi.
+            </p>
+            {context.draft && (
+              <p class="notice" data-type="success" role="status">
+                Draf manifest tersimpan {date.format(context.draft.updatedAt)}.
+                Identitas lama yang sudah tersimpan tetap aman; biarkan kolom
+                kosong bila data akan dilengkapi peserta setelah pembayaran.
+              </p>
+            )}
+            <label class="private-pic-choice">
+              <input
+                id="private-pic-is-participant"
+                name="picIsParticipant"
+                type="checkbox"
+                checked={initialPicIsParticipant}
+              />
+              <span>
+                <strong>PIC ikut sebagai peserta 01</strong>
+                <small>
+                  Matikan bila partner, panitia, atau teman hanya mendaftarkan
+                  rombongan dan tidak ikut berangkat.
+                </small>
+              </span>
+            </label>
+            <div class="private-convert-page-participants">
+              {Array.from({ length: context.offer.pax }, (_, index) => {
+                const position = index + 1;
+                const saved = draftByPosition.get(position);
+                const isFirstParticipant = index === 0;
+                return (
+                  <article
+                    class="private-convert-page-participant"
+                    data-position={position}
+                    data-has-draft={saved ? 'true' : 'false'}
+                    data-saved-name={saved?.fullName ?? ''}
+                  >
+                    <strong data-participant-label>
+                      {String(position).padStart(2, '0')}{' '}
+                      {isFirstParticipant && initialPicIsParticipant
+                        ? '· PIC'
+                        : '· PESERTA'}
+                    </strong>
+                    <label>
+                      Nama lengkap sesuai identitas
+                      <input
+                        name="fullName"
+                        maxlength="120"
+                        required
+                        readonly={isFirstParticipant && initialPicIsParticipant}
+                        value={
+                          saved?.fullName ??
+                          (isFirstParticipant && initialPicIsParticipant
+                            ? context.request.picName
+                            : '')
+                        }
+                      />
+                    </label>
+                    <small>
+                      No Identitas dan dokumen dapat dilengkapi peserta melalui
+                      tautan privat setelah down payment.
+                    </small>
+                  </article>
+                );
+              })}
+            </div>
+          </section>
+
+          <section class="panel private-convert-confirmation">
+            <p class="eyebrow">02 / KONFIRMASI DATA</p>
+            <h2>Periksa sekali lagi.</h2>
+            <label class="private-check">
+              <input name="identityConfirmed" type="checkbox" required />{' '}
+              <span>
+                Saya memastikan nama peserta telah dicocokkan dengan data yang
+                diberikan PIC. No Identitas dan dokumen akan dilengkapi peserta
+                melalui tautan privat.
+              </span>
+            </label>
+            <label class="private-check">
+              <input name="participantConsent" type="checkbox" required />{' '}
+              <span>
+                PIC telah memberi persetujuan untuk mendaftarkan seluruh peserta
+                pada perjalanan ini.
+              </span>
+            </label>
+            <p id="private-convert-page-error" class="error-msg" hidden></p>
+            <div class="private-convert-page-actions">
+              <button
+                id="save-private-manifest-draft"
+                class="button-link"
+                type="button"
+              >
+                Simpan draf manifest
+              </button>
+              {context.draft && (
+                <button
+                  id="discard-private-manifest-draft"
+                  class="quiet-button"
+                  type="button"
+                >
+                  Buang draf
+                </button>
+              )}
+              <button class="primary" type="submit">
+                Buat booking & invoice ↗
+              </button>
+            </div>
+          </section>
+        </form>
+
+        <aside class="private-convert-summary">
+          <section class="panel">
+            <p class="eyebrow">RINGKASAN PENAWARAN</p>
+            <h2>{context.offer.title}</h2>
+            <dl>
+              <div>
+                <dt>REFERENSI PRIVATE</dt>
+                <dd>{context.request.publicNumber}</dd>
+              </div>
+              <div>
+                <dt>JADWAL</dt>
+                <dd>
+                  {date.format(context.offer.startAt)}
+                  <br />
+                  sampai {date.format(context.offer.endAt)}
+                </dd>
+              </div>
+              <div>
+                <dt>PIC</dt>
+                <dd>
+                  {context.request.picName}
+                  <br />
+                  {context.request.picWhatsApp}
+                </dd>
+              </div>
+              <div>
+                <dt>MEETING POINT</dt>
+                <dd>{context.offer.meetingPoint || 'Menyusul'}</dd>
+              </div>
+            </dl>
+          </section>
+          <section class="panel private-convert-money">
+            <p class="eyebrow">NILAI BOOKING</p>
+            <strong>
+              Rp
+              {money.format(
+                Number(
+                  BigInt(context.offer.unitPrice) * BigInt(context.offer.pax),
+                ),
+              )}
+            </strong>
+            <span>
+              {context.offer.pax} pax · Rp
+              {money.format(Number(context.offer.unitPrice))}/pax
+            </span>
+            <hr />
+            <p>Down payment minimum</p>
+            <strong>Rp{money.format(Number(context.offer.minimumDp))}</strong>
+            <small>
+              Invoice dan masa hold 24 jam baru diterbitkan saat tombol
+              konfirmasi akhir dipilih.
+            </small>
+          </section>
+        </aside>
+      </div>
+    </>
+  ) : (
+    <section class="panel">
+      <h1>Penawaran tidak tersedia untuk dikonversi.</h1>
+      <a class="primary" href="/admin/private-trips">
+        Kembali ke Private Trip
+      </a>
+    </section>
+  )}
+
+  {context && <script
+    is:inline
+    define:vars={{
+      offerId: context.offer.id,
+      requestPicName: context.request.picName,
+    }}
+  >
+    const form = document.querySelector('#private-convert-page-form');
+    const error = document.querySelector('#private-convert-page-error');
+    const picIsParticipant = document.querySelector(
+      '#private-pic-is-participant',
+    );
+    const participantRows = [
+      ...document.querySelectorAll('.private-convert-page-participant'),
+    ];
+    let dirty = false;
+    const showError = (message) => {
+      if (error) {
+        error.hidden = false;
+        error.textContent = message;
+      }
+      window.adminNotify({ type: 'error', message });
+    };
+    const normalizeName = (value) =>
+      value.trim().replace(/\s+/g, ' ').toLocaleLowerCase('id-ID');
+    const syncDraftState = (row) => {
+      const name = row.querySelector('[name="fullName"]');
+      const savedName = row.dataset.savedName || '';
+      const usesSavedIdentity =
+        Boolean(savedName) &&
+        normalizeName(name?.value || '') === normalizeName(savedName);
+      row.dataset.hasDraft = usesSavedIdentity ? 'true' : 'false';
+    };
+    const syncPicParticipant = () => {
+      const first = participantRows[0];
+      if (!first) return;
+      const name = first.querySelector('[name="fullName"]');
+      const label = first.querySelector('[data-participant-label]');
+      const participating = Boolean(picIsParticipant?.checked);
+      if (label)
+        label.textContent = `01 ${participating ? '· PIC' : '· PESERTA'}`;
+      if (name) {
+        name.readOnly = participating;
+        if (participating) name.value = requestPicName;
+      }
+      syncDraftState(first);
+    };
+    const participants = () => {
+      const data = participantRows.map((row) => ({
+        fullName: row.querySelector('[name="fullName"]')?.value.trim() ?? '',
+        hasDraft: row.dataset.hasDraft === 'true',
+      }));
+      const invalid = data.findIndex((person) => !person.fullName);
+      if (invalid >= 0) {
+        showError(`Nama peserta ${invalid + 1} wajib diisi.`);
+        participantRows[invalid]?.querySelector('[name="fullName"]')?.focus();
+        return null;
+      }
+      if (error) error.hidden = true;
+      return data.map(({ fullName }) => ({ fullName }));
+    };
+    form?.addEventListener('input', () => {
+      dirty = true;
+    });
+    participantRows.forEach((row) => {
+      row
+        .querySelector('[name="fullName"]')
+        ?.addEventListener('input', () => syncDraftState(row));
+    });
+    picIsParticipant?.addEventListener('change', () => {
+      dirty = true;
+      syncPicParticipant();
+    });
+    syncPicParticipant();
+    window.addEventListener('beforeunload', (event) => {
+      if (!dirty) return;
+      event.preventDefault();
+    });
+    document
+      .querySelector('#save-private-manifest-draft')
+      ?.addEventListener('click', async () => {
+        const data = participants();
+        if (!data) return;
+        const button = document.querySelector('#save-private-manifest-draft');
+        if (button) button.disabled = true;
+        try {
+          const response = await fetch(
+            '/api/admin/private-trips/manifest-draft',
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                offerId,
+                participants: data,
+                picIsParticipant: Boolean(picIsParticipant?.checked),
+              }),
+            },
+          );
+          const result = await response.json();
+          if (!response.ok) throw new Error(result.message);
+          dirty = false;
+          sessionStorage.setItem(
+            'lebihjauh-admin-notification',
+            JSON.stringify({
+              type: 'success',
+              message:
+                'Draf manifest tersimpan aman. Data identitas dilengkapi nanti oleh peserta.',
+            }),
+          );
+          location.reload();
+        } catch (reason) {
+          showError(reason.message || 'Draf manifest belum dapat disimpan.');
+          if (button) button.disabled = false;
+        }
+      });
+    document
+      .querySelector('#discard-private-manifest-draft')
+      ?.addEventListener('click', async () => {
+        if (
+          !(await window.adminConfirm({
+            title: 'Buang draf manifest?',
+            message:
+              'Nama peserta yang tersimpan pada draf akan dihapus. Booking dan penawaran tidak berubah.',
+            confirmLabel: 'Buang draf',
+            destructive: true,
+          }))
+        )
+          return;
+        try {
+          const response = await fetch(
+            '/api/admin/private-trips/manifest-draft',
+            {
+              method: 'DELETE',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ offerId }),
+            },
+          );
+          const result = await response.json();
+          if (!response.ok) throw new Error(result.message);
+          dirty = false;
+          sessionStorage.setItem(
+            'lebihjauh-admin-notification',
+            JSON.stringify({
+              type: 'success',
+              message: 'Draf manifest sudah dibuang.',
+            }),
+          );
+          location.reload();
+        } catch (reason) {
+          showError(reason.message || 'Draf manifest belum dapat dibuang.');
+        }
+      });
+    form?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const data = participants();
+      if (!data || !form.reportValidity()) return;
+      if (
+        !(await window.adminConfirm({
+          title: 'Buat booking dan invoice private?',
+          message:
+            'Sistem akan menerbitkan nomor booking, invoice, serta menahan seluruh kursi rombongan selama 24 jam. Pastikan manifest dan kesepakatan sudah benar.',
+          confirmLabel: 'Buat booking & invoice',
+          destructive: false,
+        }))
+      )
+        return;
+      const submit = form.querySelector('button[type="submit"]');
+      if (submit) submit.disabled = true;
+      try {
+        const response = await fetch('/api/admin/private-trips/convert', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            offerId,
+            participants: data,
+            picIsParticipant: Boolean(picIsParticipant?.checked),
+          }),
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.message);
+        dirty = false;
+        sessionStorage.setItem(
+          'lebihjauh-admin-notification',
+          JSON.stringify({
+            type: 'success',
+            message: `Booking ${result.booking.number} dan invoice berhasil dibuat.`,
+          }),
+        );
+        location.href = `/admin/orders/${result.booking.id}`;
+      } catch (reason) {
+        showError(reason.message || 'Booking private belum dapat dibuat.');
+        if (submit) submit.disabled = false;
+      }
+    });
+  </script>}
+</AdminLayout>
+
+<style>
+  .private-convert-title {
+    align-items: end;
+  }
+  .private-convert-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1.45fr) minmax(280px, 0.7fr);
+    gap: 25px;
+    align-items: start;
+  }
+  .private-convert-form {
+    display: grid;
+    gap: 25px;
+  }
+  .private-convert-page-participants {
+    display: grid;
+    gap: 0;
+    margin-top: 22px;
+    border-top: 1px solid var(--line);
+  }
+  .private-pic-choice {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin-top: 18px;
+    padding: 13px 14px;
+    border: 1px solid var(--line);
+    background: #f7f8f3;
+    font-size: 12px;
+  }
+  .private-pic-choice input {
+    width: 18px;
+    height: 18px;
+    margin: 1px 0 0;
+    accent-color: var(--orange);
+  }
+  .private-pic-choice span {
+    display: grid;
+    gap: 2px;
+  }
+  .private-pic-choice small {
+    color: var(--muted);
+    font-size: 11px;
+    line-height: 1.55;
+  }
+  .private-convert-page-participant {
+    display: grid;
+    grid-template-columns: 84px minmax(0, 1fr) minmax(0, 1fr);
+    gap: 12px;
+    align-items: end;
+    padding: 15px 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .private-convert-page-participant > strong {
+    align-self: center;
+    color: var(--orange);
+    font-size: 12px;
+  }
+  .private-convert-page-participant label {
+    display: grid;
+    gap: 6px;
+    font-size: 11px;
+    font-weight: 700;
+  }
+  .private-convert-page-participant input {
+    min-height: 42px;
+    padding: 9px 10px;
+    border: 1px solid var(--line);
+    background: #fffefa;
+    font: inherit;
+  }
+  .private-convert-page-participant input[readonly] {
+    background: #f1f3ec;
+    color: var(--muted);
+  }
+  .private-convert-page-participant > small {
+    grid-column: 2 / -1;
+    margin-top: -6px;
+    color: var(--muted);
+    font-size: 10px;
+  }
+  .private-convert-confirmation h2 {
+    margin: 8px 0 18px;
+  }
+  .private-check {
+    display: flex;
+    align-items: flex-start;
+    gap: 9px;
+    padding: 12px 0;
+    border-top: 1px solid var(--line);
+    font-size: 12px;
+  }
+  .private-check input {
+    width: 18px;
+    height: 18px;
+    margin: 1px 0 0;
+    accent-color: var(--orange);
+  }
+  .private-convert-page-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 18px;
+  }
+  .private-convert-summary {
+    display: grid;
+    gap: 16px;
+    position: sticky;
+    top: 18px;
+  }
+  .private-convert-summary h2 {
+    margin: 8px 0 20px;
+    font-size: 22px;
+  }
+  .private-convert-summary dl {
+    display: grid;
+    gap: 15px;
+    margin: 0;
+  }
+  .private-convert-summary dl div {
+    display: grid;
+    gap: 3px;
+  }
+  .private-convert-summary dt {
+    color: var(--muted);
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.8px;
+  }
+  .private-convert-summary dd {
+    margin: 0;
+    font-size: 12px;
+    line-height: 1.6;
+  }
+  .private-convert-money {
+    background: #1f291f;
+    color: #fffef9;
+    border-color: #1f291f;
+  }
+  .private-convert-money .eyebrow,
+  .private-convert-money span,
+  .private-convert-money p,
+  .private-convert-money small {
+    color: #cdd4c7;
+  }
+  .private-convert-money > strong {
+    display: block;
+    margin: 6px 0 3px;
+    font-size: 25px;
+    letter-spacing: -1.2px;
+  }
+  .private-convert-money > span {
+    font-size: 11px;
+  }
+  .private-convert-money hr {
+    border: 0;
+    border-top: 1px solid rgb(255 255 255 / 22%);
+    margin: 18px 0;
+  }
+  .private-convert-money p {
+    margin: 0;
+    font-size: 11px;
+  }
+  .private-convert-money small {
+    display: block;
+    margin-top: 15px;
+    font-size: 10px;
+    line-height: 1.6;
+  }
+  @media (max-width: 1120px) {
+    .private-convert-layout {
+      grid-template-columns: 1fr;
+    }
+    .private-convert-summary {
+      position: static;
+      grid-template-columns: 1fr 1fr;
+    }
+  }
+  @media (max-width: 760px) {
+    .private-convert-title {
+      align-items: flex-start;
+    }
+    .private-convert-page-participant {
+      grid-template-columns: 1fr;
+      gap: 9px;
+    }
+    .private-convert-page-participant > strong,
+    .private-convert-page-participant > small {
+      grid-column: auto;
+    }
+    .private-convert-summary {
+      grid-template-columns: 1fr;
+    }
+    .private-convert-page-actions > * {
+      width: 100%;
+      text-align: center;
+      justify-content: center;
+    }
+  }
+</style>

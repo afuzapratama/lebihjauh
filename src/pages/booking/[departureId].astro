@@ -1,0 +1,437 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import SiteHeader from '../../components/SiteHeader.astro';
+import { getCheckoutDeparture } from '../../lib/booking-service';
+
+export const prerender = false;
+const schedule = await getCheckoutDeparture(Astro.params.departureId ?? '');
+const initialPickup =
+  schedule?.pickupOptions.find((option) => option.isDefault) ??
+  schedule?.pickupOptions[0];
+if (!schedule) Astro.response.status = 404;
+const money = new Intl.NumberFormat('id-ID');
+const date = new Intl.DateTimeFormat('id-ID', {
+  dateStyle: 'full',
+  timeZone: schedule?.timezone ?? 'Asia/Jakarta',
+});
+---
+
+<Layout>
+  <SiteHeader active="trips" />
+  <main id="main" class="public-trip-page booking-page">
+    {schedule ? (
+      <section class="section booking-layout">
+        <div class="booking-heading">
+          <p class="eyebrow">
+            <span></span> BOOKING OPEN TRIP
+          </p>
+          <h1>
+            Siapkan
+            <br />
+            <span class="handwritten">rombonganmu.</span>
+          </h1>
+          <p>
+            Isi data PIC dan nama seluruh peserta. Data keselamatan serta foto
+            identitas akan dilengkapi lewat tautan aman setelah down payment
+            diverifikasi.
+          </p>
+        </div>
+
+        <div class="booking-flow">
+          <form id="booking-form" class="booking-form" novalidate>
+            <fieldset>
+              <legend>
+                <span>01</span> Pilih titik kumpul
+              </legend>
+              <p class="field-note">
+                Harga dan rundown mengikuti zona jemput yang dipilih. Waktu
+                kumpul final akan diinformasikan admin melalui WhatsApp.
+              </p>
+              <div id="pickup-options" class="pickup-options">
+                {schedule.pickupOptions.map((option) => (
+                  <label class="pickup-option">
+                    <input
+                      type="radio"
+                      name="pickupOptionId"
+                      value={option.id}
+                      checked={option.id === initialPickup?.id}
+                      data-available={option.available}
+                      data-price={option.pricePerPax}
+                      data-label={`${option.zoneName} · ${option.locationName}`}
+                      required
+                    />
+                    <span class="pickup-option-copy">
+                      <strong>{option.zoneName}</strong>
+                      <span>{option.locationName}</span>
+                      {option.address && <small>{option.address}</small>}
+                    </span>
+                    <strong>
+                      Rp{money.format(Number(option.pricePerPax))}
+                    </strong>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+
+            <fieldset>
+              <legend>
+                <span>02</span> Pilih jumlah peserta
+              </legend>
+              <label>
+                Jumlah pax
+                <input
+                  id="booking-pax"
+                  name="pax"
+                  type="number"
+                  min="1"
+                  max={initialPickup?.available ?? schedule.available}
+                  value="1"
+                  required
+                />
+              </label>
+              <p class="field-note">
+                Tersedia{' '}
+                <strong id="pickup-available">
+                  {initialPickup?.available} kursi
+                </strong>{' '}
+                untuk titik pilihan. Kuota gabungan jadwal {schedule.capacity}{' '}
+                pax.
+              </p>
+            </fieldset>
+
+            <fieldset>
+              <legend>
+                <span>03</span> Data PIC
+              </legend>
+              <div class="form-two-columns">
+                <label>
+                  Nama lengkap PIC
+                  <input
+                    id="pic-name"
+                    name="picName"
+                    autocomplete="name"
+                    maxlength="120"
+                    required
+                  />
+                </label>
+                <label>
+                  WhatsApp PIC
+                  <input
+                    id="pic-whatsapp"
+                    name="picWhatsApp"
+                    inputmode="tel"
+                    autocomplete="tel"
+                    maxlength="20"
+                    required
+                  />
+                </label>
+              </div>
+              <label>
+                Email PIC <small>Opsional</small>
+                <input
+                  name="picEmail"
+                  type="email"
+                  autocomplete="email"
+                  maxlength="254"
+                />
+              </label>
+              <label class="checkbox-label">
+                <input id="pic-is-participant" type="checkbox" checked />
+                <span>PIC ikut sebagai Peserta 1</span>
+              </label>
+            </fieldset>
+
+            <fieldset>
+              <legend>
+                <span>04</span> Data seluruh peserta
+              </legend>
+              <p class="field-note">
+                Gunakan nama sesuai dokumen identitas. Setelah down payment
+                diverifikasi, setiap peserta menerima tautan privat untuk
+                melengkapi dokumen dan kontak daruratnya.
+              </p>
+              <div id="participant-fields" class="participant-fields"></div>
+            </fieldset>
+
+            <fieldset class="booking-consent">
+              <legend>
+                <span>05</span> Konfirmasi data
+              </legend>
+              <label class="checkbox-label">
+                <input name="termsAccepted" type="checkbox" required />
+                <span>
+                  Saya menyetujui ketentuan perjalanan untuk trip ini.
+                </span>
+              </label>
+              <label class="checkbox-label">
+                <input name="participantConsent" type="checkbox" required />
+                <span>
+                  Saya telah mendapat persetujuan setiap peserta untuk
+                  mendaftarkan data mereka.
+                </span>
+              </label>
+              <p class="privacy-note">
+                Data peserta dipakai untuk manifest, keselamatan, dan kebutuhan
+                operasional trip. Jangan kirim NIK lewat WhatsApp.
+              </p>
+            </fieldset>
+
+            <p id="booking-error" class="booking-error" role="alert" hidden></p>
+            <button
+              id="booking-submit"
+              class="button button-orange"
+              type="submit"
+              disabled
+            >
+              Buat booking aman <span aria-hidden="true">↗</span>
+            </button>
+          </form>
+
+          <aside class="booking-summary" aria-label="Ringkasan booking">
+            <p class="eyebrow">RINGKASAN PESANAN</p>
+            <h2>{schedule.tripName}</h2>
+            <dl>
+              <div>
+                <dt>Keberangkatan</dt>
+                <dd>{date.format(schedule.startAt)}</dd>
+              </div>
+              <div>
+                <dt>Berakhir</dt>
+                <dd>{date.format(schedule.endAt)}</dd>
+              </div>
+              <div>
+                <dt>Harga / peserta</dt>
+                <dd id="pickup-unit-price">
+                  Rp{money.format(Number(initialPickup?.pricePerPax))}
+                </dd>
+              </div>
+              <div id="pickup-summary">
+                <dt>Titik kumpul</dt>
+                <dd>
+                  {initialPickup
+                    ? `${initialPickup.zoneName} · ${initialPickup.locationName}`
+                    : 'Pilih titik kumpul'}
+                </dd>
+              </div>
+            </dl>
+            <div id="quote-summary" class="quote-summary" aria-live="polite">
+              <span>Memuat ringkasan harga…</span>
+            </div>
+            <p class="booking-hold-note">
+              Kursi ditahan selama 24 jam setelah booking berhasil, atau sampai
+              tenggat booking bila lebih dekat.
+            </p>
+          </aside>
+        </div>
+      </section>
+    ) : (
+      <section class="section public-empty">
+        <h1>Jadwal tidak tersedia.</h1>
+        <p>
+          Jadwal mungkin sudah penuh, ditutup, atau tenggat booking telah lewat.
+        </p>
+        <a class="button button-dark" href="/trip">
+          Kembali ke katalog
+        </a>
+      </section>
+    )}
+  </main>
+
+  {schedule && <script
+    is:inline
+    define:vars={{ departureId: schedule.id, maxPax: schedule.available }}
+  >
+    const form = document.querySelector('#booking-form');
+    const paxInput = document.querySelector('#booking-pax');
+    const pickupOptions = document.querySelector('#pickup-options');
+    const pickupSummary = document.querySelector('#pickup-summary');
+    const participantFields = document.querySelector('#participant-fields');
+    const picName = document.querySelector('#pic-name');
+    const picIsParticipant = document.querySelector('#pic-is-participant');
+    const quoteSummary = document.querySelector('#quote-summary');
+    const submit = document.querySelector('#booking-submit');
+    const error = document.querySelector('#booking-error');
+    let quote = null;
+    let quoteRequest = 0;
+    let idempotencyKey = crypto.randomUUID();
+
+    const formatMoney = new Intl.NumberFormat('id-ID');
+    function participantCount() {
+      const value = Number(paxInput.value);
+      const pickupLimit = Number(selectedPickup()?.dataset.available ?? maxPax);
+      return Number.isInteger(value) && value >= 1 && value <= pickupLimit
+        ? value
+        : 0;
+    }
+    function selectedPickup() {
+      return pickupOptions?.querySelector(
+        'input[name="pickupOptionId"]:checked',
+      );
+    }
+    function selectedPickupId() {
+      return selectedPickup()?.value || '';
+    }
+    function showError(message = '') {
+      error.textContent = message;
+      error.hidden = !message;
+    }
+    function participantCard(index) {
+      const participant = document.createElement('div');
+      participant.className = 'participant-card';
+      const heading = document.createElement('p');
+      heading.className = 'participant-title';
+      heading.textContent = `Peserta ${index + 1}`;
+      const nameLabel = document.createElement('label');
+      nameLabel.textContent = 'Nama lengkap sesuai dokumen';
+      const name = document.createElement('input');
+      name.name = `participant-name-${index}`;
+      name.maxLength = 120;
+      name.required = true;
+      name.autocomplete = 'name';
+      nameLabel.append(name);
+      participant.append(heading, nameLabel);
+      return participant;
+    }
+    function buildParticipants() {
+      const count = participantCount();
+      participantFields.replaceChildren();
+      for (let index = 0; index < count; index++)
+        participantFields.append(participantCard(index));
+      syncPicParticipant();
+    }
+    function syncPicParticipant() {
+      const firstName = document.querySelector('[name="participant-name-0"]');
+      if (!firstName) return;
+      const locked = picIsParticipant.checked;
+      firstName.value = locked ? picName.value : firstName.value;
+      firstName.readOnly = locked;
+      firstName
+        .closest('.participant-card')
+        ?.classList.toggle('pic-participant', locked);
+    }
+    async function refreshQuote() {
+      const requestNumber = ++quoteRequest;
+      const pax = participantCount();
+      const pickupOptionId = selectedPickupId();
+      showError();
+      quote = null;
+      submit.disabled = true;
+      if (!pax || !pickupOptionId) {
+        quoteSummary.textContent = !pickupOptionId
+          ? 'Pilih titik kumpul untuk melihat harga.'
+          : 'Pilih jumlah peserta yang tersedia.';
+        return;
+      }
+      quoteSummary.textContent = 'Memuat ringkasan harga…';
+      try {
+        const response = await fetch('/api/checkout/quote', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ departureId, pax, pickupOptionId }),
+        });
+        const data = await response.json();
+        if (
+          requestNumber !== quoteRequest ||
+          pax !== participantCount() ||
+          pickupOptionId !== selectedPickupId()
+        )
+          return;
+        if (!response.ok) throw new Error(data.message);
+        quote = data.quote;
+        quoteSummary.replaceChildren();
+        const total = document.createElement('strong');
+        total.textContent = `Total Rp${formatMoney.format(Number(quote.total))}`;
+        const dp = document.createElement('span');
+        dp.textContent = `Down payment minimum Rp${formatMoney.format(Number(quote.minimumDp))}`;
+        quoteSummary.append(total, dp);
+        submit.disabled = false;
+      } catch (quoteError) {
+        if (
+          requestNumber !== quoteRequest ||
+          pax !== participantCount() ||
+          pickupOptionId !== selectedPickupId()
+        )
+          return;
+        quoteSummary.textContent =
+          quoteError.message || 'Ringkasan harga belum tersedia.';
+        showError(quoteError.message || 'Periksa kembali jadwal yang dipilih.');
+      }
+    }
+    paxInput.addEventListener('input', () => {
+      ++quoteRequest;
+      quote = null;
+      submit.disabled = true;
+    });
+    paxInput.addEventListener('change', () => {
+      buildParticipants();
+      refreshQuote();
+    });
+    pickupOptions?.addEventListener('change', () => {
+      const selected = selectedPickup();
+      if (pickupSummary && selected) {
+        pickupSummary.querySelector('dd').textContent = selected.dataset.label;
+        document.querySelector('#pickup-unit-price').textContent =
+          `Rp${formatMoney.format(Number(selected.dataset.price))}`;
+        document.querySelector('#pickup-available').textContent =
+          `${selected.dataset.available} kursi`;
+        paxInput.max = selected.dataset.available;
+      }
+      refreshQuote();
+    });
+    picIsParticipant.addEventListener('change', syncPicParticipant);
+    picName.addEventListener('input', syncPicParticipant);
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      showError();
+      if (!form.reportValidity() || !quote) return;
+      const participants = Array.from(
+        { length: participantCount() },
+        (_, index) => ({
+          fullName: document.querySelector(`[name="participant-name-${index}"]`)
+            .value,
+        }),
+      );
+      const data = new FormData(form);
+      submit.disabled = true;
+      submit.textContent = 'Menyimpan booking…';
+      try {
+        const response = await fetch('/api/bookings', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Idempotency-Key': idempotencyKey,
+          },
+          body: JSON.stringify({
+            quoteId: quote.id,
+            picName: data.get('picName'),
+            picWhatsApp: data.get('picWhatsApp'),
+            picEmail: data.get('picEmail'),
+            picIsParticipant: picIsParticipant.checked,
+            participants,
+            termsAccepted: data.get('termsAccepted') === 'on',
+            participantConsent: data.get('participantConsent') === 'on',
+          }),
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.message);
+        window.location.assign(result.invoicePath);
+      } catch (bookingError) {
+        showError(
+          bookingError.message || 'Booking belum dapat disimpan. Coba lagi.',
+        );
+        if (
+          bookingError.message?.includes('berubah') ||
+          bookingError.message?.includes('kedaluwarsa')
+        ) {
+          idempotencyKey = crypto.randomUUID();
+          refreshQuote();
+        } else {
+          submit.disabled = false;
+        }
+        submit.textContent = 'Buat booking aman ↗';
+      }
+    });
+    buildParticipants();
+    refreshQuote();
+  </script>}
+</Layout>

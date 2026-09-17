@@ -1,0 +1,438 @@
+---
+import AboutSiteFields from '../../../components/AboutSiteFields.astro';
+import HomeSiteFields from '../../../components/HomeSiteFields.astro';
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import { desc } from 'drizzle-orm';
+import { getDb } from '../../../db/client';
+import { galleryItem, newsArticle } from '../../../db/schema';
+import { getPublicTrips } from '../../../lib/public-trips';
+import {
+  getSitePageState,
+  isSitePageKey,
+  type AboutPageContent,
+  type HomePageContent,
+} from '../../../lib/site-content';
+
+export const prerender = false;
+const pageParam = Astro.params.page;
+if (!isSitePageKey(pageParam)) return Astro.redirect('/admin/website/home');
+const page = pageParam;
+const state = await getSitePageState(page);
+const content = state.draft;
+const isHome = page === 'home';
+const previewPath = isHome ? '/?preview=draft' : '/about?preview=draft';
+const [tripRows, galleryRows, newsRows] = isHome
+  ? await Promise.all([
+      getPublicTrips(),
+      getDb().select().from(galleryItem).orderBy(desc(galleryItem.createdAt)),
+      getDb().select().from(newsArticle).orderBy(desc(newsArticle.createdAt)),
+    ])
+  : [[], [], []];
+const tripOptions = tripRows.map((item) => ({ id: item.id, label: item.name }));
+const galleryOptions = galleryRows.map((item) => ({
+  id: item.id,
+  label: item.caption,
+}));
+const newsOptions = newsRows.map((item) => ({
+  id: item.id,
+  label: item.title,
+}));
+const statusDate = (value: Date | null) =>
+  value
+    ? new Intl.DateTimeFormat('id-ID', {
+        dateStyle: 'medium',
+        timeStyle: 'short',
+        timeZone: 'Asia/Jakarta',
+      }).format(value)
+    : 'Belum pernah';
+---
+
+<AdminLayout
+  title={`${isHome ? 'Home' : 'About'} · Tampilan Website`}
+  active="website"
+>
+  <div class="page-title website-page-title">
+    <div>
+      <p class="eyebrow">05 / TAMPILAN WEBSITE</p>
+      <h1>
+        {isHome ? 'Halaman Home.' : 'Halaman About.'}
+        <br />
+        <span>Foto dan cerita utama.</span>
+      </h1>
+      <p class="muted">
+        Simpan draf, periksa tampilannya, lalu terbitkan seluruh perubahan
+        halaman sekaligus.
+      </p>
+    </div>
+    <div class="website-status">
+      <span>Draf diperbarui: {statusDate(state.updatedAt)}</span>
+      <span>Terakhir terbit: {statusDate(state.publishedAt)}</span>
+    </div>
+  </div>
+
+  <nav class="website-tabs" aria-label="Pilih halaman website">
+    <a href="/admin/website/home" aria-current={isHome ? 'page' : undefined}>
+      Home
+    </a>
+    <a href="/admin/website/about" aria-current={!isHome ? 'page' : undefined}>
+      About
+    </a>
+  </nav>
+
+  <form class="website-form" id="website-form" data-page={page}>
+    {isHome ? (
+      <HomeSiteFields
+        content={content as HomePageContent}
+        tripOptions={tripOptions}
+        galleryOptions={galleryOptions}
+        newsOptions={newsOptions}
+      />
+    ) : (
+      <AboutSiteFields content={content as AboutPageContent} />
+    )}
+    <p class="error-msg" id="website-error" role="alert" hidden></p>
+    <div class="website-actions">
+      <button class="button-link" type="submit" data-action="draft">
+        Simpan draf
+      </button>
+      <a class="button-link" href={previewPath} target="_blank">
+        Preview draf ↗
+      </a>
+      <button class="primary" type="submit" data-action="publish">
+        Terbitkan halaman ↗
+      </button>
+    </div>
+  </form>
+
+  <template id="faq-row-template">
+    <article class="repeat-row" data-faq-row>
+      <div class="repeat-row-head">
+        <strong data-faq-number>Pertanyaan baru</strong>
+        <button class="quiet-button" type="button" data-remove-faq>
+          Hapus
+        </button>
+      </div>
+      <label>
+        Pertanyaan
+        <input data-faq-question maxlength="240" required />
+      </label>
+      <label>
+        Jawaban
+        <textarea data-faq-answer rows="3" maxlength="600" required></textarea>
+      </label>
+    </article>
+  </template>
+
+  <script>
+    const form = document.querySelector<HTMLFormElement>('#website-form');
+    const errorBox = document.querySelector<HTMLElement>('#website-error');
+
+    const setAtPath = (
+      target: Record<string, unknown>,
+      path: string,
+      value: unknown,
+    ) => {
+      const parts = path.split('.');
+      let cursor: Record<string | number, unknown> = target;
+      parts.forEach((part, index) => {
+        const last = index === parts.length - 1;
+        const key: string | number = /^\d+$/.test(part) ? Number(part) : part;
+        if (last) {
+          cursor[key] = value;
+          return;
+        }
+        const nextIsArray = /^\d+$/.test(parts[index + 1]);
+        if (!cursor[key] || typeof cursor[key] !== 'object')
+          cursor[key] = nextIsArray ? [] : {};
+        cursor = cursor[key] as Record<string | number, unknown>;
+      });
+    };
+
+    const buildContent = () => {
+      const result: Record<string, unknown> = {};
+      if (!form) return result;
+      new FormData(form).forEach((value, key) => {
+        if (typeof value === 'string') setAtPath(result, key, value);
+      });
+      form
+        .querySelectorAll<HTMLSelectElement>('[data-id-list]')
+        .forEach((select) => {
+          const max = Number(select.dataset.max ?? '4');
+          const values = [...select.selectedOptions].map(
+            (option) => option.value,
+          );
+          if (values.length > max)
+            throw new Error(
+              `Pilihan ${select.labels[0]?.textContent ?? 'konten'} maksimal ${max}.`,
+            );
+          setAtPath(result, select.dataset.idList ?? '', values);
+        });
+      const faqRows = [...form.querySelectorAll<HTMLElement>('[data-faq-row]')];
+      if (faqRows.length) {
+        const items = faqRows.map((row) => ({
+          question:
+            row.querySelector<HTMLInputElement>('[data-faq-question]')?.value ??
+            '',
+          answer:
+            row.querySelector<HTMLTextAreaElement>('[data-faq-answer]')
+              ?.value ?? '',
+        }));
+        setAtPath(result, 'faq.items', items);
+      }
+      return result;
+    };
+
+    const uploadImages = async () => {
+      if (!form) return;
+      for (const field of form.querySelectorAll<HTMLElement>(
+        '[data-site-image]',
+      )) {
+        const file =
+          field.querySelector<HTMLInputElement>('.site-image-file')?.files?.[0];
+        const url = field.querySelector<HTMLInputElement>('[data-image-url]');
+        if (!file || !url) continue;
+        const pre = await fetch('/api/admin/content-media/presign', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            kind: form.dataset.page,
+            fileName: file.name,
+            contentType: file.type,
+            size: file.size,
+          }),
+        });
+        const signed = await pre.json();
+        if (!pre.ok) throw new Error(signed.message);
+        const put = await fetch(signed.uploadUrl, {
+          method: 'PUT',
+          headers: { 'Content-Type': file.type },
+          body: file,
+        });
+        if (!put.ok) throw new Error('Foto belum dapat diunggah ke media.');
+        url.value = signed.publicUrl;
+      }
+    };
+
+    const syncFaqNumbers = () =>
+      document
+        .querySelectorAll<HTMLElement>('[data-faq-row]')
+        .forEach((row, index) => {
+          const label = row.querySelector<HTMLElement>('[data-faq-number]');
+          if (label) label.textContent = `Pertanyaan ${index + 1}`;
+        });
+
+    document.querySelector('[data-add-faq]')?.addEventListener('click', () => {
+      const list = document.querySelector('[data-faq-list]');
+      const template =
+        document.querySelector<HTMLTemplateElement>('#faq-row-template');
+      if (!list || !template || list.children.length >= 12) return;
+      list.append(template.content.cloneNode(true));
+      syncFaqNumbers();
+    });
+    document.addEventListener('click', (event) => {
+      const button = (event.target as Element).closest('[data-remove-faq]');
+      if (!button) return;
+      if (document.querySelectorAll('[data-faq-row]').length <= 1) {
+        window.adminNotify({
+          type: 'warning',
+          message: 'Minimal satu FAQ harus dipertahankan.',
+        });
+        return;
+      }
+      button.closest('[data-faq-row]')?.remove();
+      syncFaqNumbers();
+    });
+    form
+      ?.querySelectorAll<HTMLElement>('[data-site-image]')
+      .forEach((field) => {
+        const input = field.querySelector<HTMLInputElement>('.site-image-file');
+        const preview = field.querySelector<HTMLImageElement>(
+          '[data-image-preview]',
+        );
+        const focal =
+          field.querySelector<HTMLSelectElement>('[data-focal-point]');
+        input?.addEventListener('change', () => {
+          const file = input.files?.[0];
+          if (file && preview) preview.src = URL.createObjectURL(file);
+        });
+        focal?.addEventListener('change', () => {
+          if (preview) preview.style.objectPosition = focal.value;
+        });
+      });
+    form?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      if (!form.reportValidity()) return;
+      const action =
+        ((event as SubmitEvent).submitter as HTMLElement | null)?.dataset
+          .action ?? 'draft';
+      if (errorBox) errorBox.hidden = true;
+      form
+        .querySelectorAll<HTMLButtonElement>('button[type="submit"]')
+        .forEach((button) => (button.disabled = true));
+      try {
+        await uploadImages();
+        const response = await fetch('/api/admin/site-content', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            page: form.dataset.page,
+            action,
+            content: buildContent(),
+          }),
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.message);
+        sessionStorage.setItem(
+          'lebihjauh-admin-notification',
+          JSON.stringify({
+            type: 'success',
+            message:
+              action === 'publish'
+                ? 'Perubahan halaman sudah diterbitkan.'
+                : 'Draf halaman berhasil disimpan.',
+          }),
+        );
+        location.reload();
+      } catch (cause) {
+        if (errorBox) {
+          errorBox.hidden = false;
+          errorBox.textContent =
+            cause instanceof Error
+              ? cause.message
+              : 'Pengaturan belum dapat disimpan.';
+          errorBox.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      } finally {
+        form
+          .querySelectorAll<HTMLButtonElement>('button[type="submit"]')
+          .forEach((button) => (button.disabled = false));
+      }
+    });
+  </script>
+</AdminLayout>
+
+<style>
+  .website-page-title h1 span {
+    color: var(--orange);
+  }
+  .website-status {
+    display: grid;
+    gap: 6px;
+    align-self: end;
+    color: var(--muted);
+    font-size: 11px;
+  }
+  .website-tabs {
+    display: flex;
+    gap: 8px;
+    margin: 22px 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .website-tabs a {
+    padding: 12px 20px;
+    color: inherit;
+    font-weight: 700;
+    text-decoration: none;
+  }
+  .website-tabs a[aria-current='page'] {
+    border-bottom: 3px solid var(--orange);
+    color: var(--orange);
+  }
+  .website-form {
+    display: grid;
+    gap: 20px;
+  }
+  :global(.website-section) {
+    display: grid;
+    gap: 16px;
+  }
+  :global(.website-section > h2) {
+    margin: -8px 0 4px;
+  }
+  :global(.website-section details) {
+    padding: 14px 0;
+    border-top: 1px solid var(--line);
+  }
+  :global(.website-section summary) {
+    cursor: pointer;
+    font:
+      700 17px/1.2 'Barlow Condensed',
+      sans-serif;
+    text-transform: uppercase;
+  }
+  :global(.website-section details > :not(summary)) {
+    margin-top: 16px;
+  }
+  :global(.field-grid) {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+  }
+  :global(.website-form label) {
+    display: grid;
+    gap: 6px;
+    font-size: 12px;
+    font-weight: 700;
+  }
+  :global(.website-form label small) {
+    color: var(--muted);
+    font-weight: 400;
+  }
+  :global(.website-form :is(input, textarea, select)) {
+    width: 100%;
+    min-height: 42px;
+    padding: 9px;
+    border: 1px solid var(--line);
+    background: #fffefa;
+    font: inherit;
+  }
+  :global(.website-form textarea) {
+    resize: vertical;
+  }
+  :global(.website-image-pair) {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+  }
+  :global(.repeat-list) {
+    display: grid;
+    gap: 12px;
+    margin-top: 16px;
+  }
+  :global(.repeat-row) {
+    display: grid;
+    gap: 10px;
+    padding: 14px;
+    border: 1px solid var(--line);
+    background: #fbfbf6;
+  }
+  :global(.repeat-row-head) {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  :global(.add-repeat) {
+    margin-top: 12px;
+  }
+  .website-actions {
+    position: sticky;
+    bottom: 0;
+    z-index: 5;
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    padding: 16px;
+    border: 1px solid var(--line);
+    background: rgba(255, 254, 250, 0.96);
+    backdrop-filter: blur(10px);
+  }
+  @media (max-width: 800px) {
+    :global(.field-grid),
+    :global(.website-image-pair) {
+      grid-template-columns: 1fr;
+    }
+    .website-actions {
+      flex-wrap: wrap;
+    }
+  }
+</style>

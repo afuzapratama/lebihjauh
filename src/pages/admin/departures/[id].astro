@@ -1,0 +1,1869 @@
+---
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import FileUploadControl from '../../../components/FileUploadControl.astro';
+import { expireDueBookingHolds } from '../../../lib/booking-admin';
+import { getDepartureOperations } from '../../../lib/departure-operations';
+
+export const prerender = false;
+
+await expireDueBookingHolds();
+const id = Astro.params.id ?? '';
+const operations = /^[0-9a-f-]{36}$/i.test(id)
+  ? await getDepartureOperations(id)
+  : null;
+if (!operations) Astro.response.status = 404;
+
+const money = new Intl.NumberFormat('id-ID');
+const signedMoney = (value: string) => {
+  const amount = BigInt(value);
+  return amount < 0n
+    ? `-Rp${money.format(Number(-amount))}`
+    : `Rp${money.format(Number(amount))}`;
+};
+const date = new Intl.DateTimeFormat('id-ID', {
+  dateStyle: 'full',
+  timeStyle: 'short',
+  timeZone: 'Asia/Jakarta',
+});
+const shortDate = new Intl.DateTimeFormat('id-ID', {
+  dateStyle: 'medium',
+  timeStyle: 'short',
+  timeZone: 'Asia/Jakarta',
+});
+const stateLabel = (state: string) =>
+  ({
+    awaiting_payment: 'Menunggu pembayaran',
+    confirmed: 'Terkonfirmasi',
+    completed: 'Selesai',
+    expired: 'Kedaluwarsa',
+    cancelled: 'Dibatalkan',
+  })[state] ?? state;
+const expenseCategoryLabel = (value: string) =>
+  ({
+    transport: 'Transport',
+    guide: 'Guide',
+    porter: 'Porter',
+    simaksi: 'Simaksi',
+    logistik: 'Logistik',
+    penginapan: 'Penginapan',
+    sewa_alat: 'Sewa alat',
+    dokumentasi: 'Dokumentasi',
+    komisi: 'Komisi',
+    lainnya: 'Lainnya',
+  })[value] ?? value;
+const rundownText = (stages: unknown) =>
+  Array.isArray(stages)
+    ? stages
+        .map((day: any) =>
+          [
+            `${day.day ?? 'Hari'} | ${day.title ?? ''}`,
+            ...(Array.isArray(day.activities) ? day.activities : []).map(
+              (activity: any) =>
+                [activity.time, activity.activity, activity.location].join(
+                  ' | ',
+                ),
+            ),
+            ...(day.details ? [`Catatan | ${day.details}`] : []),
+          ].join('\n'),
+        )
+        .join('\n\n')
+    : '';
+const activePickupOptions =
+  operations?.pickupOptions.filter((item) => item.isActive) ?? [];
+const defaultPickup =
+  activePickupOptions.find((item) => item.isDefault) ??
+  activePickupOptions[0] ??
+  null;
+const completeSafetyCount =
+  operations?.manifest.filter((person) => person.identityLast4).length ?? 0;
+const incompleteSafetyCount =
+  (operations?.summary.manifestSeats ?? 0) - completeSafetyCount;
+const missingPickupCount =
+  operations?.manifest.filter(
+    (person) => person.pickupLabel === 'Belum tercatat',
+  ).length ?? 0;
+const hoursUntilDeparture = operations
+  ? (operations.schedule.startAt.getTime() - Date.now()) / 3_600_000
+  : 0;
+const departureTiming = !operations
+  ? ''
+  : hoursUntilDeparture < 0
+    ? 'Waktu keberangkatan sudah tiba'
+    : hoursUntilDeparture <= 24
+      ? 'Berangkat dalam 24 jam'
+      : `${Math.ceil(hoursUntilDeparture / 24)} hari menuju keberangkatan`;
+const readinessItems = operations
+  ? [
+      ...(operations.summary.confirmedSeats === 0
+        ? [
+            {
+              title: 'Belum ada peserta terkonfirmasi',
+              detail: `${operations.summary.availableSeats} kursi masih tersedia pada jadwal ini.`,
+              section: 'people',
+              href: null,
+            },
+          ]
+        : []),
+      ...(!activePickupOptions.length
+        ? [
+            {
+              title: 'Titik jemput belum diatur',
+              detail: 'Tambahkan minimal satu titik sebelum jadwal dijalankan.',
+              section: 'pickup',
+              href: null,
+            },
+          ]
+        : []),
+      ...(missingPickupCount > 0
+        ? [
+            {
+              title: `${missingPickupCount} peserta tanpa titik jemput`,
+              detail:
+                'Periksa order peserta dan pastikan meeting point keberangkatannya sudah tercatat.',
+              section: 'people',
+              href: null,
+            },
+          ]
+        : []),
+      ...(incompleteSafetyCount > 0
+        ? [
+            {
+              title: `${incompleteSafetyCount} data keselamatan belum lengkap`,
+              detail: 'Tindak lanjuti peserta sebelum manifest akhir dicetak.',
+              section: 'people',
+              href: null,
+            },
+          ]
+        : []),
+      ...(BigInt(operations.summary.submittedAmount) > 0n
+        ? [
+            {
+              title: 'Ada pembayaran menunggu verifikasi',
+              detail: `Rp${money.format(Number(operations.summary.submittedAmount))} belum dihitung sebagai uang masuk.`,
+              section: 'people',
+              href: null,
+            },
+          ]
+        : []),
+      ...(operations.schedule.publicationState === 'open' &&
+      hoursUntilDeparture <= 24
+        ? [
+            {
+              title: 'Penjualan masih dibuka mendekati keberangkatan',
+              detail: 'Tinjau status jadwal dari halaman pengaturan Open Trip.',
+              section: null,
+              href: `/admin/trips/${operations.schedule.tripId}`,
+            },
+          ]
+        : []),
+    ]
+  : [];
+---
+
+<AdminLayout
+  title={
+    operations
+      ? `Operasional ${operations.schedule.tripName}`
+      : 'Jadwal tidak ditemukan'
+  }
+  active="trips"
+>
+  {operations ? (
+    <>
+      <div class="page-title departure-operations-title">
+        <div>
+          <p class="eyebrow">01 / OPERASIONAL JADWAL</p>
+          <div class="departure-title-line">
+            <h1>{operations.schedule.tripName}</h1>
+            <span class:list={['state', operations.schedule.publicationState]}>
+              {{ draft: 'Draft', open: 'Buka', closed: 'Tutup' }[
+                operations.schedule.publicationState
+              ] ?? operations.schedule.publicationState}
+            </span>
+          </div>
+          <p class="muted">
+            {departureTiming} · {date.format(operations.schedule.startAt)}
+          </p>
+        </div>
+        <div class="departure-operations-actions">
+          <a class="button-link" href="/admin/trips">
+            ← Semua jadwal
+          </a>
+          <button
+            class="primary"
+            type="button"
+            data-open-departure-section="people"
+          >
+            Peserta & order
+          </button>
+          <details class="departure-action-menu">
+            <summary class="button-link">Tindakan lainnya ···</summary>
+            <div>
+              <button
+                class="button-link"
+                id="print-departure-manifest"
+                type="button"
+                disabled={operations.summary.manifestSeats === 0}
+                title={
+                  operations.summary.manifestSeats === 0
+                    ? 'Belum ada peserta untuk dicetak.'
+                    : undefined
+                }
+              >
+                Cetak daftar peserta ↗
+              </button>
+              <button
+                class="button-link"
+                id="open-emergency-manifest"
+                type="button"
+                disabled={operations.summary.manifestSeats === 0}
+                title={
+                  operations.summary.manifestSeats === 0
+                    ? 'Belum ada peserta pada manifest.'
+                    : undefined
+                }
+              >
+                Manifest darurat ↗
+              </button>
+            </div>
+          </details>
+        </div>
+      </div>
+
+      <section class="departure-facts" aria-label="Informasi keberangkatan">
+        <div>
+          <span>KEBERANGKATAN</span>
+          <strong>{date.format(operations.schedule.startAt)}</strong>
+        </div>
+        <div>
+          <span>BERAKHIR</span>
+          <strong>{date.format(operations.schedule.endAt)}</strong>
+        </div>
+        <div>
+          <span>TITIK JEMPUT UTAMA</span>
+          <strong>
+            {defaultPickup
+              ? `${defaultPickup.zoneName} · ${
+                  defaultPickup.pickupAt
+                    ? shortDate.format(defaultPickup.pickupAt)
+                    : 'waktu belum diatur'
+                }`
+              : 'Belum diatur'}
+          </strong>
+        </div>
+        <div>
+          <span>KAPASITAS</span>
+          <strong>{operations.schedule.capacity} peserta</strong>
+        </div>
+      </section>
+
+      <section
+        class="departure-summary departure-summary-primary"
+        aria-label="Ringkasan operasional jadwal"
+      >
+        <article>
+          <span>KURSI TERKONFIRMASI</span>
+          <strong>
+            {operations.summary.confirmedSeats}{' '}
+            <small>/ {operations.schedule.capacity} pax</small>
+          </strong>
+          <p>
+            {operations.summary.heldSeats} ditahan ·{' '}
+            {operations.summary.availableSeats} tersedia
+          </p>
+        </article>
+        <article>
+          <span>DATA KESELAMATAN</span>
+          <strong>
+            {completeSafetyCount}{' '}
+            <small>/ {operations.summary.manifestSeats} lengkap</small>
+          </strong>
+          <p>{operations.summary.manifestSeats} peserta dalam manifest</p>
+        </article>
+        <article>
+          <span>UANG MASUK TERVERIFIKASI</span>
+          <strong>
+            Rp{money.format(Number(operations.summary.verifiedAmount))}
+          </strong>
+          <p>
+            Sisa tagihan Rp
+            {money.format(Number(operations.summary.outstandingAmount))}
+          </p>
+        </article>
+        <article>
+          <span>SALDO OPERASIONAL</span>
+          <strong>{signedMoney(operations.summary.cashPosition)}</strong>
+          <p>
+            Pengeluaran Rp
+            {money.format(Number(operations.summary.expenseAmount))}
+          </p>
+        </article>
+      </section>
+
+      <section
+        class:list={[
+          'departure-readiness',
+          { ready: readinessItems.length === 0 },
+        ]}
+        aria-labelledby="departure-readiness-title"
+      >
+        <div class="departure-readiness-head">
+          <div>
+            <p class="eyebrow">STATUS KESIAPAN</p>
+            <h2 id="departure-readiness-title">
+              {readinessItems.length
+                ? 'Jadwal masih perlu perhatian'
+                : 'Jadwal siap diberangkatkan'}
+            </h2>
+          </div>
+          <span class:list={['pill', readinessItems.length ? '' : 'olive']}>
+            {readinessItems.length
+              ? `${readinessItems.length} perlu ditinjau`
+              : 'Siap'}
+          </span>
+        </div>
+        {readinessItems.length ? (
+          <div class="departure-readiness-list">
+            {readinessItems.map((item) => (
+              <a
+                href={
+                  item.href ??
+                  (item.section === 'pickup'
+                    ? '#titik-jemput'
+                    : '#peserta-order')
+                }
+                data-open-departure-section={item.section ?? undefined}
+              >
+                <span aria-hidden="true">!</span>
+                <span>
+                  <strong>{item.title}</strong>
+                  <small>{item.detail}</small>
+                </span>
+                <b aria-hidden="true">→</b>
+              </a>
+            ))}
+          </div>
+        ) : (
+          <p>
+            Titik jemput, peserta, data keselamatan, dan pembayaran tidak
+            memiliki perhatian terbuka.
+          </p>
+        )}
+      </section>
+
+      <nav class="departure-section-tabs" aria-label="Bagian operasional">
+        <button
+          class="active"
+          type="button"
+          data-departure-section-tab="people"
+          aria-pressed="true"
+        >
+          Peserta & order
+          <span>{operations.summary.manifestSeats}</span>
+        </button>
+        <button
+          type="button"
+          data-departure-section-tab="pickup"
+          aria-pressed="false"
+        >
+          Titik jemput
+          <span>{activePickupOptions.length}</span>
+        </button>
+        <button
+          type="button"
+          data-departure-section-tab="finance"
+          aria-pressed="false"
+        >
+          Keuangan
+          <span>
+            {
+              operations.expenses.filter((item) => item.state === 'active')
+                .length
+            }
+          </span>
+        </button>
+      </nav>
+      <dialog class="booking-cancel-dialog" id="void-expense-dialog">
+        <form id="void-expense-form">
+          <p class="eyebrow">KOREKSI KEUANGAN</p>
+          <h2 id="void-expense-title">Batalkan catatan biaya?</h2>
+          <p class="muted">
+            Catatan lama tetap tersimpan untuk audit, tetapi tidak lagi dihitung
+            sebagai pengeluaran aktif.
+          </p>
+          <input name="expenseId" type="hidden" />
+          <label>
+            Alasan pembatalan
+            <textarea
+              name="reason"
+              minlength="5"
+              maxlength="500"
+              required
+            ></textarea>
+          </label>
+          <div>
+            <button class="button-link" id="close-void-expense" type="button">
+              Kembali
+            </button>
+            <button class="danger-button" type="submit">
+              Batalkan catatan
+            </button>
+          </div>
+        </form>
+      </dialog>
+
+      <section
+        class="panel departure-pickup-panel"
+        aria-labelledby="departure-pickup-title"
+        data-departure-section-panel="pickup"
+        hidden
+      >
+        <div class="panel-head departure-pickup-head">
+          <div>
+            <p class="eyebrow">MEETING POINT & HARGA</p>
+            <h2 id="departure-pickup-title">Zona jemput untuk jadwal ini</h2>
+            <p class="muted">
+              Pilih lokasi dari master Open Trip, kemudian atur harga dan
+              rundown untuk jadwal ini. Waktu kumpul boleh dikosongkan.
+            </p>
+            <a
+              class="button-link"
+              href={`/admin/trips/${operations.schedule.tripId}`}
+            >
+              Kelola master titik jemput ↗
+            </a>
+            {!operations.masterPickupPoints.length && (
+              <p class="notice" data-type="info">
+                Tambahkan titik jemput master terlebih dahulu sebelum jadwal
+                dapat dijual.
+              </p>
+            )}
+          </div>
+          <span class="pill olive">
+            {operations.pickupOptions.filter((item) => item.isActive).length}{' '}
+            aktif
+          </span>
+        </div>
+        <div class="departure-pickup-layout">
+          <div class="departure-pickup-list">
+            {operations.pickupOptions.map((pickup) => (
+              <article
+                class:list={[
+                  'departure-pickup-item',
+                  { inactive: !pickup.isActive },
+                ]}
+              >
+                <div>
+                  <p class="eyebrow">
+                    {pickup.isDefault ? 'TITIK UTAMA' : 'ZONA JEMPUT'}
+                    {!pickup.isActive && ' · NONAKTIF'}
+                  </p>
+                  <h3>{pickup.zoneName}</h3>
+                  <p>
+                    {pickup.locationName}
+                    {pickup.pickupAt &&
+                      ` · ${shortDate.format(pickup.pickupAt)}`}
+                  </p>
+                  <small>{pickup.address}</small>
+                </div>
+                <div class="departure-pickup-price">
+                  <strong>Rp{money.format(Number(pickup.pricePerPax))}</strong>
+                  <span>/ pax</span>
+                  {pickup.isActive && (
+                    <div>
+                      <button
+                        class="button-link edit-pickup-option"
+                        type="button"
+                        data-pickup={JSON.stringify({
+                          id: pickup.id,
+                          masterPickupPointId: pickup.masterPickupPointId ?? '',
+                          zoneName: pickup.zoneName,
+                          locationName: pickup.locationName,
+                          address: pickup.address,
+                          pickupAt: pickup.pickupAt?.toISOString() ?? '',
+                          pricePerPax: pickup.pricePerPax,
+                          mapsUrl: pickup.mapsUrl ?? '',
+                          instructions: pickup.instructions,
+                          capacity: pickup.capacity ?? '',
+                          rundownText: rundownText(pickup.pickupRundownStages),
+                          isDefault: pickup.isDefault,
+                        })}
+                      >
+                        Edit
+                      </button>
+                      {!pickup.isDefault && (
+                        <button
+                          class="button-link set-default-pickup-option"
+                          type="button"
+                          data-id={pickup.id}
+                          data-name={pickup.zoneName}
+                        >
+                          Jadikan utama
+                        </button>
+                      )}
+                      {!pickup.isDefault && (
+                        <button
+                          class="danger-button deactivate-pickup-option"
+                          type="button"
+                          data-id={pickup.id}
+                          data-name={pickup.zoneName}
+                        >
+                          Nonaktifkan
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </article>
+            ))}
+          </div>
+
+          <details
+            class="departure-editor-disclosure"
+            id="pickup-option-editor"
+            open={!activePickupOptions.length}
+          >
+            <summary>
+              <span>
+                <b>+ Tambah titik jemput</b>
+                <small>
+                  Buka hanya saat ingin menambah atau mengubah lokasi.
+                </small>
+              </span>
+              <i aria-hidden="true">⌄</i>
+            </summary>
+            <form id="pickup-option-form" class="departure-pickup-form">
+              <p class="eyebrow" id="pickup-form-kicker">
+                TAMBAH ZONA
+              </p>
+              <h3 id="pickup-form-title">Titik jemput baru</h3>
+              <input name="id" type="hidden" />
+              <input name="zoneName" type="hidden" />
+              <input name="locationName" type="hidden" />
+              <input name="address" type="hidden" />
+              <input name="mapsUrl" type="hidden" />
+              <label>
+                Pilih titik jemput
+                <select
+                  name="masterPickupPointId"
+                  id="pickup-master-select"
+                  required
+                >
+                  <option value="">Pilih dari master Open Trip</option>
+                  {operations.masterPickupPoints.map((point) => (
+                    <option value={point.id} data-point={JSON.stringify(point)}>
+                      {point.zoneName} · {point.locationName}
+                    </option>
+                  ))}
+                </select>
+                <small id="selected-pickup-address">
+                  Lokasi dikelola dari halaman Kelola Open Trip.
+                </small>
+              </label>
+              <div class="form-two-columns">
+                <label>
+                  Waktu kumpul <small>Opsional</small>
+                  <input name="pickupAt" type="datetime-local" />
+                </label>
+                <label>
+                  Harga per pax
+                  <input
+                    name="pricePerPax"
+                    inputmode="numeric"
+                    autocomplete="off"
+                    placeholder="Rp0"
+                    required
+                  />
+                </label>
+                <label>
+                  Kuota titik ini <small>Opsional</small>
+                  <input
+                    name="capacity"
+                    type="number"
+                    min="1"
+                    max={operations.schedule.capacity}
+                    placeholder={`Maks. ${operations.schedule.capacity}`}
+                  />
+                  <small>Kosong berarti mengikuti kuota gabungan jadwal.</small>
+                </label>
+              </div>
+              <label>
+                Petunjuk khusus jadwal <small>Opsional</small>
+                <textarea
+                  name="instructions"
+                  maxlength="2000"
+                  rows="3"
+                  placeholder="Contoh: kumpul 15 menit sebelum waktu jemput."
+                ></textarea>
+              </label>
+              <input name="rundownText" type="hidden" />
+              <div class="itinerary-editor schedule-rundown-editor">
+                <div class="itinerary-editor-head">
+                  <div>
+                    {/* 4J: label diubah sesuai semantik yang benar */}
+                    <span class="form-label">
+                      Rundown sebelum bergabung ke perjalanan utama
+                    </span>
+                    <small class="field-note">
+                      Opsional. Isi hanya bila ada segmen penjemputan atau
+                      kumpul sebelum peserta bergabung ke perjalanan inti,
+                      misalnya rute jemput dari Jakarta sebelum ke basecamp.
+                      Kosong berarti tidak ada rundown tambahan — bukan salinan
+                      itinerary paket.
+                    </small>
+                  </div>
+                  <button
+                    class="button-link"
+                    id="add-pickup-rundown-day"
+                    type="button"
+                  >
+                    + Tambah segmen
+                  </button>
+                </div>
+                <div id="pickup-rundown-days" class="itinerary-stages"></div>
+                <p class="empty itinerary-empty" id="pickup-rundown-empty">
+                  Tidak ada rundown penjemputan tambahan.
+                </p>
+              </div>
+              <div class="departure-pickup-form-actions">
+                <button
+                  class="button-link"
+                  id="reset-pickup-form"
+                  type="button"
+                  hidden
+                >
+                  Batal edit
+                </button>
+                <button class="primary" type="submit">
+                  Simpan meeting point ↗
+                </button>
+              </div>
+            </form>
+          </details>
+        </div>
+      </section>
+
+      {BigInt(operations.summary.submittedAmount) > 0n && (
+        <p
+          class="notice departure-payment-notice"
+          data-type="info"
+          data-departure-section-panel="finance"
+          role="status"
+          hidden
+        >
+          Ada Rp{money.format(Number(operations.summary.submittedAmount))}{' '}
+          pembayaran yang masih menunggu verifikasi. Nominal ini belum dihitung
+          sebagai uang diterima.
+        </p>
+      )}
+
+      <section
+        class="panel departure-expense-panel"
+        data-departure-section-panel="finance"
+        hidden
+      >
+        <div class="panel-head">
+          <div>
+            <p class="eyebrow">KEUANGAN JADWAL</p>
+            <h2>Pengeluaran keberangkatan.</h2>
+            <p class="muted">
+              Catat biaya ketika dibayar. Entri salah dibatalkan dengan alasan,
+              bukan dihapus diam-diam.
+            </p>
+          </div>
+          <div class="departure-expense-totals">
+            <span>BIAYA AKTIF</span>
+            <strong>
+              Rp{money.format(Number(operations.summary.expenseAmount))}
+            </strong>
+            <small>
+              Posisi kas {signedMoney(operations.summary.cashPosition)} · margin
+              booking {signedMoney(operations.summary.bookingMargin)}
+            </small>
+          </div>
+        </div>
+        <div class="departure-expense-layout">
+          <div class="departure-expense-list">
+            {operations.expenses.length ? (
+              operations.expenses.map((expense) => (
+                <article class:list={{ voided: expense.state === 'voided' }}>
+                  <div>
+                    <p class="eyebrow">
+                      {expenseCategoryLabel(expense.category)} ·{' '}
+                      {shortDate.format(expense.paidAt)}
+                    </p>
+                    <h3>{expense.vendor}</h3>
+                    <span>
+                      {expense.method}
+                      {expense.reference && ` · ${expense.reference}`}
+                    </span>
+                    {expense.state === 'voided' && (
+                      <small>Dibatalkan: {expense.voidReason}</small>
+                    )}
+                  </div>
+                  <div>
+                    <strong>Rp{money.format(Number(expense.amount))}</strong>
+                    {expense.proofObjectKey && (
+                      <button
+                        class="button-link"
+                        type="button"
+                        data-admin-image-src={`/api/admin/expense-proofs/${expense.id}`}
+                        data-admin-image-eyebrow="BUKTI PENGELUARAN"
+                        data-admin-image-title={expense.vendor}
+                        data-admin-image-alt={`Bukti pengeluaran ${expense.vendor}`}
+                        data-admin-image-note="Bukti hanya digunakan untuk pemeriksaan dan pencatatan pengeluaran perjalanan."
+                      >
+                        Lihat bukti
+                      </button>
+                    )}
+                    {expense.state === 'active' && (
+                      <button
+                        class="danger-button void-expense"
+                        type="button"
+                        data-id={expense.id}
+                        data-vendor={expense.vendor}
+                      >
+                        Batalkan catatan
+                      </button>
+                    )}
+                  </div>
+                </article>
+              ))
+            ) : (
+              <p class="empty">Belum ada pengeluaran pada jadwal ini.</p>
+            )}
+          </div>
+          <details
+            class="departure-editor-disclosure departure-expense-editor"
+            id="trip-expense-editor"
+          >
+            <summary>
+              <span>
+                <b>+ Catat pengeluaran</b>
+                <small>Isi ketika biaya benar-benar sudah dibayar.</small>
+              </span>
+              <i aria-hidden="true">⌄</i>
+            </summary>
+            <form id="trip-expense-form" class="departure-expense-form">
+              <p class="eyebrow">CATAT BIAYA</p>
+              <div class="form-two-columns">
+                <label>
+                  Kategori
+                  <select name="category" required>
+                    <option value="transport">Transport</option>
+                    <option value="guide">Guide</option>
+                    <option value="porter">Porter</option>
+                    <option value="simaksi">Simaksi</option>
+                    <option value="logistik">Logistik</option>
+                    <option value="penginapan">Penginapan</option>
+                    <option value="sewa_alat">Sewa alat</option>
+                    <option value="dokumentasi">Dokumentasi</option>
+                    <option value="komisi">Komisi</option>
+                    <option value="lainnya">Lainnya</option>
+                  </select>
+                </label>
+                <label>
+                  Tanggal dibayar
+                  <input name="paidAt" type="datetime-local" required />
+                </label>
+              </div>
+              <div class="form-two-columns">
+                <label>
+                  Vendor / penerima
+                  <input name="vendor" maxlength="160" required />
+                </label>
+                <label>
+                  Nominal
+                  <input
+                    name="amount"
+                    inputmode="numeric"
+                    autocomplete="off"
+                    placeholder="Rp0"
+                    required
+                  />
+                </label>
+              </div>
+              <div class="form-two-columns">
+                <label>
+                  Metode pembayaran
+                  <input
+                    name="method"
+                    maxlength="80"
+                    placeholder="Transfer BCA / tunai"
+                    required
+                  />
+                </label>
+                <label>
+                  Referensi <small>Opsional</small>
+                  <input name="reference" maxlength="500" />
+                </label>
+              </div>
+              <div class="payment-proof-upload">
+                <span class="form-label">
+                  Bukti biaya <small>Opsional</small>
+                </span>
+                <FileUploadControl
+                  id="expense-proof-file"
+                  name="proof"
+                  title="Unggah struk atau invoice biaya"
+                  hint="Foto dokumen pengeluaran · JPEG, PNG, atau WebP · maksimal 8 MB"
+                  accept="image/jpeg,image/png,image/webp"
+                  icon="receipt"
+                  size="compact"
+                  actionLabel="Pilih bukti"
+                />
+                <div class="cover-preview" id="expense-proof-preview" hidden>
+                  <img
+                    id="expense-proof-preview-image"
+                    alt="Pratinjau bukti biaya"
+                  />
+                  <div>
+                    <strong id="expense-proof-preview-name"></strong>
+                    <span id="expense-proof-preview-size"></span>
+                    <button
+                      class="link-button"
+                      id="remove-expense-proof"
+                      type="button"
+                    >
+                      Hapus bukti
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <button class="primary" type="submit">
+                Simpan pengeluaran ↗
+              </button>
+            </form>
+          </details>
+        </div>
+      </section>
+
+      <section
+        class="panel departure-manifest-panel"
+        aria-labelledby="departure-manifest-title"
+        data-departure-section-panel="people"
+      >
+        <div class="panel-head">
+          <div>
+            <p class="eyebrow">MANIFEST GABUNGAN</p>
+            <h2 id="departure-manifest-title">Semua peserta keberangkatan</h2>
+          </div>
+          <span class="pill olive">
+            {operations.summary.manifestSeats} peserta
+          </span>
+        </div>
+        <p class="muted manifest-note">
+          Hanya booking terkonfirmasi yang masuk otomatis. Data keselamatan
+          peserta yang belum lengkap ditandai, dan titik jemput mengikuti
+          pilihan meeting point pada masing-masing order.
+        </p>
+        {operations.manifest.length ? (
+          <ol class="manifest-list departure-manifest-list">
+            {operations.manifest.map((person, index) => (
+              <li>
+                <span>{String(index + 1).padStart(2, '0')}</span>
+                <strong>
+                  {person.fullName} {person.isPic && <small>PIC</small>}{' '}
+                  {person.manuallyIncluded && (
+                    <small class="manual-manifest-label">IZIN ADMIN</small>
+                  )}
+                </strong>
+                <em class="manifest-pickup">
+                  <span>Titik jemput</span>
+                  <strong>{person.pickupLabel}</strong>
+                  {person.pickup.address && (
+                    <small>{person.pickup.address}</small>
+                  )}
+                </em>
+                <em>
+                  {person.number} · PIC {person.picName}
+                </em>
+                <em>
+                  {person.identityLast4
+                    ? `Dokumen ${person.identityLast4}`
+                    : 'Data keselamatan belum lengkap'}
+                </em>
+                <b>{person.checkedInAt ? 'Hadir' : 'Check-in: ________'}</b>
+              </li>
+            ))}
+          </ol>
+        ) : (
+          <p class="empty">
+            Belum ada peserta terkonfirmasi untuk manifest jadwal ini.
+          </p>
+        )}
+      </section>
+
+      <section
+        class="panel departure-orders-panel"
+        aria-labelledby="departure-orders-title"
+        data-departure-section-panel="people"
+      >
+        <div class="panel-head departure-orders-head">
+          <div>
+            <p class="eyebrow">ROMBONGAN & PEMBAYARAN</p>
+            <h2 id="departure-orders-title">Order pada jadwal ini</h2>
+            <p class="muted">
+              Nilai booking berbeda dengan uang diterima. Hanya pembayaran
+              terverifikasi yang masuk perhitungan pendapatan.
+            </p>
+          </div>
+          <span class="pill">{operations.summary.totalOrders} order</span>
+        </div>
+        {operations.orders.length ? (
+          <div class="orders-table-wrap">
+            <table class="orders-table departure-orders-table">
+              <thead>
+                <tr>
+                  <th>Invoice / rombongan</th>
+                  <th>PIC</th>
+                  <th>Pax</th>
+                  <th>Nilai booking</th>
+                  <th>Terverifikasi</th>
+                  <th>Sisa</th>
+                  <th>Status</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {operations.orders.map((order) => (
+                  <tr
+                    class:list={{ 'departure-order-inactive': !order.isActive }}
+                  >
+                    <td>
+                      <strong>{order.number}</strong>
+                      <small>Dibuat {shortDate.format(order.createdAt)}</small>
+                    </td>
+                    <td>
+                      <strong>{order.picName}</strong>
+                      <small>{order.picWhatsApp}</small>
+                    </td>
+                    <td>{order.pax}</td>
+                    <td>
+                      Rp{money.format(Number(order.total))}
+                      <small>
+                        DP min. Rp{money.format(Number(order.minimumDp))}
+                      </small>
+                    </td>
+                    <td>
+                      <strong>
+                        Rp{money.format(Number(order.verifiedAmount))}
+                      </strong>
+                      {BigInt(order.submittedAmount) > 0n && (
+                        <small>
+                          Rp{money.format(Number(order.submittedAmount))}{' '}
+                          menunggu cek
+                        </small>
+                      )}
+                    </td>
+                    <td>Rp{money.format(Number(order.outstandingAmount))}</td>
+                    <td>
+                      <span class:list={['state', `booking-${order.state}`]}>
+                        {stateLabel(order.state)}
+                      </span>
+                      {order.isManualManifest && (
+                        <small class="manual-manifest-copy">
+                          Masuk manifest atas izin admin
+                        </small>
+                      )}
+                      {order.isLiveHold && !order.isManualManifest && (
+                        <small>
+                          Hold hingga {shortDate.format(order.holdExpiresAt)}
+                        </small>
+                      )}
+                    </td>
+                    <td>
+                      <div class="departure-order-actions">
+                        <a
+                          class="button-link"
+                          href={`/admin/orders/${order.id}`}
+                        >
+                          Buka order ↗
+                        </a>
+                        {order.isLiveHold &&
+                          (order.isManualManifest ? (
+                            <button
+                              class="danger-button remove-manifest-exception"
+                              type="button"
+                              data-booking-id={order.id}
+                              data-number={order.number}
+                            >
+                              Keluarkan manifest
+                            </button>
+                          ) : (
+                            <button
+                              class="button-link include-manifest-exception"
+                              type="button"
+                              data-booking-id={order.id}
+                              data-number={order.number}
+                            >
+                              Izinkan manifest
+                            </button>
+                          ))}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p class="empty">Belum ada booking yang terkait dengan jadwal ini.</p>
+        )}
+      </section>
+
+      <section class="manifest-print-sheet" aria-hidden="true">
+        <header class="manifest-print-header">
+          <div>
+            <p>MANIFEST PESERTA · LEBIHJAUH</p>
+            <h1>{operations.schedule.tripName}</h1>
+          </div>
+          <dl>
+            <div>
+              <dt>Keberangkatan</dt>
+              <dd>{date.format(operations.schedule.startAt)}</dd>
+            </div>
+            <div>
+              <dt>Meeting point</dt>
+              <dd>
+                {operations.pickupOptions
+                  .filter((pickup) => pickup.isActive)
+                  .map((pickup) => pickup.zoneName)
+                  .join(', ') || 'Belum diatur'}
+              </dd>
+            </div>
+            <div>
+              <dt>Rombongan</dt>
+              <dd>
+                {operations.summary.manifestSeats} peserta ·{' '}
+                {operations.summary.confirmedOrders} order terkonfirmasi
+              </dd>
+            </div>
+          </dl>
+        </header>
+        <table class="manifest-print-table departure-print-table">
+          <thead>
+            <tr>
+              <th>No.</th>
+              <th>Nama peserta / rombongan</th>
+              <th>Titik jemput</th>
+              <th>NIK akhir</th>
+              <th>Check-in</th>
+            </tr>
+          </thead>
+          <tbody>
+            {operations.manifest.map((person, index) => (
+              <tr>
+                <td>{String(index + 1).padStart(2, '0')}</td>
+                <td>
+                  {person.fullName}
+                  {person.isPic && <small>PIC</small>}
+                  <small>
+                    {person.number} · PIC {person.picName}
+                    {person.manuallyIncluded ? ' · Izin admin' : ''}
+                  </small>
+                </td>
+                <td>{person.pickupLabel}</td>
+                <td>{person.identityLast4 ?? 'Belum lengkap'}</td>
+                <td>{person.checkedInAt ? 'Hadir' : ''}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </section>
+
+      <dialog class="booking-cancel-dialog" id="manifest-exception-dialog">
+        <form id="manifest-exception-form">
+          <p class="eyebrow">IZIN MANIFEST</p>
+          <h2 id="manifest-exception-title">Izinkan rombongan berangkat?</h2>
+          <p class="muted">
+            Booking tetap berstatus menunggu pembayaran dan tidak dianggap
+            lunas. Gunakan hanya bila ada persetujuan operasional yang jelas.
+          </p>
+          <label>
+            Alasan izin admin
+            <textarea
+              name="reason"
+              required
+              minlength="5"
+              maxlength="500"
+              placeholder="Contoh: PIC mendapat persetujuan pelunasan di lokasi dari koordinator operasi."
+            ></textarea>
+          </label>
+          <div>
+            <button
+              class="button-link"
+              id="close-manifest-exception"
+              type="button"
+            >
+              Kembali
+            </button>
+            <button class="danger-button" type="submit">
+              Izinkan masuk manifest
+            </button>
+          </div>
+        </form>
+      </dialog>
+    </>
+  ) : (
+    <section class="panel">
+      <h1>Jadwal tidak ditemukan.</h1>
+      <a class="primary" href="/admin/trips">
+        Kembali ke trip & jadwal
+      </a>
+    </section>
+  )}
+
+  {operations && <script
+    is:inline
+    define:vars={{
+      departureId: operations.schedule.id,
+      defaultPickupAt: operations.schedule.startAt.toISOString(),
+    }}
+  >
+    const departureSectionTabs = document.querySelectorAll(
+      '[data-departure-section-tab]',
+    );
+    const departureSectionPanels = document.querySelectorAll(
+      '[data-departure-section-panel]',
+    );
+    const departureSectionHashes = {
+      people: 'peserta-order',
+      pickup: 'titik-jemput',
+      finance: 'keuangan',
+    };
+    const showDepartureSection = (section, scroll = false) => {
+      if (!departureSectionHashes[section]) return;
+      departureSectionTabs.forEach((tab) => {
+        const active = tab.dataset.departureSectionTab === section;
+        tab.classList.toggle('active', active);
+        tab.setAttribute('aria-pressed', String(active));
+      });
+      departureSectionPanels.forEach((panel) => {
+        panel.hidden = panel.dataset.departureSectionPanel !== section;
+      });
+      history.replaceState(null, '', `#${departureSectionHashes[section]}`);
+      if (scroll)
+        document.querySelector('.departure-section-tabs')?.scrollIntoView({
+          behavior: 'smooth',
+          block: 'start',
+        });
+    };
+    departureSectionTabs.forEach((tab) =>
+      tab.addEventListener('click', () =>
+        showDepartureSection(tab.dataset.departureSectionTab),
+      ),
+    );
+    document
+      .querySelectorAll('[data-open-departure-section]')
+      .forEach((button) =>
+        button.addEventListener('click', (event) => {
+          event.preventDefault();
+          showDepartureSection(button.dataset.openDepartureSection, true);
+        }),
+      );
+    const initialDepartureSection = Object.entries(departureSectionHashes).find(
+      ([, hash]) => `#${hash}` === window.location.hash,
+    )?.[0];
+    if (initialDepartureSection) showDepartureSection(initialDepartureSection);
+
+    document
+      .querySelector('#print-departure-manifest')
+      ?.addEventListener('click', () => window.print());
+    document
+      .querySelector('#open-emergency-manifest')
+      ?.addEventListener('click', async () => {
+        if (
+          !(await window.adminConfirm({
+            title: 'Buka manifest darurat?',
+            message:
+              'Dokumen ini memuat nomor identitas, alamat, dan kontak darurat lengkap. Buka hanya untuk kebutuhan operasional dan jangan disebarluaskan.',
+            confirmLabel: 'Buka dokumen terbatas',
+            destructive: false,
+          }))
+        )
+          return;
+        window.open(
+          `/admin/departures/${departureId}/emergency-manifest`,
+          '_blank',
+          'noopener',
+        );
+      });
+    const exceptionDialog = document.querySelector(
+      '#manifest-exception-dialog',
+    );
+    const exceptionForm = document.querySelector('#manifest-exception-form');
+    let selectedBookingId = null;
+    document.querySelectorAll('.include-manifest-exception').forEach((button) =>
+      button.addEventListener('click', () => {
+        selectedBookingId = button.dataset.bookingId;
+        document.querySelector('#manifest-exception-title').textContent =
+          `Izinkan ${button.dataset.number} masuk manifest?`;
+        exceptionForm?.reset();
+        exceptionDialog?.showModal();
+      }),
+    );
+    document
+      .querySelector('#close-manifest-exception')
+      ?.addEventListener('click', () => exceptionDialog?.close());
+    exceptionForm?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      if (!selectedBookingId || !exceptionForm.reportValidity()) return;
+      const submit = exceptionForm.querySelector('button[type="submit"]');
+      if (submit) submit.disabled = true;
+      try {
+        const response = await fetch('/api/admin/departure-manifest', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'include',
+            departureId,
+            bookingId: selectedBookingId,
+            reason: new FormData(exceptionForm).get('reason'),
+          }),
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.message);
+        exceptionDialog?.close();
+        window.adminNotify({
+          type: 'success',
+          message: `${result.manifest.number} dimasukkan ke manifest dengan izin admin.`,
+        });
+        window.location.reload();
+      } catch (error) {
+        window.adminNotify({
+          type: 'error',
+          message: error.message || 'Izin manifest belum dapat disimpan.',
+        });
+        if (submit) submit.disabled = false;
+      }
+    });
+    document.querySelectorAll('.remove-manifest-exception').forEach((button) =>
+      button.addEventListener('click', async () => {
+        if (
+          !(await window.adminConfirm({
+            title: `Keluarkan ${button.dataset.number} dari manifest?`,
+            message:
+              'Booking tetap ada dan kursinya tetap ditahan selama masa hold berlaku. Hanya izin tampil pada manifest yang dicabut.',
+            confirmLabel: 'Keluarkan dari manifest',
+            destructive: true,
+          }))
+        )
+          return;
+        button.disabled = true;
+        try {
+          const response = await fetch('/api/admin/departure-manifest', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              action: 'remove',
+              departureId,
+              bookingId: button.dataset.bookingId,
+            }),
+          });
+          const result = await response.json();
+          if (!response.ok) throw new Error(result.message);
+          window.adminNotify({
+            type: 'success',
+            message: `${result.manifest.number} dikeluarkan dari manifest.`,
+          });
+          window.location.reload();
+        } catch (error) {
+          window.adminNotify({
+            type: 'error',
+            message: error.message || 'Manifest belum dapat diperbarui.',
+          });
+          button.disabled = false;
+        }
+      }),
+    );
+
+    const pickupForm = document.querySelector('#pickup-option-form');
+    const pickupEditor = document.querySelector('#pickup-option-editor');
+    const pickupTitle = document.querySelector('#pickup-form-title');
+    const pickupKicker = document.querySelector('#pickup-form-kicker');
+    const resetPickup = document.querySelector('#reset-pickup-form');
+    const pickupMasterSelect = pickupForm?.elements.namedItem(
+      'masterPickupPointId',
+    );
+    const selectedPickupAddress = document.querySelector(
+      '#selected-pickup-address',
+    );
+    const pickupPrice = pickupForm?.elements.namedItem('pricePerPax');
+    const pickupRundownField = pickupForm?.elements.namedItem('rundownText');
+    const pickupRundownDays = document.querySelector('#pickup-rundown-days');
+    const pickupRundownEmpty = document.querySelector('#pickup-rundown-empty');
+    const addPickupRundownDay = document.querySelector(
+      '#add-pickup-rundown-day',
+    );
+    let pickupRundown = [];
+    const toDateTimeLocal = (value) => {
+      const date = new Date(value);
+      const offset = date.getTimezoneOffset() * 60_000;
+      return new Date(date.getTime() - offset).toISOString().slice(0, 16);
+    };
+    const formatRupiahInput = (input) => {
+      const raw = input.value.replace(/\D/g, '');
+      input.dataset.rawValue = raw;
+      input.value = raw
+        ? `Rp${new Intl.NumberFormat('id-ID').format(Number(raw))}`
+        : '';
+    };
+    const syncPickupRundown = () => {
+      pickupRundownField.value = pickupRundown
+        .map((day) =>
+          [
+            `${day.day} | ${day.title}`,
+            ...day.activities.map((activity) =>
+              [activity.time, activity.activity, activity.location].join(' | '),
+            ),
+            ...(day.details ? [`Catatan | ${day.details}`] : []),
+          ].join('\n'),
+        )
+        .join('\n\n');
+      pickupRundownEmpty.hidden = pickupRundown.length > 0;
+    };
+    const pickupRundownFieldElement = (labelText, value, options = {}) => {
+      const label = document.createElement('label');
+      label.textContent = labelText;
+      const field = document.createElement(
+        options.multiline ? 'textarea' : 'input',
+      );
+      field.value = value || '';
+      field.required = Boolean(options.required);
+      if (options.maxLength) field.maxLength = options.maxLength;
+      if (options.placeholder) field.placeholder = options.placeholder;
+      if (options.multiline) field.rows = 2;
+      field.addEventListener('input', options.onInput);
+      label.append(field);
+      return label;
+    };
+    const renderPickupRundown = () => {
+      pickupRundownDays.replaceChildren();
+      pickupRundown.forEach((day, dayIndex) => {
+        const card = document.createElement('article');
+        card.className = 'itinerary-stage-card';
+        const head = document.createElement('div');
+        head.className = 'itinerary-stage-head';
+        const heading = document.createElement('strong');
+        heading.textContent = `${String(dayIndex + 1).padStart(2, '0')} / HARI PERJALANAN`;
+        const removeDay = document.createElement('button');
+        removeDay.className = 'button-link';
+        removeDay.type = 'button';
+        removeDay.textContent = 'Hapus hari';
+        removeDay.addEventListener('click', () => {
+          pickupRundown.splice(dayIndex, 1);
+          renderPickupRundown();
+        });
+        head.append(heading, removeDay);
+        const dayGrid = document.createElement('div');
+        dayGrid.className = 'form-two-columns';
+        dayGrid.append(
+          pickupRundownFieldElement('Hari', day.day, {
+            required: true,
+            maxLength: 80,
+            placeholder: 'Hari 1',
+            onInput: (event) => {
+              day.day = event.currentTarget.value;
+              syncPickupRundown();
+            },
+          }),
+          pickupRundownFieldElement('Judul perjalanan', day.title, {
+            required: true,
+            maxLength: 80,
+            placeholder: 'Jakarta → Basecamp',
+            onInput: (event) => {
+              day.title = event.currentTarget.value;
+              syncPickupRundown();
+            },
+          }),
+        );
+        const activities = document.createElement('div');
+        activities.className = 'itinerary-activities';
+        const activityHeading = document.createElement('strong');
+        activityHeading.textContent = 'RUNDOWN KEGIATAN';
+        activities.append(activityHeading);
+        day.activities.forEach((activity, activityIndex) => {
+          const row = document.createElement('div');
+          row.className = 'itinerary-activity-row';
+          row.append(
+            pickupRundownFieldElement('Waktu', activity.time, {
+              maxLength: 80,
+              placeholder: '20.00',
+              onInput: (event) => {
+                activity.time = event.currentTarget.value;
+                syncPickupRundown();
+              },
+            }),
+            pickupRundownFieldElement('Kegiatan', activity.activity, {
+              required: true,
+              maxLength: 240,
+              placeholder: 'Berangkat menuju basecamp',
+              onInput: (event) => {
+                activity.activity = event.currentTarget.value;
+                syncPickupRundown();
+              },
+            }),
+            pickupRundownFieldElement('Lokasi', activity.location, {
+              maxLength: 180,
+              placeholder: 'Opsional',
+              onInput: (event) => {
+                activity.location = event.currentTarget.value;
+                syncPickupRundown();
+              },
+            }),
+          );
+          const removeActivity = document.createElement('button');
+          removeActivity.className = 'button-link';
+          removeActivity.type = 'button';
+          removeActivity.textContent = 'Hapus';
+          removeActivity.addEventListener('click', () => {
+            day.activities.splice(activityIndex, 1);
+            renderPickupRundown();
+          });
+          row.append(removeActivity);
+          activities.append(row);
+        });
+        const addActivity = document.createElement('button');
+        addActivity.className = 'button-link';
+        addActivity.type = 'button';
+        addActivity.textContent = '+ Tambah kegiatan';
+        addActivity.addEventListener('click', () => {
+          day.activities.push({ time: '', activity: '', location: '' });
+          renderPickupRundown();
+        });
+        activities.append(addActivity);
+        const details = pickupRundownFieldElement(
+          'Catatan hari ini',
+          day.details,
+          {
+            multiline: true,
+            maxLength: 2000,
+            placeholder:
+              'Opsional, misalnya itinerary dapat berubah mengikuti kondisi lapangan.',
+            onInput: (event) => {
+              day.details = event.currentTarget.value;
+              syncPickupRundown();
+            },
+          },
+        );
+        card.append(head, dayGrid, activities, details);
+        pickupRundownDays.append(card);
+      });
+      syncPickupRundown();
+    };
+    const parsePickupRundown = (value = '') => {
+      const days = [];
+      for (const rawLine of value.split('\n')) {
+        const line = rawLine.trim();
+        if (!line) continue;
+        const parts = line.split('|').map((item) => item.trim());
+        if (/^(?:day|hari)\s*\d+/i.test(parts[0] || '')) {
+          days.push({
+            day: parts[0],
+            title: parts[1] || '',
+            activities: [],
+            details: '',
+          });
+        } else if ((parts[0] || '').toLowerCase() === 'catatan') {
+          if (days.length)
+            days.at(-1).details = parts.slice(1).join(' | ').trim();
+        } else if (days.length) {
+          days.at(-1).activities.push({
+            time: parts[0] || '',
+            activity: parts[1] || '',
+            location: parts[2] || '',
+          });
+        }
+      }
+      return days;
+    };
+    const resetPickupForm = () => {
+      pickupForm?.reset();
+      const id = pickupForm?.elements.namedItem('id');
+      if (id) id.value = '';
+      if (pickupPrice) pickupPrice.dataset.rawValue = '';
+      pickupRundown = [];
+      renderPickupRundown();
+      if (selectedPickupAddress)
+        selectedPickupAddress.textContent =
+          'Lokasi dikelola dari halaman Kelola Open Trip.';
+      pickupTitle.textContent = 'Titik jemput baru';
+      pickupKicker.textContent = 'TAMBAH ZONA';
+      resetPickup.hidden = true;
+    };
+    const syncPickupMaster = () => {
+      const option = pickupMasterSelect?.selectedOptions?.[0];
+      const point = option?.dataset.point
+        ? JSON.parse(option.dataset.point)
+        : null;
+      if (!point) return;
+      for (const field of ['zoneName', 'locationName', 'address', 'mapsUrl'])
+        pickupForm.elements.namedItem(field).value = point[field] || '';
+      if (!pickupForm.elements.namedItem('instructions').value)
+        pickupForm.elements.namedItem('instructions').value =
+          point.instructions || '';
+      if (selectedPickupAddress)
+        selectedPickupAddress.textContent = point.address;
+    };
+    if (pickupPrice) {
+      pickupPrice.addEventListener('input', () =>
+        formatRupiahInput(pickupPrice),
+      );
+    }
+    resetPickupForm();
+    syncPickupMaster();
+    pickupMasterSelect?.addEventListener('change', syncPickupMaster);
+    resetPickup?.addEventListener('click', () => {
+      resetPickupForm();
+      syncPickupMaster();
+    });
+    document.querySelectorAll('.edit-pickup-option').forEach((button) =>
+      button.addEventListener('click', () => {
+        const pickup = JSON.parse(button.dataset.pickup || '{}');
+        if (!pickup.id) return;
+        pickupForm.elements.namedItem('id').value = pickup.id;
+        pickupForm.elements.namedItem('masterPickupPointId').value =
+          pickup.masterPickupPointId;
+        pickupForm.elements.namedItem('zoneName').value = pickup.zoneName;
+        pickupForm.elements.namedItem('locationName').value =
+          pickup.locationName;
+        pickupForm.elements.namedItem('address').value = pickup.address;
+        pickupForm.elements.namedItem('pickupAt').value = pickup.pickupAt
+          ? toDateTimeLocal(pickup.pickupAt)
+          : '';
+        pickupForm.elements.namedItem('mapsUrl').value = pickup.mapsUrl;
+        pickupForm.elements.namedItem('instructions').value =
+          pickup.instructions;
+        pickupForm.elements.namedItem('capacity').value = pickup.capacity;
+        pickupRundown = parsePickupRundown(pickup.rundownText || '');
+        renderPickupRundown();
+        syncPickupMaster();
+        pickupPrice.value = pickup.pricePerPax;
+        formatRupiahInput(pickupPrice);
+        pickupTitle.textContent = `Edit: ${pickup.zoneName}`;
+        pickupKicker.textContent = 'UBAH ZONA';
+        resetPickup.hidden = false;
+        if (pickupEditor) pickupEditor.open = true;
+        pickupForm.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }),
+    );
+    addPickupRundownDay?.addEventListener('click', () => {
+      pickupRundown.push({
+        day: `Hari ${pickupRundown.length + 1}`,
+        title: '',
+        activities: [{ time: '', activity: '', location: '' }],
+        details: '',
+      });
+      renderPickupRundown();
+      pickupRundownDays.lastElementChild?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'nearest',
+      });
+    });
+    document.querySelectorAll('.set-default-pickup-option').forEach((button) =>
+      button.addEventListener('click', async () => {
+        if (
+          !(await window.adminConfirm({
+            title: `Jadikan ${button.dataset.name} titik utama?`,
+            message:
+              'Pilihan ini akan terpilih lebih dahulu pada form booking. Harga peserta tetap mengikuti titik yang mereka pilih.',
+            confirmLabel: 'Jadikan utama',
+          }))
+        )
+          return;
+        try {
+          const response = await fetch(
+            `/api/admin/departures/${departureId}/pickup-options`,
+            {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                id: button.dataset.id,
+                action: 'set_default',
+              }),
+            },
+          );
+          const result = await response.json();
+          if (!response.ok) throw new Error(result.message);
+          window.adminNotify({
+            type: 'success',
+            message: `${button.dataset.name} sekarang menjadi titik utama.`,
+          });
+          window.location.reload();
+        } catch (error) {
+          window.adminNotify({
+            type: 'error',
+            message: error.message || 'Titik utama belum dapat diubah.',
+          });
+        }
+      }),
+    );
+    pickupForm?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      if (!pickupForm.reportValidity()) return;
+      // Pastikan hidden fields terisi dari selected master option
+      syncPickupMaster();
+      const invalidDay = pickupRundown.findIndex((d) => !d.activities.length);
+      if (invalidDay !== -1) {
+        window.adminNotify({
+          type: 'error',
+          message: `Hari ${invalidDay + 1} pada rundown belum memiliki kegiatan. Tambahkan minimal satu kegiatan atau hapus hari tersebut.`,
+        });
+        return;
+      }
+      // Validasi: field kegiatan tidak boleh kosong
+      for (let di = 0; di < pickupRundown.length; di++) {
+        const day = pickupRundown[di];
+        const emptyActivity = day.activities.findIndex(
+          (a) => !a.activity.trim(),
+        );
+        if (emptyActivity !== -1) {
+          window.adminNotify({
+            type: 'error',
+            message: `Hari ${di + 1}, kegiatan ${emptyActivity + 1}: nama kegiatan wajib diisi.`,
+          });
+          return;
+        }
+      }
+      const submit = pickupForm.querySelector('button[type="submit"]');
+      if (submit) submit.disabled = true;
+      const values = Object.fromEntries(new FormData(pickupForm));
+      values.pricePerPax = pickupPrice?.dataset.rawValue || '';
+      // Build rundownText langsung dari array pickupRundown (jangan andalkan hidden field)
+      values.rundownText = pickupRundown
+        .map((day) =>
+          [
+            `${day.day} | ${day.title}`,
+            ...day.activities.map((activity) =>
+              [activity.time, activity.activity, activity.location].join(' | '),
+            ),
+            ...(day.details ? [`Catatan | ${day.details}`] : []),
+          ].join('\n'),
+        )
+        .join('\n\n');
+      const editing = Boolean(values.id);
+      try {
+        const response = await fetch(
+          `/api/admin/departures/${departureId}/pickup-options`,
+          {
+            method: editing ? 'PATCH' : 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(values),
+          },
+        );
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.message);
+        window.adminNotify({
+          type: 'success',
+          message: editing
+            ? 'Meeting point diperbarui. Quote lama diminta diperiksa ulang.'
+            : 'Meeting point baru ditambahkan.',
+        });
+        window.location.reload();
+      } catch (error) {
+        window.adminNotify({
+          type: 'error',
+          message: error.message || 'Meeting point belum dapat disimpan.',
+        });
+        if (submit) submit.disabled = false;
+      }
+    });
+    document.querySelectorAll('.deactivate-pickup-option').forEach((button) =>
+      button.addEventListener('click', async () => {
+        if (
+          !(await window.adminConfirm({
+            title: `Nonaktifkan ${button.dataset.name}?`,
+            message:
+              'Zona ini tidak lagi muncul saat booking baru. Invoice yang sudah dibuat tetap menyimpan pilihannya.',
+            confirmLabel: 'Nonaktifkan zona',
+            destructive: true,
+          }))
+        )
+          return;
+        button.disabled = true;
+        try {
+          const response = await fetch(
+            `/api/admin/departures/${departureId}/pickup-options`,
+            {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                id: button.dataset.id,
+                action: 'deactivate',
+              }),
+            },
+          );
+          const result = await response.json();
+          if (!response.ok) throw new Error(result.message);
+          window.adminNotify({
+            type: 'success',
+            message: 'Zona jemput dinonaktifkan.',
+          });
+          window.location.reload();
+        } catch (error) {
+          window.adminNotify({
+            type: 'error',
+            message: error.message || 'Zona belum dapat dinonaktifkan.',
+          });
+          button.disabled = false;
+        }
+      }),
+    );
+    const expenseForm = document.querySelector('#trip-expense-form');
+    const expenseAmount = expenseForm?.elements.namedItem('amount');
+    const expenseFile = document.querySelector('#expense-proof-file');
+    const expensePreview = document.querySelector('#expense-proof-preview');
+    const expensePreviewImage = document.querySelector(
+      '#expense-proof-preview-image',
+    );
+    const expensePreviewName = document.querySelector(
+      '#expense-proof-preview-name',
+    );
+    const expensePreviewSize = document.querySelector(
+      '#expense-proof-preview-size',
+    );
+    let expensePreviewUrl = '';
+    const clearExpenseProof = () => {
+      if (expensePreviewUrl) URL.revokeObjectURL(expensePreviewUrl);
+      expensePreviewUrl = '';
+      if (expenseFile) expenseFile.value = '';
+      if (expensePreviewImage) expensePreviewImage.removeAttribute('src');
+      if (expensePreview) expensePreview.hidden = true;
+    };
+    if (expenseAmount)
+      expenseAmount.addEventListener('input', () =>
+        formatRupiahInput(expenseAmount),
+      );
+    if (expenseForm) {
+      expenseForm.elements.namedItem('paidAt').value = toDateTimeLocal(
+        new Date(),
+      );
+    }
+    expenseFile?.addEventListener('change', () => {
+      const file = expenseFile.files?.[0];
+      clearExpenseProof();
+      if (!file) return;
+      if (
+        !['image/jpeg', 'image/png', 'image/webp'].includes(file.type) ||
+        file.size > 8 * 1024 * 1024
+      ) {
+        window.adminNotify({
+          type: 'error',
+          message: 'Gunakan JPEG, PNG, atau WebP maksimal 8 MB.',
+        });
+        return;
+      }
+      const transfer = new DataTransfer();
+      transfer.items.add(file);
+      expenseFile.files = transfer.files;
+      expensePreviewUrl = URL.createObjectURL(file);
+      expensePreviewImage.src = expensePreviewUrl;
+      expensePreviewName.textContent = file.name;
+      expensePreviewSize.textContent = `${(file.size / 1024).toFixed(0)} KB`;
+      expensePreview.hidden = false;
+    });
+    document
+      .querySelector('#remove-expense-proof')
+      ?.addEventListener('click', clearExpenseProof);
+    expenseForm?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      if (!expenseForm.reportValidity()) return;
+      const submit = expenseForm.querySelector('button[type="submit"]');
+      submit.disabled = true;
+      try {
+        const file = expenseFile?.files?.[0];
+        let proofObjectKey = null;
+        if (file) {
+          const presign = await fetch('/api/admin/expense-proofs/presign', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              fileName: file.name,
+              contentType: file.type,
+              size: file.size,
+            }),
+          });
+          const signed = await presign.json();
+          if (!presign.ok) throw new Error(signed.message);
+          const upload = await fetch(signed.uploadUrl, {
+            method: 'PUT',
+            headers: { 'Content-Type': signed.contentType },
+            body: file,
+          });
+          if (!upload.ok) throw new Error('Bukti biaya gagal diunggah.');
+          proofObjectKey = signed.objectKey;
+        }
+        const data = new FormData(expenseForm);
+        const response = await fetch('/api/admin/trip-expenses', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            departureId,
+            category: data.get('category'),
+            paidAt: data.get('paidAt'),
+            vendor: data.get('vendor'),
+            amount: expenseAmount.dataset.rawValue,
+            method: data.get('method'),
+            reference: data.get('reference'),
+            proofObjectKey,
+          }),
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.message);
+        window.adminNotify({
+          type: 'success',
+          message: 'Pengeluaran tersimpan dan masuk ringkasan keuangan jadwal.',
+        });
+        window.location.reload();
+      } catch (error) {
+        window.adminNotify({
+          type: 'error',
+          message: error.message || 'Pengeluaran belum dapat disimpan.',
+        });
+        submit.disabled = false;
+      }
+    });
+    const voidExpenseDialog = document.querySelector('#void-expense-dialog');
+    const voidExpenseForm = document.querySelector('#void-expense-form');
+    document.querySelectorAll('.void-expense').forEach((button) =>
+      button.addEventListener('click', () => {
+        voidExpenseForm.elements.namedItem('expenseId').value =
+          button.dataset.id;
+        document.querySelector('#void-expense-title').textContent =
+          `Batalkan biaya ${button.dataset.vendor}?`;
+        voidExpenseDialog?.showModal();
+      }),
+    );
+    document
+      .querySelector('#close-void-expense')
+      ?.addEventListener('click', () => voidExpenseDialog?.close());
+    voidExpenseForm?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      if (!voidExpenseForm.reportValidity()) return;
+      const data = Object.fromEntries(new FormData(voidExpenseForm));
+      const submit = voidExpenseForm.querySelector('button[type="submit"]');
+      submit.disabled = true;
+      try {
+        const response = await fetch('/api/admin/trip-expenses', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data),
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.message);
+        window.adminNotify({
+          type: 'success',
+          message: 'Catatan biaya dibatalkan dan tidak lagi dihitung.',
+        });
+        window.location.reload();
+      } catch (error) {
+        window.adminNotify({
+          type: 'error',
+          message: error.message || 'Catatan belum dapat dibatalkan.',
+        });
+        submit.disabled = false;
+      }
+    });
+  </script>}
+</AdminLayout>

@@ -1,0 +1,307 @@
+---
+import { desc, eq } from 'drizzle-orm';
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import { getDb } from '../../../db/client';
+import { booking, invoice } from '../../../db/schema';
+import { expireDueBookingHolds } from '../../../lib/booking-admin';
+
+export const prerender = false;
+await expireDueBookingHolds();
+const db = getDb();
+const rawRows = await db
+  .select({
+    id: booking.id,
+    number: booking.publicNumber,
+    state: booking.state,
+    pax: booking.pax,
+    picName: booking.picName,
+    picWhatsApp: booking.picWhatsApp,
+    bookingSource: booking.bookingSource,
+    createdAt: booking.createdAt,
+    holdExpiresAt: booking.holdExpiresAt,
+    packageSnapshot: booking.packageSnapshot,
+    total: invoice.total,
+    minimumDp: invoice.minimumDp,
+  })
+  .from(booking)
+  .innerJoin(invoice, eq(invoice.bookingId, booking.id))
+  .orderBy(desc(booking.createdAt));
+type PackageSnapshot = { tripName?: string; startAt?: string };
+const rows = rawRows.map((row) => {
+  const snapshot = row.packageSnapshot as PackageSnapshot;
+  return {
+    ...row,
+    tripName: snapshot.tripName ?? 'Trip LebihJauh',
+    startAt: snapshot.startAt ? new Date(snapshot.startAt) : null,
+  };
+});
+const params = Astro.url.searchParams;
+const query = (params.get('q') ?? '').trim().toLowerCase();
+const selectedState = params.get('state') ?? 'all';
+const selectedTrip = params.get('trip') ?? 'all';
+const selectedSource = params.get('source') ?? 'all';
+const states = [
+  ['all', 'Semua status'],
+  ['awaiting_payment', 'Menunggu pembayaran'],
+  ['expired', 'Kedaluwarsa'],
+  ['cancelled', 'Dibatalkan'],
+  ['confirmed', 'Terkonfirmasi'],
+  ['completed', 'Selesai'],
+] as const;
+const stateLabel = (state: string) =>
+  ({
+    awaiting_payment: 'Menunggu pembayaran',
+    expired: 'Kedaluwarsa',
+    cancelled: 'Dibatalkan',
+    confirmed: 'Terkonfirmasi',
+    completed: 'Selesai',
+  })[state] ?? state;
+const tripNames = [...new Set(rows.map((row) => row.tripName))].sort((a, b) =>
+  a.localeCompare(b, 'id'),
+);
+const filteredRows = rows
+  .filter((row) => selectedState === 'all' || row.state === selectedState)
+  .filter((row) => selectedTrip === 'all' || row.tripName === selectedTrip)
+  .filter(
+    (row) => selectedSource === 'all' || row.bookingSource === selectedSource,
+  )
+  .filter(
+    (row) =>
+      !query ||
+      [row.number, row.picName, row.picWhatsApp, row.tripName].some((item) =>
+        item.toLowerCase().includes(query),
+      ),
+  )
+  .sort((a, b) => {
+    const aUrgent =
+      a.state === 'awaiting_payment'
+        ? a.holdExpiresAt.getTime()
+        : Number.MAX_SAFE_INTEGER;
+    const bUrgent =
+      b.state === 'awaiting_payment'
+        ? b.holdExpiresAt.getTime()
+        : Number.MAX_SAFE_INTEGER;
+    return aUrgent - bUrgent || b.createdAt.getTime() - a.createdAt.getTime();
+  });
+const now = new Date();
+const waiting = rows.filter((row) => row.state === 'awaiting_payment');
+const urgent = waiting.filter(
+  (row) => row.holdExpiresAt.getTime() - now.getTime() <= 6 * 60 * 60 * 1000,
+);
+const totalPax = waiting.reduce((total, row) => total + row.pax, 0);
+const money = new Intl.NumberFormat('id-ID');
+const date = new Intl.DateTimeFormat('id-ID', {
+  dateStyle: 'medium',
+  timeStyle: 'short',
+  timeZone: 'Asia/Jakarta',
+});
+const whatsappHref = (phone: string, message: string) => {
+  const digits = phone.replace(/\D/g, '').replace(/^0/, '62');
+  return digits
+    ? `https://wa.me/${digits}?text=${encodeURIComponent(message)}`
+    : '#';
+};
+const urgentFor = (row: (typeof rows)[number]) =>
+  row.state === 'awaiting_payment' &&
+  row.holdExpiresAt.getTime() - now.getTime() <= 6 * 60 * 60 * 1000;
+---
+
+<AdminLayout title="Booking & order" active="orders">
+  <div class="page-title">
+    <div>
+      <p class="eyebrow">02 / BOOKING & ORDER</p>
+      <h1>
+        Peserta jelas.
+        <br />
+        Operasional tenang.
+      </h1>
+      <p class="muted">
+        Data order memakai snapshot saat booking dibuat. Manifest tetap hanya
+        menampilkan empat digit akhir NIK.
+      </p>
+    </div>
+    <span class="stamp" aria-hidden="true">
+      CHECK.
+      <br />
+      GO. ↗
+    </span>
+  </div>
+  <section class="order-metrics" aria-label="Ringkasan order">
+    <a href="/admin/orders?state=awaiting_payment">
+      <span>MENUNGGU TINDAK LANJUT</span>
+      <strong>{waiting.length}</strong>
+      <small>booking</small>
+    </a>
+    <a
+      class:list={{ urgent: urgent.length > 0 }}
+      href="/admin/orders?state=awaiting_payment"
+    >
+      <span>HOLD ≤ 6 JAM</span>
+      <strong>{urgent.length}</strong>
+      <small>perlu dilihat</small>
+    </a>
+    <a href="/admin/orders?state=confirmed">
+      <span>TERKONFIRMASI</span>
+      <strong>{rows.filter((row) => row.state === 'confirmed').length}</strong>
+      <small>booking</small>
+    </a>
+    <span>
+      <span>PAX DALAM HOLD</span>
+      <strong>{totalPax}</strong>
+      <small>kursi</small>
+    </span>
+  </section>
+  <section class="list-panel orders-panel">
+    <div class="panel-head">
+      <div>
+        <p class="eyebrow">PESANAN MASUK</p>
+        <h2>
+          {filteredRows.length} dari {rows.length} booking
+        </h2>
+      </div>
+      <span class="pill olive">DATA TERLINDUNGI</span>
+    </div>
+    <form class="order-filters" method="get">
+      <label>
+        Cari invoice, PIC, WhatsApp, atau trip
+        <input
+          name="q"
+          value={params.get('q') ?? ''}
+          type="search"
+          placeholder="Contoh: LJ-OT-000001"
+        />
+      </label>
+      <label>
+        Status
+        <select name="state">
+          {states.map(([value, label]) => (
+            <option value={value} selected={selectedState === value}>
+              {label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label>
+        Trip
+        <select name="trip">
+          <option value="all">Semua trip</option>
+          {tripNames.map((name) => (
+            <option value={name} selected={selectedTrip === name}>
+              {name}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label>
+        Jenis booking
+        <select name="source">
+          <option value="all">Semua jenis</option>
+          <option value="open_trip" selected={selectedSource === 'open_trip'}>
+            Open Trip
+          </option>
+          <option
+            value="private_trip"
+            selected={selectedSource === 'private_trip'}
+          >
+            Private Trip
+          </option>
+        </select>
+      </label>
+      <button class="primary" type="submit">
+        Terapkan filter
+      </button>
+      {(query ||
+        selectedState !== 'all' ||
+        selectedTrip !== 'all' ||
+        selectedSource !== 'all') && (
+        <a class="button-link" href="/admin/orders">
+          Reset
+        </a>
+      )}
+    </form>
+    {filteredRows.length ? (
+      <div class="orders-table-wrap">
+        <table class="orders-table">
+          <thead>
+            <tr>
+              <th>Invoice</th>
+              <th>Trip / berangkat</th>
+              <th>PIC</th>
+              <th>Pax</th>
+              <th>Nilai</th>
+              <th>Status</th>
+              <th>Tindakan</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredRows.map((row) => {
+              const isUrgent = urgentFor(row);
+              const waMessage = `Halo ${row.picName}, kami dari LebihJauh terkait booking ${row.number} untuk ${row.tripName}${row.startAt ? ` pada ${date.format(row.startAt)}` : ''}. Kami ingin menindaklanjuti proses booking Anda. Terima kasih.`;
+              return (
+                <tr class:list={{ 'order-urgent': isUrgent }}>
+                  <td>
+                    <strong>{row.number}</strong>
+                    <small>Dibuat {date.format(row.createdAt)}</small>
+                  </td>
+                  <td>
+                    <strong>{row.tripName}</strong>
+                    <small>
+                      {row.bookingSource === 'private_trip'
+                        ? 'Private Trip'
+                        : 'Open Trip'}{' '}
+                      ·{' '}
+                      {row.startAt
+                        ? date.format(row.startAt)
+                        : 'Jadwal tersimpan'}
+                    </small>
+                  </td>
+                  <td>
+                    {row.picName}
+                    <small>{row.picWhatsApp}</small>
+                  </td>
+                  <td>{row.pax}</td>
+                  <td>
+                    <strong>Rp{money.format(Number(row.total))}</strong>
+                    <small>
+                      DP min. Rp{money.format(Number(row.minimumDp))}
+                    </small>
+                  </td>
+                  <td>
+                    <span class:list={['state', `booking-${row.state}`]}>
+                      {stateLabel(row.state)}
+                    </span>
+                    {row.state === 'awaiting_payment' && (
+                      <small class:list={['hold-time', { urgent: isUrgent }]}>
+                        Hold: {date.format(row.holdExpiresAt)}
+                      </small>
+                    )}
+                  </td>
+                  <td>
+                    <div class="order-row-actions">
+                      <a class="button-link" href={`/admin/orders/${row.id}`}>
+                        Buka ↗
+                      </a>
+                      <a
+                        class="button-link"
+                        href={whatsappHref(row.picWhatsApp, waMessage)}
+                        target="_blank"
+                        rel="noopener"
+                      >
+                        WA PIC ↗
+                      </a>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    ) : (
+      <p class="muted empty-orders">
+        Tidak ada booking yang sesuai. Ubah filter atau{' '}
+        <a href="/admin/orders">lihat semua order</a>.
+      </p>
+    )}
+  </section>
+</AdminLayout>

@@ -1,0 +1,152 @@
+---
+import FileUploadControl from './FileUploadControl.astro';
+
+interface ImageValue {
+  imageUrl: string;
+  alt: string;
+  caption: string;
+  credit: string;
+  sourceUrl: string;
+  focalPoint: string;
+}
+
+interface Props {
+  id: string;
+  prefix: string;
+  title: string;
+  value: ImageValue;
+  captionLabel?: string;
+}
+
+const {
+  id,
+  prefix,
+  title,
+  value,
+  captionLabel = 'Caption atau lokasi foto',
+} = Astro.props;
+---
+
+<div class="site-image-field" data-site-image>
+  <h3>{title}</h3>
+  <input
+    type="hidden"
+    name={`${prefix}.imageUrl`}
+    value={value.imageUrl}
+    data-image-url
+  />
+  <div class="site-image-current">
+    <img
+      src={value.imageUrl}
+      alt=""
+      style={`object-position:${value.focalPoint}`}
+      data-image-preview
+    />
+    <div>
+      <strong>Foto saat ini</strong>
+      <span>Foto baru hanya diunggah saat draf atau publikasi disimpan.</span>
+    </div>
+  </div>
+  <FileUploadControl
+    id={id}
+    inputClass="site-image-file"
+    title="Ganti foto"
+    hint="JPEG, PNG, atau WebP · maksimal 8 MB"
+    accept="image/jpeg,image/png,image/webp"
+    icon="photo"
+    size="compact"
+    actionLabel="Pilih foto"
+  />
+  <div class="site-image-meta-grid">
+    <label>
+      Alt text <small>Wajib, jelaskan isi foto.</small>
+      <input
+        name={`${prefix}.alt`}
+        value={value.alt}
+        maxlength="180"
+        required
+      />
+    </label>
+    <label>
+      {captionLabel}
+      <input name={`${prefix}.caption`} value={value.caption} maxlength="180" />
+    </label>
+    <label>
+      Kredit foto <small>Opsional</small>
+      <input name={`${prefix}.credit`} value={value.credit} maxlength="180" />
+    </label>
+    <label>
+      Tautan sumber <small>Opsional, wajib HTTPS</small>
+      <input name={`${prefix}.sourceUrl`} value={value.sourceUrl} type="url" />
+    </label>
+    <label>
+      Fokus foto
+      <select name={`${prefix}.focalPoint`} data-focal-point>
+        <option value="center" selected={value.focalPoint === 'center'}>
+          Tengah
+        </option>
+        <option value="top" selected={value.focalPoint === 'top'}>
+          Atas
+        </option>
+        <option value="bottom" selected={value.focalPoint === 'bottom'}>
+          Bawah
+        </option>
+        <option value="left" selected={value.focalPoint === 'left'}>
+          Kiri
+        </option>
+        <option value="right" selected={value.focalPoint === 'right'}>
+          Kanan
+        </option>
+      </select>
+    </label>
+  </div>
+</div>
+
+<style>
+  .site-image-field {
+    display: grid;
+    gap: 12px;
+    padding: 16px;
+    border: 1px solid var(--line);
+    background: #fbfbf6;
+  }
+  .site-image-field h3 {
+    margin: 0;
+    font-size: 16px;
+  }
+  .site-image-current {
+    display: grid;
+    grid-template-columns: 150px 1fr;
+    gap: 12px;
+    align-items: center;
+  }
+  .site-image-current img {
+    width: 150px;
+    height: 100px;
+    object-fit: cover;
+    background: #e6e8df;
+  }
+  .site-image-current div {
+    display: grid;
+    gap: 4px;
+  }
+  .site-image-current span {
+    color: var(--muted);
+    font-size: 11px;
+  }
+  .site-image-meta-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  @media (max-width: 620px) {
+    .site-image-current,
+    .site-image-meta-grid {
+      grid-template-columns: 1fr;
+    }
+    .site-image-current img {
+      width: 100%;
+      height: 180px;
+    }
+  }
+</style>

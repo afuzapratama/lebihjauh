@@ -92,33 +92,37 @@ sedangkan ganti password akun sendiri tersedia di `/admin/profile`.
 Pengelolaan trip dan jadwal ada di `/admin/trips`.
 Panduan batas data dan langkah uji ada di [fase 4C](docs/phase-4c/README.md).
 
-## Deploy preview statis ke VPS / aaPanel
+## Deploy production ke VPS / aaPanel
 
-Petunjuk ini hanya berlaku untuk Home preview tanpa admin/database. Sistem
-booking/admin memerlukan server Node, database, penyimpanan persisten, serta
-konfigurasi operasi tambahan; panduan deployment-nya disusun pada fase rilis sistem.
+Aplikasi memakai Astro SSR dan harus dijalankan sebagai proses Node, bukan disalin
+sebagai website statis. Server membutuhkan Node.js 22+, PostgreSQL, environment
+production, dan Cloudflare R2 untuk upload media.
 
-1. Jalankan `npm ci` dan `npm run build`.
-2. Buat website statis di aaPanel atau server block Nginx.
-3. Salin **isi** folder `dist/` ke document root website tersebut.
-4. Aktifkan HTTPS dari konfigurasi hosting.
+```sh
+npm ci
+npm run db:migrate
+npm run build
+HOST=127.0.0.1 PORT=4321 node dist/server/entry.mjs
+```
 
-Contoh lokasi Nginx:
+Jalankan perintah terakhir melalui process manager seperti systemd atau PM2 agar
+aplikasi otomatis hidup kembali. Nginx/aaPanel meneruskan trafik HTTPS ke proses
+Node dan wajib mengirim header origin yang benar:
 
 ```nginx
 location / {
-    try_files $uri $uri/ =404;
-}
-
-location /_astro/ {
-    expires 1y;
-    add_header Cache-Control "public, immutable";
+    proxy_pass http://127.0.0.1:4321;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
 }
 ```
 
-Node hanya diperlukan untuk build pada fase ini; server produksi menyajikan file
-statis. Perubahan konten perlu build dan upload ulang. `astro preview` untuk
-memeriksa build lokal, bukan server produksi.
+Setelah setiap update: tarik commit terbaru, jalankan `npm ci`, migrasi database,
+build, lalu restart proses Node. Jangan menjalankan `astro preview` sebagai server
+production.
 
 Halaman publik utama mengizinkan indeks mesin pencari dan menyertakan canonical,
 Open Graph, serta Twitter Card. Halaman transaksi/privat seperti checkout,

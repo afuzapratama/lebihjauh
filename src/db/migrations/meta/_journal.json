@@ -239,6 +239,13 @@
       "when": 1789722000000,
       "tag": "0033_admin_account_management",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1789725600000,
+      "tag": "0034_news_editorial_seo",
+      "breakpoints": true
     }
   ]
 }

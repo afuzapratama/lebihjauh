@@ -38,7 +38,15 @@ export function assertBookingConfiguration() {
 export function assertSameOrigin(request: Request) {
   const origin = request.headers.get('origin');
   if (!origin) return;
-  if (origin !== new URL(request.url).origin) {
+
+  const configuredUrl =
+    process.env.BETTER_AUTH_URL || import.meta.env.BETTER_AUTH_URL;
+  const configuredOrigin =
+    configuredUrl && URL.canParse(configuredUrl)
+      ? new URL(configuredUrl).origin
+      : undefined;
+
+  if (origin !== new URL(request.url).origin && origin !== configuredOrigin) {
     throw new BookingOriginError('Origin permintaan booking tidak diizinkan.');
   }
 }

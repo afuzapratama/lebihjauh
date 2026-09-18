@@ -2,60 +2,395 @@
 import Layout from '../../layouts/Layout.astro';
 import Icon from '../../components/Icon.astro';
 import SiteHeader from '../../components/SiteHeader.astro';
-import { publishedArticle } from '../../lib/public-content';
+import { publishedArticle, publishedNews } from '../../lib/public-content';
+import { getPublicTrips } from '../../lib/public-trips';
+
 export const prerender = false;
+
 const article = await publishedArticle(Astro.params.slug ?? '');
 if (!article) Astro.response.status = 404;
+
+const allArticles = article ? await publishedNews() : [];
+const relatedArticles = article
+  ? allArticles
+      .filter((item) => item.id !== article.id)
+      .sort(
+        (a, b) =>
+          Number(b.category === article.category) -
+          Number(a.category === article.category),
+      )
+      .slice(0, 3)
+  : [];
+const publicTrips = article?.relatedTripId ? await getPublicTrips() : [];
+const relatedTrip = article?.relatedTripId
+  ? publicTrips.find((item) => item.id === article.relatedTripId)
+  : undefined;
+
+const bodyParagraphs = article
+  ? article.body
+      .split(/\n{2,}|\n/)
+      .map((paragraph) => paragraph.trim())
+      .filter(Boolean)
+  : [];
+const wordCount = article
+  ? article.body.trim().split(/\s+/).filter(Boolean).length
+  : 0;
+const readingMinutes = Math.max(1, Math.ceil(wordCount / 180));
+const date = new Intl.DateTimeFormat('id-ID', {
+  day: 'numeric',
+  month: 'long',
+  year: 'numeric',
+  timeZone: 'Asia/Jakarta',
+});
+const compactDate = new Intl.DateTimeFormat('id-ID', {
+  day: 'numeric',
+  month: 'short',
+  year: 'numeric',
+  timeZone: 'Asia/Jakarta',
+});
+const money = new Intl.NumberFormat('id-ID');
+const publishedAt = article?.publishedAt ?? article?.createdAt;
+const seoTitleBase = article?.seoTitle || article?.title;
+const seoTitle = seoTitleBase
+  ? seoTitleBase.toLowerCase().includes('lebihjauh')
+    ? seoTitleBase
+    : `${seoTitleBase} — LebihJauh`
+  : 'Cerita tidak ditemukan — LebihJauh';
+const seoDescription =
+  article?.seoDescription ||
+  article?.excerpt ||
+  'Cerita perjalanan dari LebihJauh.';
+const siteOrigin =
+  process.env.PUBLIC_SITE_URL ??
+  process.env.BETTER_AUTH_URL ??
+  Astro.url.origin;
+const canonicalUrl = article
+  ? new URL(`/news/${article.slug}`, siteOrigin).toString()
+  : new URL(Astro.url.pathname, siteOrigin).toString();
+const articleJsonLd = article
+  ? [
+      {
+        '@context': 'https://schema.org',
+        '@type': 'Article',
+        headline: article.title,
+        description: seoDescription,
+        image: article.coverImageUrl ? [article.coverImageUrl] : undefined,
+        datePublished: publishedAt?.toISOString(),
+        dateModified: article.updatedAt.toISOString(),
+        author: { '@type': 'Person', name: article.authorName },
+        publisher: { '@type': 'Organization', name: 'LebihJauh' },
+        mainEntityOfPage: canonicalUrl,
+        articleSection: article.category,
+        wordCount,
+      },
+      {
+        '@context': 'https://schema.org',
+        '@type': 'BreadcrumbList',
+        itemListElement: [
+          {
+            '@type': 'ListItem',
+            position: 1,
+            name: 'News & Cerita',
+            item: new URL('/news', siteOrigin).toString(),
+          },
+          {
+            '@type': 'ListItem',
+            position: 2,
+            name: article.title,
+            item: canonicalUrl,
+          },
+        ],
+      },
+    ]
+  : undefined;
+const tripSchedule = relatedTrip?.departures[0];
 ---
 
 <Layout
-  title={
-    article
-      ? `${article.title} — LebihJauh`
-      : 'Cerita tidak ditemukan — LebihJauh'
-  }
-  description={article?.excerpt ?? 'Cerita perjalanan dari LebihJauh.'}
+  title={seoTitle}
+  description={seoDescription}
+  image={article?.coverImageUrl ?? undefined}
+  canonical={article ? `/news/${article.slug}` : Astro.url.pathname}
+  type={article ? 'article' : 'website'}
+  publishedTime={publishedAt?.toISOString()}
+  modifiedTime={article?.updatedAt.toISOString()}
+  robots={article ? 'index, follow' : 'noindex, follow'}
+  jsonLd={articleJsonLd}
 >
   <SiteHeader active="news" />
-  <main id="main" class="public-trip-page article-page">
-    <section class="section">
-      {article ? (
-        <article class="article-content">
-          <p class="eyebrow">
-            <span></span> {article.category}
-          </p>
-          <h1>{article.title}</h1>
-          <p class="article-excerpt">{article.excerpt}</p>
-          {article.coverImageUrl && (
-            <img src={article.coverImageUrl} alt={article.coverAltText || ''} />
-          )}
-          <div class="article-body">
-            {article.body
-              .split('\n')
-              .filter(Boolean)
-              .map((paragraph) => (
-                <p>{paragraph}</p>
-              ))}
+  <main id="main" class="news-detail-page">
+    {article ? (
+      <article>
+        <header class="article-hero section">
+          <nav class="article-breadcrumb" aria-label="Breadcrumb">
+            <a href="/news">News & Cerita</a>
+            <span aria-hidden="true">/</span>
+            <span>{article.category}</span>
+          </nav>
+          <div class="article-heading-wrap">
+            <p class="eyebrow">
+              <span></span> {article.category}
+            </p>
+            <h1>{article.title}</h1>
+            <p class="article-excerpt">{article.excerpt}</p>
+            <div class="article-meta-line">
+              <span>
+                Oleh <strong>{article.authorName}</strong>
+              </span>
+              <time datetime={publishedAt?.toISOString()}>
+                {publishedAt ? date.format(publishedAt) : ''}
+              </time>
+              <span>{readingMinutes} menit baca</span>
+            </div>
           </div>
-          {article.socialUrl && (
-            <a
-              class="text-button"
-              href={article.socialUrl}
-              target="_blank"
-              rel="noopener"
-            >
-              Lihat postingan terkait <Icon name="arrow-up" size={12} />
-            </a>
+        </header>
+
+        <div class="article-cover section">
+          {article.coverImageUrl ? (
+            <img
+              src={article.coverImageUrl}
+              alt={article.coverAltText || ''}
+              loading="eager"
+              decoding="async"
+            />
+          ) : (
+            <div class="article-cover-placeholder" aria-hidden="true">
+              <Icon name="mountain" size={72} />
+              <span>Catatan dari perjalanan LebihJauh</span>
+            </div>
           )}
-        </article>
-      ) : (
-        <div class="public-empty">
-          <h1>Cerita tidak ditemukan.</h1>
-          <a class="button button-dark" href="/news">
-            Kembali ke News
-          </a>
+          <span class="article-cover-stamp">
+            JOURNAL
+            <br />
+            LEBIHJAUH
+          </span>
         </div>
-      )}
-    </section>
+
+        <div class="article-reading-layout section">
+          <aside class="article-aside" aria-label="Informasi artikel">
+            <div>
+              <span class="article-aside-label">Diterbitkan</span>
+              <strong>
+                {publishedAt ? compactDate.format(publishedAt) : ''}
+              </strong>
+            </div>
+            <div>
+              <span class="article-aside-label">Waktu baca</span>
+              <strong>{readingMinutes} menit</strong>
+            </div>
+            <div>
+              <span class="article-aside-label">Bagikan cerita</span>
+              <button class="article-copy-link" type="button" data-copy-article>
+                Salin tautan <Icon name="arrow-up" size={13} />
+              </button>
+              <span
+                class="article-copy-status"
+                role="status"
+                aria-live="polite"
+              ></span>
+            </div>
+          </aside>
+
+          <div class="article-body">
+            {bodyParagraphs.map((paragraph, index) => (
+              <>
+                <p>{paragraph}</p>
+                {article.contentImageUrl &&
+                  index === Math.min(1, bodyParagraphs.length - 1) && (
+                    <figure class="article-inline-image">
+                      <img
+                        src={article.contentImageUrl}
+                        alt={article.contentImageAlt || ''}
+                        loading="lazy"
+                        decoding="async"
+                      />
+                      {article.contentImageCaption && (
+                        <figcaption>{article.contentImageCaption}</figcaption>
+                      )}
+                    </figure>
+                  )}
+              </>
+            ))}
+
+            {article.socialUrl && (
+              <div class="article-source-link">
+                <span>Lihat momen lain dari cerita ini.</span>
+                <a
+                  class="text-button"
+                  href={article.socialUrl}
+                  target="_blank"
+                  rel="noopener"
+                >
+                  Buka postingan <Icon name="arrow-up" size={13} />
+                </a>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <section
+          class="article-trip-cta section"
+          aria-labelledby="article-trip-title"
+        >
+          {relatedTrip ? (
+            <>
+              <a
+                class="article-trip-image"
+                href={`/trip/${relatedTrip.slug}`}
+                aria-label={`Lihat trip ${relatedTrip.name}`}
+              >
+                {relatedTrip.coverImageUrl ? (
+                  <img
+                    src={String(relatedTrip.coverImageUrl)}
+                    alt={`Foto ${relatedTrip.name}`}
+                    loading="lazy"
+                    decoding="async"
+                  />
+                ) : (
+                  <div class="news-image-placeholder" aria-hidden="true">
+                    <Icon name="mountain" size={50} />
+                  </div>
+                )}
+              </a>
+              <div class="article-trip-copy">
+                <p class="eyebrow">
+                  <span></span> PERJALANAN TERKAIT
+                </p>
+                <h2 id="article-trip-title">
+                  Jangan cuma dibaca.
+                  <br />
+                  <span class="handwritten">Jalani ceritanya.</span>
+                </h2>
+                <p>
+                  Jelajahi {relatedTrip.name}
+                  {relatedTrip.locationLabel
+                    ? ` di ${relatedTrip.locationLabel}`
+                    : ''}
+                  bersama LebihJauh.
+                </p>
+                <div class="article-trip-facts">
+                  {tripSchedule && (
+                    <span>
+                      Jadwal terdekat ·{' '}
+                      {compactDate.format(new Date(tripSchedule.startAt))}
+                    </span>
+                  )}
+                  {tripSchedule && (
+                    <strong>
+                      Mulai Rp{money.format(Number(tripSchedule.unitPrice))}
+                    </strong>
+                  )}
+                </div>
+                <a
+                  class="button button-orange"
+                  href={`/trip/${relatedTrip.slug}`}
+                >
+                  Lihat detail trip <Icon name="arrow-up" size={16} />
+                </a>
+              </div>
+            </>
+          ) : (
+            <div class="article-trip-generic">
+              <p class="eyebrow">
+                <span></span> MULAI CERITAMU SENDIRI
+              </p>
+              <h2 id="article-trip-title">
+                Tempat berikutnya
+                <br />
+                <span class="handwritten">sedang menunggu.</span>
+              </h2>
+              <p>
+                Temukan jadwal perjalanan yang masih terbuka bersama LebihJauh.
+              </p>
+              <a class="button button-orange" href="/trip">
+                Jelajahi semua trip <Icon name="arrow-up" size={16} />
+              </a>
+            </div>
+          )}
+        </section>
+
+        {relatedArticles.length > 0 && (
+          <section
+            class="article-related section"
+            aria-labelledby="related-title"
+          >
+            <header class="news-section-heading">
+              <div>
+                <p class="eyebrow">LANJUT MEMBACA</p>
+                <h2 id="related-title">Cerita untuk perjalanan berikutnya.</h2>
+              </div>
+              <a class="text-button" href="/news">
+                Semua cerita <Icon name="arrow-up" size={13} />
+              </a>
+            </header>
+            <div class="article-related-grid">
+              {relatedArticles.map((related, index) => (
+                <article class="journal-card">
+                  <a
+                    class="article-related-image"
+                    href={`/news/${related.slug}`}
+                    aria-label={`Baca ${related.title}`}
+                  >
+                    {related.coverImageUrl ? (
+                      <img
+                        src={related.coverImageUrl}
+                        alt={related.coverAltText || ''}
+                        loading="lazy"
+                        decoding="async"
+                      />
+                    ) : (
+                      <div class="news-image-placeholder" aria-hidden="true">
+                        <Icon name="mountain" size={34} />
+                      </div>
+                    )}
+                    <span class="news-card-number">
+                      / {String(index + 1).padStart(2, '0')}
+                    </span>
+                  </a>
+                  <div class="news-card-meta">
+                    <span>{related.category}</span>
+                    <span>
+                      {Math.max(
+                        1,
+                        Math.ceil(related.body.split(/\s+/).length / 180),
+                      )}{' '}
+                      menit
+                    </span>
+                  </div>
+                  <h3>
+                    <a href={`/news/${related.slug}`}>{related.title}</a>
+                  </h3>
+                </article>
+              ))}
+            </div>
+          </section>
+        )}
+      </article>
+    ) : (
+      <section class="section public-empty article-not-found">
+        <p class="eyebrow">404 / CERITA TIDAK DITEMUKAN</p>
+        <h1>Cerita ini sudah melanjutkan perjalanan.</h1>
+        <p>Kembali ke jurnal untuk menemukan catatan lainnya.</p>
+        <a class="button button-dark" href="/news">
+          Kembali ke News & Cerita
+        </a>
+      </section>
+    )}
   </main>
+  <script>
+    document
+      .querySelector<HTMLButtonElement>('[data-copy-article]')
+      ?.addEventListener('click', async (event) => {
+        const button = event.currentTarget as HTMLButtonElement;
+        const status = button.parentElement?.querySelector<HTMLElement>(
+          '.article-copy-status',
+        );
+        try {
+          await navigator.clipboard.writeText(window.location.href);
+          if (status) status.textContent = 'Tautan disalin.';
+        } catch {
+          if (status) status.textContent = 'Salin URL dari bilah alamat.';
+        }
+      });
+  </script>
 </Layout>

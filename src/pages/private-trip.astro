@@ -2,6 +2,33 @@
 import Layout from '../layouts/Layout.astro';
 import Icon from '../components/Icon.astro';
 import SiteHeader from '../components/SiteHeader.astro';
+
+const queryText = (name: string, maxLength: number) =>
+  (Astro.url.searchParams.get(name) ?? '').trim().slice(0, maxLength);
+const queryDate = (name: string) => {
+  const value = queryText(name, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return '';
+  const parsed = new Date(`${value}T00:00:00Z`);
+  return !Number.isNaN(parsed.getTime()) &&
+    parsed.toISOString().slice(0, 10) === value
+    ? value
+    : '';
+};
+const rawPax = queryText('pax', 5);
+const requestedPax = /^\d+$/.test(rawPax) ? Number(rawPax) : 2;
+const prefill = {
+  destination: queryText('destination', 160),
+  startDate: queryDate('startDate'),
+  endDate: queryDate('endDate'),
+  pax:
+    Number.isSafeInteger(requestedPax) &&
+    requestedPax >= 1 &&
+    requestedPax <= 10_000
+      ? requestedPax
+      : 2,
+};
+const redirectedFromOpenTrip =
+  Astro.url.searchParams.get('source') === 'open-trip';
 ---
 
 <Layout
@@ -27,6 +54,15 @@ import SiteHeader from '../components/SiteHeader.astro';
       </div>
       <div class="booking-flow">
         <form id="private-trip-form" class="booking-form" novalidate>
+          {redirectedFromOpenTrip && (
+            <div class="private-prefill-note" role="status">
+              <strong>Dialihkan dari booking Open Trip.</strong>
+              <span>
+                Detail perjalanan dan jumlah peserta sudah diisikan. Periksa
+                kembali, lalu lengkapi data PIC untuk meminta penawaran.
+              </span>
+            </div>
+          )}
           <fieldset>
             <legend>
               <span>01</span> Rencana perjalanan
@@ -38,16 +74,22 @@ import SiteHeader from '../components/SiteHeader.astro';
                 maxlength="160"
                 required
                 placeholder="Contoh: Bromo, Malang, dan sekitarnya"
+                value={prefill.destination}
               />
             </label>
             <div class="form-two-columns">
               <label>
                 Tanggal berangkat
-                <input name="startDate" type="date" required />
+                <input
+                  name="startDate"
+                  type="date"
+                  value={prefill.startDate}
+                  required
+                />
               </label>
               <label>
                 Tanggal pulang <small>Boleh dikosongkan bila fleksibel</small>
-                <input name="endDate" type="date" />
+                <input name="endDate" type="date" value={prefill.endDate} />
               </label>
             </div>
             <label>
@@ -57,7 +99,7 @@ import SiteHeader from '../components/SiteHeader.astro';
                 type="number"
                 min="1"
                 max="10000"
-                value="2"
+                value={prefill.pax}
                 required
               />
             </label>
@@ -213,6 +255,22 @@ import SiteHeader from '../components/SiteHeader.astro';
     background: #fffefa;
     padding: 12px;
     color: #20271f;
+  }
+  .private-prefill-note {
+    display: grid;
+    gap: 4px;
+    padding: 15px 17px;
+    border-left: 3px solid var(--orange);
+    background: #fff4e8;
+    color: #30362f;
+  }
+  .private-prefill-note strong {
+    font-size: 13px;
+  }
+  .private-prefill-note span {
+    color: #666d63;
+    font-size: 12px;
+    line-height: 1.6;
   }
   .private-steps {
     padding: 0;

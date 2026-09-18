@@ -11,13 +11,27 @@ const initialPickup =
   schedule?.pickupOptions[0];
 if (!schedule) Astro.response.status = 404;
 const money = new Intl.NumberFormat('id-ID');
+const scheduleTimezone = schedule?.timezone ?? 'Asia/Jakarta';
 const date = new Intl.DateTimeFormat('id-ID', {
   dateStyle: 'full',
-  timeZone: schedule?.timezone ?? 'Asia/Jakarta',
+  timeZone: scheduleTimezone,
 });
+const dateInputValue = (value: Date) => {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat('en-GB', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      timeZone: scheduleTimezone,
+    })
+      .formatToParts(value)
+      .map((part) => [part.type, part.value]),
+  );
+  return `${parts.year}-${parts.month}-${parts.day}`;
+};
 ---
 
-<Layout>
+<Layout robots="noindex, nofollow">
   <SiteHeader active="trips" />
   <main id="main" class="public-trip-page booking-page">
     {schedule ? (
@@ -87,10 +101,33 @@ const date = new Intl.DateTimeFormat('id-ID', {
                   min="1"
                   max={initialPickup?.available ?? schedule.available}
                   value="1"
+                  aria-describedby="booking-pax-warning pickup-availability-note"
                   required
                 />
               </label>
-              <p class="field-note">
+              <div
+                id="booking-pax-warning"
+                class="booking-pax-warning"
+                role="status"
+                aria-live="polite"
+                hidden
+              >
+                <p>
+                  <strong id="booking-pax-warning-title"></strong>
+                  <span>
+                    Rombongan sebesar ini dapat diajukan sebagai Private Trip
+                    agar jadwal dan kebutuhan perjalanan bisa disesuaikan.
+                  </span>
+                </p>
+                <a
+                  id="private-trip-option"
+                  class="text-button"
+                  href="/private-trip"
+                >
+                  Ajukan Private Trip <Icon name="arrow-up" size={14} />
+                </a>
+              </div>
+              <p id="pickup-availability-note" class="field-note">
                 Tersedia{' '}
                 <strong id="pickup-available">
                   {initialPickup?.available} kursi
@@ -240,7 +277,13 @@ const date = new Intl.DateTimeFormat('id-ID', {
 
   {schedule && <script
     is:inline
-    define:vars={{ departureId: schedule.id, maxPax: schedule.available }}
+    define:vars={{
+      departureId: schedule.id,
+      maxPax: schedule.available,
+      privateTripDestination: schedule.tripName,
+      privateTripStartDate: dateInputValue(schedule.startAt),
+      privateTripEndDate: dateInputValue(schedule.endAt),
+    }}
   >
     const form = document.querySelector('#booking-form');
     const paxInput = document.querySelector('#booking-pax');
@@ -252,15 +295,23 @@ const date = new Intl.DateTimeFormat('id-ID', {
     const quoteSummary = document.querySelector('#quote-summary');
     const submit = document.querySelector('#booking-submit');
     const error = document.querySelector('#booking-error');
+    const paxWarning = document.querySelector('#booking-pax-warning');
+    const paxWarningTitle = document.querySelector(
+      '#booking-pax-warning-title',
+    );
+    const privateTripOption = document.querySelector('#private-trip-option');
     let quote = null;
     let quoteRequest = 0;
     let idempotencyKey = crypto.randomUUID();
 
     const formatMoney = new Intl.NumberFormat('id-ID');
+    function pickupLimit() {
+      return Number(selectedPickup()?.dataset.available ?? maxPax);
+    }
     function participantCount() {
       const value = Number(paxInput.value);
-      const pickupLimit = Number(selectedPickup()?.dataset.available ?? maxPax);
-      return Number.isInteger(value) && value >= 1 && value <= pickupLimit
+      const limit = pickupLimit();
+      return Number.isInteger(value) && value >= 1 && value <= limit
         ? value
         : 0;
     }
@@ -275,6 +326,26 @@ const date = new Intl.DateTimeFormat('id-ID', {
     function showError(message = '') {
       error.textContent = message;
       error.hidden = !message;
+    }
+    function updatePaxWarning() {
+      const pax = Number(paxInput.value);
+      const limit = pickupLimit();
+      const exceedsLimit = Number.isInteger(pax) && pax > limit;
+      paxWarning.hidden = !exceedsLimit;
+      if (exceedsLimit) paxInput.setAttribute('aria-invalid', 'true');
+      else paxInput.removeAttribute('aria-invalid');
+      if (!exceedsLimit) return false;
+
+      paxWarningTitle.textContent = `${pax} pax melebihi maksimal ${limit} kursi yang tersedia.`;
+      const params = new URLSearchParams({
+        source: 'open-trip',
+        destination: privateTripDestination,
+        startDate: privateTripStartDate,
+        endDate: privateTripEndDate,
+        pax: String(pax),
+      });
+      privateTripOption.href = `/private-trip?${params}`;
+      return true;
     }
     function participantCard(index) {
       const participant = document.createElement('div');
@@ -320,7 +391,9 @@ const date = new Intl.DateTimeFormat('id-ID', {
       if (!pax || !pickupOptionId) {
         quoteSummary.textContent = !pickupOptionId
           ? 'Pilih titik kumpul untuk melihat harga.'
-          : 'Pilih jumlah peserta yang tersedia.';
+          : updatePaxWarning()
+            ? 'Gunakan Private Trip untuk jumlah peserta ini.'
+            : 'Pilih jumlah peserta yang tersedia.';
         return;
       }
       quoteSummary.textContent = 'Memuat ringkasan harga…';
@@ -362,8 +435,12 @@ const date = new Intl.DateTimeFormat('id-ID', {
       ++quoteRequest;
       quote = null;
       submit.disabled = true;
+      quoteSummary.textContent = updatePaxWarning()
+        ? 'Gunakan Private Trip untuk jumlah peserta ini.'
+        : 'Selesaikan jumlah peserta untuk memperbarui harga.';
     });
     paxInput.addEventListener('change', () => {
+      updatePaxWarning();
       buildParticipants();
       refreshQuote();
     });
@@ -377,6 +454,7 @@ const date = new Intl.DateTimeFormat('id-ID', {
           `${selected.dataset.available} kursi`;
         paxInput.max = selected.dataset.available;
       }
+      updatePaxWarning();
       refreshQuote();
     });
     picIsParticipant.addEventListener('change', syncPicParticipant);
@@ -432,6 +510,7 @@ const date = new Intl.DateTimeFormat('id-ID', {
         submit.textContent = 'Buat booking aman \u2197\uFE0E';
       }
     });
+    updatePaxWarning();
     buildParticipants();
     refreshQuote();
   </script>}

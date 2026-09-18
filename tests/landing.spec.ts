@@ -332,6 +332,22 @@ test('private request validates and sends a structured request', async ({
   });
 });
 
+test('private request accepts prefilled details from an oversized open trip group', async ({
+  page,
+}) => {
+  await page.goto(
+    '/private-trip?source=open-trip&destination=Gunung%20Ungaran&startDate=2099-10-15&endDate=2099-10-17&pax=11',
+  );
+
+  await expect(page.locator('.private-prefill-note')).toBeVisible();
+  await expect(
+    page.getByLabel('Destinasi atau rute yang diinginkan'),
+  ).toHaveValue('Gunung Ungaran');
+  await expect(page.getByLabel('Tanggal berangkat')).toHaveValue('2099-10-15');
+  await expect(page.getByLabel('Tanggal pulang')).toHaveValue('2099-10-17');
+  await expect(page.getByLabel('Perkiraan jumlah peserta')).toHaveValue('11');
+});
+
 test('FAQ expands and page passes core accessibility checks', async ({
   page,
 }) => {

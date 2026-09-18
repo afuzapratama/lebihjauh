@@ -120,10 +120,11 @@ Node hanya diperlukan untuk build pada fase ini; server produksi menyajikan file
 statis. Perubahan konten perlu build dan upload ulang. `astro preview` untuk
 memeriksa build lokal, bukan server produksi.
 
-Preview memakai `noindex, nofollow` agar data contoh tidak terindeks. Sebelum
-peluncuran publik, lengkapi data bisnis, foto, dan alur kontak; kemudian ubah
-metadata tersebut, tetapkan domain produksi/canonical, dan tambah sitemap serta
-gambar Open Graph final. Deployment ke server belum dilakukan.
+Halaman publik utama mengizinkan indeks mesin pencari dan menyertakan canonical,
+Open Graph, serta Twitter Card. Halaman transaksi/privat seperti checkout,
+invoice, rundown, dan data peserta tetap `noindex`. Sebelum peluncuran, isi
+`PUBLIC_SITE_URL` dengan domain produksi agar canonical dan metadata sosial tidak
+mengarah ke origin development. Deployment ke server belum dilakukan.
 
 ## Referensi project
 

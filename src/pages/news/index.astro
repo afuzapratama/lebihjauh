@@ -3,65 +3,246 @@ import Layout from '../../layouts/Layout.astro';
 import Icon from '../../components/Icon.astro';
 import SiteHeader from '../../components/SiteHeader.astro';
 import { publishedNews } from '../../lib/public-content';
+
 export const prerender = false;
+
 const articles = await publishedNews();
+const selectedCategory = (Astro.url.searchParams.get('kategori') ?? '').trim();
+const categories = [...new Set(articles.map((article) => article.category))];
+const visibleArticles = selectedCategory
+  ? articles.filter((article) => article.category === selectedCategory)
+  : articles;
+const featured = visibleArticles[0];
+const archive = visibleArticles.slice(1);
+const date = new Intl.DateTimeFormat('id-ID', {
+  day: 'numeric',
+  month: 'long',
+  year: 'numeric',
+  timeZone: 'Asia/Jakarta',
+});
+const articleDate = (value: Date | null, fallback: Date) =>
+  date.format(value ?? fallback);
+const readingTime = (body: string) =>
+  Math.max(1, Math.ceil(body.trim().split(/\s+/).length / 180));
+const siteOrigin =
+  process.env.PUBLIC_SITE_URL ??
+  process.env.BETTER_AUTH_URL ??
+  Astro.url.origin;
+const collectionJsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'CollectionPage',
+  name: 'News & Cerita LebihJauh',
+  description:
+    'Catatan perjalanan, panduan destinasi, dan kabar terbaru dari LebihJauh.',
+  url: new URL('/news', siteOrigin).toString(),
+  mainEntity: {
+    '@type': 'ItemList',
+    itemListElement: visibleArticles.map((article, index) => ({
+      '@type': 'ListItem',
+      position: index + 1,
+      url: new URL(`/news/${article.slug}`, siteOrigin).toString(),
+      name: article.title,
+    })),
+  },
+};
 ---
 
 <Layout
   title="News & Cerita — LebihJauh"
-  description="Baca catatan perjalanan, inspirasi, dan kabar terbaru dari LebihJauh."
+  description="Temukan cerita perjalanan, panduan destinasi, dan kabar lapangan dari LebihJauh untuk membantu merencanakan petualangan berikutnya."
+  canonical="/news"
+  jsonLd={collectionJsonLd}
 >
   <SiteHeader active="news" />
-  <main id="main" class="public-trip-page content-public">
-    <section class="section">
-      <header class="content-public-head">
+  <main id="main" class="news-index-page">
+    <section class="news-archive-hero section" aria-labelledby="news-title">
+      <div class="news-archive-heading">
         <p class="eyebrow">
-          <span></span> NEWS & CERITA
+          <span></span> JURNAL LEBIHJAUH / {articles.length} CERITA
         </p>
-        <h1>
+        <h1 id="news-title">
           Dari jalan,
           <br />
           <span class="handwritten">jadi cerita.</span>
         </h1>
-        <p>Catatan perjalanan, inspirasi, dan kabar terbaru dari LebihJauh.</p>
+      </div>
+      <div class="news-archive-intro">
+        <p>
+          Cerita lapangan, panduan destinasi, dan hal-hal kecil yang layak
+          dibawa sebelum berangkat lebih jauh.
+        </p>
+        <a class="text-button" href="#cerita-terbaru">
+          Mulai membaca <Icon name="arrow-down-left" size={15} />
+        </a>
+      </div>
+    </section>
+
+    {articles.length > 0 && (
+      <nav
+        class="news-category-bar section"
+        aria-label="Filter kategori cerita"
+      >
+        <a
+          href="/news"
+          class:list={{ active: !selectedCategory }}
+          aria-current={!selectedCategory ? 'page' : undefined}
+        >
+          Semua <span>{articles.length}</span>
+        </a>
+        {categories.map((category) => {
+          const count = articles.filter(
+            (article) => article.category === category,
+          ).length;
+          return (
+            <a
+              href={`/news?kategori=${encodeURIComponent(category)}`}
+              class:list={{ active: selectedCategory === category }}
+              aria-current={selectedCategory === category ? 'page' : undefined}
+            >
+              {category} <span>{count}</span>
+            </a>
+          );
+        })}
+      </nav>
+    )}
+
+    <section
+      class="news-archive-content section"
+      id="cerita-terbaru"
+      aria-labelledby="latest-news-title"
+    >
+      <header class="news-section-heading">
+        <div>
+          <p class="eyebrow">
+            {selectedCategory
+              ? `KATEGORI / ${selectedCategory}`
+              : 'PALING BARU'}
+          </p>
+          <h2 id="latest-news-title">
+            {selectedCategory ? 'Cerita pilihanmu.' : 'Baru dari perjalanan.'}
+          </h2>
+        </div>
+        <span>{visibleArticles.length} bacaan</span>
       </header>
-      {articles.length ? (
-        <div class="journal-section content-news-section">
-          <div class="journal-grid">
-            {articles.map((article) => (
-              <article class="journal-card">
-                {article.coverImageUrl && (
-                  <a class="journal-image" href={`/news/${article.slug}`}>
-                    <img
-                      src={article.coverImageUrl}
-                      alt={article.coverAltText || ''}
-                    />
-                    <span>
-                      <Icon name="arrow-up" />
+
+      {featured ? (
+        <>
+          <article class="news-featured-card journal-card">
+            <a
+              class="news-featured-image"
+              href={`/news/${featured.slug}`}
+              aria-label={`Baca ${featured.title}`}
+            >
+              {featured.coverImageUrl ? (
+                <img
+                  src={featured.coverImageUrl}
+                  alt={featured.coverAltText || ''}
+                  loading="eager"
+                  decoding="async"
+                />
+              ) : (
+                <div class="news-image-placeholder" aria-hidden="true">
+                  <Icon name="mountain" size={58} />
+                  <span>Catatan dari perjalanan</span>
+                </div>
+              )}
+              <span class="news-card-number">/ 01</span>
+            </a>
+            <div class="news-featured-copy">
+              <div class="news-card-meta">
+                <span>{featured.category}</span>
+                <span>
+                  {articleDate(featured.publishedAt, featured.createdAt)} ·{' '}
+                  {readingTime(featured.body)} menit baca
+                </span>
+              </div>
+              <h3>
+                <a href={`/news/${featured.slug}`}>{featured.title}</a>
+              </h3>
+              <p>{featured.excerpt}</p>
+              <div class="news-byline">
+                <span>Oleh {featured.authorName}</span>
+                <a class="text-button" href={`/news/${featured.slug}`}>
+                  Baca cerita <Icon name="arrow-up" size={14} />
+                </a>
+              </div>
+            </div>
+          </article>
+
+          {archive.length > 0 && (
+            <div class="news-card-grid">
+              {archive.map((article, index) => (
+                <article class="news-archive-card journal-card">
+                  <a
+                    class="news-archive-card-image"
+                    href={`/news/${article.slug}`}
+                    aria-label={`Baca ${article.title}`}
+                  >
+                    {article.coverImageUrl ? (
+                      <img
+                        src={article.coverImageUrl}
+                        alt={article.coverAltText || ''}
+                        loading="lazy"
+                        decoding="async"
+                      />
+                    ) : (
+                      <div class="news-image-placeholder" aria-hidden="true">
+                        <Icon name="mountain" size={36} />
+                      </div>
+                    )}
+                    <span class="news-card-number">
+                      / {String(index + 2).padStart(2, '0')}
                     </span>
                   </a>
-                )}
-                <div class="journal-meta">
-                  <span>{article.category}</span>
-                  <span>CATATAN LEBIHJAUH</span>
-                </div>
-                <h3>
-                  <a href={`/news/${article.slug}`}>{article.title}</a>
-                </h3>
-                <p>{article.excerpt}</p>
-                <a class="text-button" href={`/news/${article.slug}`}>
-                  Baca cerita <Icon name="arrow-up" size={12} />
-                </a>
-              </article>
-            ))}
-          </div>
-        </div>
+                  <div class="news-card-meta">
+                    <span>{article.category}</span>
+                    <span>{readingTime(article.body)} menit baca</span>
+                  </div>
+                  <h3>
+                    <a href={`/news/${article.slug}`}>{article.title}</a>
+                  </h3>
+                  <p>{article.excerpt}</p>
+                  <footer>
+                    <time
+                      datetime={(
+                        article.publishedAt ?? article.createdAt
+                      ).toISOString()}
+                    >
+                      {articleDate(article.publishedAt, article.createdAt)}
+                    </time>
+                    <a
+                      href={`/news/${article.slug}`}
+                      aria-label={`Baca ${article.title}`}
+                    >
+                      <Icon name="arrow-up" size={17} />
+                    </a>
+                  </footer>
+                </article>
+              ))}
+            </div>
+          )}
+        </>
       ) : (
-        <div class="public-empty">
-          <h2>Belum ada cerita diterbitkan.</h2>
-          <p>Artikel pertama dari perjalanan LebihJauh akan muncul di sini.</p>
+        <div class="public-empty news-empty">
+          <h2>Belum ada cerita di kategori ini.</h2>
+          <p>Coba lihat semua catatan yang sudah diterbitkan.</p>
+          <a class="button button-dark" href="/news">
+            Lihat semua cerita
+          </a>
         </div>
       )}
+    </section>
+
+    <section class="news-bottom-cta section" aria-label="Jelajahi perjalanan">
+      <p class="eyebrow">CERITA BERIKUTNYA BISA JADI MILIKMU</p>
+      <h2>
+        Sudah cukup membaca?
+        <br />
+        <span class="handwritten">Saatnya berangkat.</span>
+      </h2>
+      <a class="button button-orange" href="/trip">
+        Lihat trip tersedia <Icon name="arrow-up" size={17} />
+      </a>
     </section>
   </main>
 </Layout>

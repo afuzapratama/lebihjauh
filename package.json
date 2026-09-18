@@ -22,6 +22,7 @@
     "test:phase-4k": "node --env-file=.env --import=tsx/esm scripts/test-phase-4k.ts",
     "test:phase-4l": "node --env-file=.env --import=tsx/esm scripts/test-phase-4l.ts",
     "test:r2": "node --env-file=.env --import=tsx/esm scripts/test-r2.ts",
+    "seed:news-demo": "node --env-file=.env --import=tsx/esm scripts/seed-news-demo.ts",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "db:generate": "drizzle-kit generate",

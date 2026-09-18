@@ -1,9 +1,9 @@
 ---
-import { desc } from 'drizzle-orm';
+import { asc, desc, isNull } from 'drizzle-orm';
 import FileUploadControl from '../../components/FileUploadControl.astro';
 import AdminLayout from '../../layouts/AdminLayout.astro';
 import { getDb } from '../../db/client';
-import { galleryItem, newsArticle } from '../../db/schema';
+import { galleryItem, newsArticle, trip } from '../../db/schema';
 export const prerender = false;
 const db = getDb();
 const gallery = await db
@@ -14,8 +14,13 @@ const gallery = await db
 const articles = await db
   .select()
   .from(newsArticle)
-  .orderBy(desc(newsArticle.createdAt))
-  .limit(8);
+  .orderBy(desc(newsArticle.createdAt));
+const trips = await db
+  .select({ id: trip.id, name: trip.name, category: trip.category })
+  .from(trip)
+  .where(isNull(trip.archivedAt))
+  .orderBy(asc(trip.name));
+const tripNames = new Map(trips.map((item) => [item.id, item.name]));
 ---
 
 <AdminLayout title="Konten & galeri" active="content">
@@ -64,7 +69,11 @@ const articles = await db
                 actionLabel="Pilih foto"
                 required
               />
-              <div class="cover-preview content-preview" hidden>
+              <div
+                class="cover-preview content-preview"
+                data-preview-for="imageUrl"
+                hidden
+              >
                 <img alt="Pratinjau foto galeri" />
                 <div>
                   <strong class="content-preview-name"></strong>
@@ -124,6 +133,7 @@ const articles = await db
       <form class="content-form" data-type="news">
         <input name="id" type="hidden" />
         <input name="coverImageUrl" type="hidden" />
+        <input name="contentImageUrl" type="hidden" />
         <details open>
           <summary>01 · Cover & identitas artikel</summary>
           <div class="content-cover-field">
@@ -141,7 +151,11 @@ const articles = await db
                 size="large"
                 actionLabel="Pilih cover"
               />
-              <div class="cover-preview content-preview" hidden>
+              <div
+                class="cover-preview content-preview"
+                data-preview-for="coverImageUrl"
+                hidden
+              >
                 <img alt="Pratinjau cover artikel" />
                 <div>
                   <strong class="content-preview-name"></strong>
@@ -165,6 +179,26 @@ const articles = await db
             Judul artikel
             <input name="title" maxlength="180" required />
           </label>
+          <div class="two-col">
+            <label>
+              Penulis
+              <input
+                name="authorName"
+                maxlength="100"
+                value="Tim LebihJauh"
+                required
+              />
+            </label>
+            <label>
+              Slug URL <small>Opsional, dibuat dari judul.</small>
+              <input
+                name="slug"
+                maxlength="120"
+                placeholder="panduan-pendakian-papandayan"
+                pattern="[a-z0-9]+(?:-[a-z0-9]+)*"
+              />
+            </label>
+          </div>
           <label>
             Kategori
             <input
@@ -197,9 +231,84 @@ const articles = await db
               placeholder="Tulis paragraf baru pada baris baru agar enak dibaca."
             ></textarea>
           </label>
+          <div class="content-cover-field">
+            <span class="form-label">
+              Foto di tengah cerita <small>Opsional</small>
+            </span>
+            <div class="cover-upload">
+              <FileUploadControl
+                id="news-content-file"
+                inputClass="content-file"
+                title="Unggah foto pendukung"
+                hint="Disisipkan setelah bagian awal cerita · maksimal 8 MB"
+                accept="image/jpeg,image/png,image/webp"
+                icon="photo"
+                size="normal"
+                actionLabel="Pilih foto"
+              />
+              <div
+                class="cover-preview content-preview"
+                data-preview-for="contentImageUrl"
+                hidden
+              >
+                <img alt="Pratinjau foto pendukung artikel" />
+                <div>
+                  <strong class="content-preview-name"></strong>
+                  <span class="content-preview-size"></span>
+                  <label class="link-button" for="news-content-file">
+                    Ganti foto
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+          <label>
+            Alt text foto pendukung
+            <input
+              name="contentImageAlt"
+              maxlength="180"
+              placeholder="Jelaskan isi foto untuk pembaca dan mesin pencari."
+            />
+          </label>
+          <label>
+            Caption foto pendukung <small>Opsional</small>
+            <input
+              name="contentImageCaption"
+              maxlength="240"
+              placeholder="Konteks singkat di balik foto."
+            />
+          </label>
         </details>
         <details>
-          <summary>03 · Publikasi & tautan</summary>
+          <summary>03 · SEO, trip terkait & publikasi</summary>
+          <label>
+            Trip terkait <small>Menampilkan CTA otomatis di artikel.</small>
+            <select name="relatedTripId">
+              <option value="">Tanpa trip khusus</option>
+              {trips.map((item) => (
+                <option value={item.id}>
+                  {item.name} · {item.category}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Judul SEO <small>Opsional · idealnya 50–60 karakter.</small>
+            <input
+              name="seoTitle"
+              maxlength="70"
+              placeholder="Jika kosong, judul artikel yang dipakai."
+            />
+          </label>
+          <label>
+            Deskripsi SEO <small>Opsional · idealnya 140–160 karakter.</small>
+            <textarea
+              name="seoDescription"
+              maxlength="180"
+              rows="3"
+              placeholder="Jika kosong, teaser singkat yang dipakai."
+            ></textarea>
+          </label>
           <label>
             URL Instagram/TikTok <small>Opsional</small>
             <input name="socialUrl" type="url" />
@@ -263,7 +372,7 @@ const articles = await db
     </section>
     <section class="panel">
       <p class="eyebrow">ARTIKEL TERSIMPAN</p>
-      <h2>{articles.length} artikel terbaru</h2>
+      <h2>{articles.length} artikel tersimpan</h2>
       {articles.length ? (
         <div class="content-list">
           {articles.map((x) => (
@@ -274,6 +383,9 @@ const articles = await db
                 <small>
                   {x.category} ·{' '}
                   {x.publicationState === 'published' ? 'Terbit' : 'Draf'}
+                  {x.relatedTripId && tripNames.get(x.relatedTripId)
+                    ? ` · CTA ${tripNames.get(x.relatedTripId)}`
+                    : ''}
                 </small>
               </div>
               <div class="content-row-actions">
@@ -332,14 +444,29 @@ const articles = await db
           event.preventDefault();
           const error = form.querySelector<HTMLElement>('.error-msg');
           try {
-            const file =
-              form.querySelector<HTMLInputElement>('.content-file')?.files?.[0];
-            const url = form.querySelector<HTMLInputElement>(
+            const targets: Record<string, string> = {
+              'gallery-file': 'imageUrl',
+              'news-file': 'coverImageUrl',
+              'news-content-file': 'contentImageUrl',
+            };
+            for (const input of form.querySelectorAll<HTMLInputElement>(
+              '.content-file',
+            )) {
+              const file = input.files?.[0];
+              const targetName = targets[input.id];
+              const target = targetName
+                ? form.querySelector<HTMLInputElement>(`[name="${targetName}"]`)
+                : null;
+              if (file && target)
+                target.value = await upload(
+                  file,
+                  form.dataset.type ?? 'gallery',
+                );
+            }
+            const primaryUrl = form.querySelector<HTMLInputElement>(
               '[name="imageUrl"],[name="coverImageUrl"]',
             );
-            if (file && url)
-              url.value = await upload(file, form.dataset.type ?? 'gallery');
-            if (form.dataset.type === 'gallery' && !url?.value)
+            if (form.dataset.type === 'gallery' && !primaryUrl?.value)
               throw new Error('Foto wajib dipilih.');
             const editing = Boolean(
               form.querySelector<HTMLInputElement>('[name="id"]')?.value,
@@ -397,10 +524,16 @@ const articles = await db
               )
                 field.value = value ?? '';
             });
-            const image = item.imageUrl ?? item.coverImageUrl;
-            if (image) {
-              const preview =
-                form.querySelector<HTMLElement>('.content-preview');
+            const previewFields = [
+              ['imageUrl', item.imageUrl],
+              ['coverImageUrl', item.coverImageUrl],
+              ['contentImageUrl', item.contentImageUrl],
+            ];
+            previewFields.forEach(([fieldName, image]) => {
+              if (!image) return;
+              const preview = form.querySelector<HTMLElement>(
+                `[data-preview-for="${fieldName}"]`,
+              );
               const imageEl = preview?.querySelector<HTMLImageElement>('img');
               const name = preview?.querySelector<HTMLElement>(
                 '.content-preview-name',
@@ -415,7 +548,7 @@ const articles = await db
                 if (size)
                   size.textContent = 'Pilih foto baru bila ingin mengganti.';
               }
-            }
+            });
             form
               .querySelector<HTMLElement>('details')
               ?.setAttribute('open', '');
@@ -472,7 +605,7 @@ const articles = await db
       .forEach((input) =>
         input.addEventListener('change', () => {
           const preview = input
-            .closest('form')
+            .closest('.cover-upload')
             ?.querySelector<HTMLElement>('.content-preview');
           const image = preview?.querySelector<HTMLImageElement>('img');
           const name = preview?.querySelector<HTMLElement>(

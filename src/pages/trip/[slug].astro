@@ -115,6 +115,36 @@ const hasTrailDetails = Boolean(
 );
 const preparationItems = readableLines(item?.preparation);
 const termItems = readableLines(item?.terms);
+const siteOrigin =
+  process.env.PUBLIC_SITE_URL ??
+  process.env.BETTER_AUTH_URL ??
+  Astro.url.origin;
+const tripJsonLd = item
+  ? {
+      '@context': 'https://schema.org',
+      '@type': 'BreadcrumbList',
+      itemListElement: [
+        {
+          '@type': 'ListItem',
+          position: 1,
+          name: 'Home',
+          item: new URL('/', siteOrigin).toString(),
+        },
+        {
+          '@type': 'ListItem',
+          position: 2,
+          name: 'Open Trip',
+          item: new URL('/trip', siteOrigin).toString(),
+        },
+        {
+          '@type': 'ListItem',
+          position: 3,
+          name: item.name,
+          item: new URL(`/trip/${item.slug}`, siteOrigin).toString(),
+        },
+      ],
+    }
+  : undefined;
 ---
 
 <Layout
@@ -124,6 +154,10 @@ const termItems = readableLines(item?.terms);
       : 'Trip tidak ditemukan — LebihJauh'
   }
   description={item?.description ?? 'Detail perjalanan open trip LebihJauh.'}
+  image={item?.coverImageUrl ? String(item.coverImageUrl) : undefined}
+  canonical={item ? `/trip/${item.slug}` : Astro.url.pathname}
+  robots={item ? 'index, follow' : 'noindex, follow'}
+  jsonLd={tripJsonLd}
 >
   <SiteHeader active="trips" />
   <main

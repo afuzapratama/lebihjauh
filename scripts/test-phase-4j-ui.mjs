@@ -126,6 +126,35 @@ try {
         );
         assert.equal(summary.label, summary.expectedLabel);
         assert.equal(summary.max, summary.available);
+        const excessivePax = Number(summary.max) + 1;
+        await page.locator('#booking-pax').fill(String(excessivePax));
+        const privateTripSuggestion = await page.evaluate(() => ({
+          visible: !document.querySelector('#booking-pax-warning').hidden,
+          text: document
+            .querySelector('#booking-pax-warning')
+            .textContent.trim(),
+          href: document
+            .querySelector('#private-trip-option')
+            .getAttribute('href'),
+          invalid: document
+            .querySelector('#booking-pax')
+            .getAttribute('aria-invalid'),
+        }));
+        assert.equal(privateTripSuggestion.visible, true);
+        assert.match(privateTripSuggestion.text, /Private Trip/);
+        assert.equal(privateTripSuggestion.invalid, 'true');
+        const privateTripUrl = new URL(
+          privateTripSuggestion.href,
+          'http://localhost',
+        );
+        assert.equal(privateTripUrl.pathname, '/private-trip');
+        assert.equal(
+          privateTripUrl.searchParams.get('pax'),
+          String(excessivePax),
+        );
+        assert.ok(privateTripUrl.searchParams.get('destination'));
+        assert.ok(privateTripUrl.searchParams.get('startDate'));
+        assert.ok(privateTripUrl.searchParams.get('endDate'));
         await page.unroute('**/api/checkout/quote');
         checked++;
       }

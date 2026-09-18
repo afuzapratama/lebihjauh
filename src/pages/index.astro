@@ -34,12 +34,35 @@ const remainingTripCount = Math.max(0, liveTrips.length - homeTrips.length);
 const homeGallery = featuredFirst(allGallery, content.featured.galleryIds, 4);
 const homeNews = featuredFirst(allNews, content.featured.newsIds, 3);
 const categories = [...new Set(liveTrips.map((item) => String(item.category)))];
+const siteOrigin =
+  process.env.PUBLIC_SITE_URL ??
+  process.env.BETTER_AUTH_URL ??
+  Astro.url.origin;
+const homeJsonLd = [
+  {
+    '@context': 'https://schema.org',
+    '@type': 'WebSite',
+    name: 'LebihJauh',
+    alternateName: ['Lebih Jauh', 'LebihJauh — Go Further'],
+    url: new URL('/', siteOrigin).toString(),
+  },
+  {
+    '@context': 'https://schema.org',
+    '@type': 'Organization',
+    name: 'LebihJauh',
+    url: new URL('/', siteOrigin).toString(),
+    logo: new URL('/brand/logo-stacked-color.svg', siteOrigin).toString(),
+  },
+];
 ---
 
 <Layout
   title={content.seo.title}
   description={content.seo.description}
   image={content.seo.shareImageUrl || undefined}
+  canonical="/"
+  robots={isDraftPreview ? 'noindex, nofollow' : 'index, follow'}
+  jsonLd={homeJsonLd}
 >
   <SiteHeader active="home" />
 

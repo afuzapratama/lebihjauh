@@ -29,7 +29,8 @@
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
     "booking:expire": "node --env-file=.env --import=tsx/esm scripts/expire-booking-holds.ts",
-    "bootstrap-admin": "node --env-file=.env --import=tsx/esm scripts/bootstrap-admin.ts"
+    "bootstrap-admin": "node --env-file=.env --import=tsx/esm scripts/bootstrap-admin.ts",
+    "reset-admin-password": "node --env-file=.env --import=tsx/esm scripts/reset-admin-password.ts"
   },
   "dependencies": {
     "@astrojs/node": "^11.1.5",

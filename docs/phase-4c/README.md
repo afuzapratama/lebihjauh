@@ -134,6 +134,17 @@ ditolak (403); login dengan kredensial nyata belum diuji pada sesi perubahan UI 
    bulan/tahun yang benar, isi harga/kuota/down payment/tenggat, lalu pilih `Buka`. Ubah ke
    `Tutup`, muat ulang halaman, dan pastikan perubahan tetap tersimpan.
 
+Jika password admin terlupa, jalankan perintah berikut dari terminal server. Password
+baru diminta dua kali tanpa echo, di-hash oleh Better Auth, dan semua sesi lama akun
+tersebut dicabut:
+
+```sh
+npm run reset-admin-password -- admin@contoh.com
+```
+
+Password sengaja tidak dapat diberikan sebagai argumen atau disimpan di `.env`, agar
+tidak tertinggal di riwayat shell maupun konfigurasi server.
+
 ## Migrasi yang diperlukan
 
 - `0001_grey_eddie_brock.sql`: tabel `trips`, `trip_versions`, dan `departures`

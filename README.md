@@ -92,6 +92,16 @@ sedangkan ganti password akun sendiri tersedia di `/admin/profile`.
 Pengelolaan trip dan jadwal ada di `/admin/trips`.
 Panduan batas data dan langkah uji ada di [fase 4C](docs/phase-4c/README.md).
 
+Bila password admin terlupa dan tidak ada sesi yang masih aktif, reset dari terminal
+server. Password diminta dua kali tanpa ditampilkan dan seluruh sesi lama dicabut:
+
+```sh
+npm run reset-admin-password -- admin@contoh.com
+```
+
+Jangan memakai `bootstrap-admin` untuk reset karena perintah tersebut hanya membuat
+akun pertama dan akan menolak email yang sudah terdaftar.
+
 ## Deploy production ke VPS / aaPanel
 
 Aplikasi memakai Astro SSR dan harus dijalankan sebagai proses Node, bukan disalin

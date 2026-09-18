@@ -3,11 +3,20 @@ import bromo from '../assets/bromo.jpg';
 import hiker from '../assets/hiker.jpg';
 import { getDb } from '../db/client';
 import { adminAuditLog, sitePage } from '../db/schema';
-import { sanitizeSiteContent } from './site-content-validation';
+import {
+  defaultWhatsAppGreeting,
+  normalizeWhatsAppNumber,
+  whatsappNumberFromUrl,
+} from './contact-settings';
+import {
+  sanitizeSiteContent,
+  SiteContentInputError,
+} from './site-content-validation';
+import { emptySocialLinks, validateSocialLinks } from './social-platforms';
 
 export { SiteContentInputError } from './site-content-validation';
 
-export type SitePageKey = 'home' | 'about';
+export type SitePageKey = 'home' | 'about' | 'global';
 
 const image = (
   imageUrl: string,
@@ -239,19 +248,92 @@ export const defaultAboutContent = {
   },
 };
 
+export const defaultGlobalContent = {
+  contact: {
+    whatsappNumber: '',
+    whatsappGreeting: defaultWhatsAppGreeting,
+  },
+  socials: { ...emptySocialLinks },
+};
+
 export type HomePageContent = typeof defaultHomeContent;
 export type AboutPageContent = typeof defaultAboutContent;
-export type SitePageContent = HomePageContent | AboutPageContent;
+export type GlobalSiteContent = typeof defaultGlobalContent;
+export type SitePageContent =
+  HomePageContent | AboutPageContent | GlobalSiteContent;
 
 export const isSitePageKey = (value: unknown): value is SitePageKey =>
-  value === 'home' || value === 'about';
+  value === 'home' || value === 'about' || value === 'global';
 
 export function validateSitePageContent(
   page: SitePageKey,
   input: unknown,
 ): SitePageContent {
-  const template = page === 'home' ? defaultHomeContent : defaultAboutContent;
-  return sanitizeSiteContent(template, input) as SitePageContent;
+  const template =
+    page === 'home'
+      ? defaultHomeContent
+      : page === 'about'
+        ? defaultAboutContent
+        : defaultGlobalContent;
+  const content = sanitizeSiteContent(template, input) as SitePageContent;
+  if (page === 'global') {
+    try {
+      const globalContent = content as GlobalSiteContent;
+      globalContent.contact.whatsappNumber = normalizeWhatsAppNumber(
+        globalContent.contact.whatsappNumber,
+      );
+      validateSocialLinks(globalContent.socials);
+    } catch (error) {
+      throw new SiteContentInputError(
+        error instanceof Error
+          ? error.message
+          : 'Tautan sosial media tidak valid.',
+      );
+    }
+  }
+  return content;
+}
+
+const record = (value: unknown): Record<string, unknown> =>
+  value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+
+const legacyEnvironmentWhatsApp = () => {
+  try {
+    return normalizeWhatsAppNumber(process.env.BOOKING_WHATSAPP_NUMBER);
+  } catch {
+    return '';
+  }
+};
+
+function hydrateGlobalContent(value: unknown): GlobalSiteContent {
+  const stored = record(value);
+  const storedContact = record(stored.contact);
+  const storedSocials = record(stored.socials);
+  const hasContact = Object.hasOwn(stored, 'contact');
+  const legacySocialNumber = whatsappNumberFromUrl(storedSocials.whatsapp);
+  const fallbackNumber = legacySocialNumber || legacyEnvironmentWhatsApp();
+  return {
+    contact: {
+      whatsappNumber:
+        typeof storedContact.whatsappNumber === 'string'
+          ? storedContact.whatsappNumber
+          : hasContact
+            ? ''
+            : fallbackNumber,
+      whatsappGreeting:
+        typeof storedContact.whatsappGreeting === 'string'
+          ? storedContact.whatsappGreeting
+          : defaultWhatsAppGreeting,
+    },
+    socials: Object.fromEntries(
+      Object.keys(emptySocialLinks).map((key) => [
+        key,
+        typeof storedSocials[key] === 'string' ? storedSocials[key] : '',
+      ]),
+    ) as GlobalSiteContent['socials'],
+  };
 }
 
 export async function getSitePageState(page: SitePageKey) {
@@ -260,11 +342,23 @@ export async function getSitePageState(page: SitePageKey) {
     .from(sitePage)
     .where(eq(sitePage.pageKey, page))
     .limit(1);
-  const fallback = page === 'home' ? defaultHomeContent : defaultAboutContent;
+  const fallback =
+    page === 'home'
+      ? defaultHomeContent
+      : page === 'about'
+        ? defaultAboutContent
+        : hydrateGlobalContent(undefined);
+  const draft =
+    page === 'global'
+      ? hydrateGlobalContent(row?.draftContent)
+      : ((row?.draftContent as SitePageContent | undefined) ?? fallback);
+  const published =
+    page === 'global'
+      ? hydrateGlobalContent(row?.publishedContent)
+      : ((row?.publishedContent as SitePageContent | undefined) ?? fallback);
   return {
-    draft: (row?.draftContent as SitePageContent | undefined) ?? fallback,
-    published:
-      (row?.publishedContent as SitePageContent | undefined) ?? fallback,
+    draft,
+    published,
     hasDraft: Boolean(row),
     hasPublished: Boolean(row?.publishedContent),
     updatedAt: row?.updatedAt ?? null,
@@ -280,6 +374,10 @@ export async function getSitePageContent(
   page: 'about',
   draft?: boolean,
 ): Promise<AboutPageContent>;
+export async function getSitePageContent(
+  page: 'global',
+  draft?: boolean,
+): Promise<GlobalSiteContent>;
 export async function getSitePageContent(page: SitePageKey, draft = false) {
   const state = await getSitePageState(page);
   return (draft ? state.draft : state.published) as SitePageContent;

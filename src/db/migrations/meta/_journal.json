@@ -246,6 +246,13 @@
       "when": 1789725600000,
       "tag": "0034_news_editorial_seo",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1789729200000,
+      "tag": "0035_social_footer",
+      "breakpoints": true
     }
   ]
 }

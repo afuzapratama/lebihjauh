@@ -12,7 +12,9 @@ const redirectTo =
   (destination.pathname === '/admin' ||
     destination.pathname.startsWith('/admin/') ||
     ((destination.pathname === '/' || destination.pathname === '/about') &&
-      destination.searchParams.get('preview') === 'draft')) &&
+      ['draft', 'global'].includes(
+        destination.searchParams.get('preview') ?? '',
+      ))) &&
   !destination.pathname.startsWith('/admin/login')
     ? destination.pathname + destination.search
     : '/admin';

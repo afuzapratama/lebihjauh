@@ -1,0 +1,25 @@
+---
+import SocialIcon from './SocialIcon.astro';
+
+interface Props {
+  href?: string;
+}
+
+const { href } = Astro.props;
+---
+
+{href && (
+  <a
+    class="floating-whatsapp"
+    href={href}
+    target="_blank"
+    rel="noopener noreferrer"
+    aria-label="Chat dengan LebihJauh melalui WhatsApp (buka di tab baru)"
+    title="Chat via WhatsApp"
+    data-floating-whatsapp
+  >
+    <span class="floating-whatsapp-mark" aria-hidden="true">
+      <SocialIcon name="whatsapp" size={29} />
+    </span>
+  </a>
+)}

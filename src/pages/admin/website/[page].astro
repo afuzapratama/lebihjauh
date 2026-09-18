@@ -1,6 +1,7 @@
 ---
 import AboutSiteFields from '../../../components/AboutSiteFields.astro';
 import HomeSiteFields from '../../../components/HomeSiteFields.astro';
+import SocialSiteFields from '../../../components/SocialSiteFields.astro';
 import AdminLayout from '../../../layouts/AdminLayout.astro';
 import { desc } from 'drizzle-orm';
 import { getDb } from '../../../db/client';
@@ -10,6 +11,7 @@ import {
   getSitePageState,
   isSitePageKey,
   type AboutPageContent,
+  type GlobalSiteContent,
   type HomePageContent,
 } from '../../../lib/site-content';
 
@@ -20,7 +22,18 @@ const page = pageParam;
 const state = await getSitePageState(page);
 const content = state.draft;
 const isHome = page === 'home';
-const previewPath = isHome ? '/?preview=draft' : '/about?preview=draft';
+const isAbout = page === 'about';
+const pageLabel = isHome ? 'Home' : isAbout ? 'About' : 'Sosial & Footer';
+const pageDescription = isHome
+  ? 'Foto dan cerita utama.'
+  : isAbout
+    ? 'Cerita, nilai, dan foto.'
+    : 'Kanal promosi global.';
+const previewPath = isAbout
+  ? '/about?preview=draft'
+  : isHome
+    ? '/?preview=draft'
+    : '/?preview=global';
 const [tripRows, galleryRows, newsRows] = isHome
   ? await Promise.all([
       getPublicTrips(),
@@ -47,17 +60,18 @@ const statusDate = (value: Date | null) =>
     : 'Belum pernah';
 ---
 
-<AdminLayout
-  title={`${isHome ? 'Home' : 'About'} · Tampilan Website`}
-  active="website"
->
+<AdminLayout title={`${pageLabel} · Tampilan Website`} active="website">
   <div class="page-title website-page-title">
     <div>
       <p class="eyebrow">05 / TAMPILAN WEBSITE</p>
       <h1>
-        {isHome ? 'Halaman Home.' : 'Halaman About.'}
+        {isHome
+          ? 'Halaman Home.'
+          : isAbout
+            ? 'Halaman About.'
+            : 'Sosial & Footer.'}
         <br />
-        <span>Foto dan cerita utama.</span>
+        <span>{pageDescription}</span>
       </h1>
       <p class="muted">
         Simpan draf, periksa tampilannya, lalu terbitkan seluruh perubahan
@@ -74,8 +88,14 @@ const statusDate = (value: Date | null) =>
     <a href="/admin/website/home" aria-current={isHome ? 'page' : undefined}>
       Home
     </a>
-    <a href="/admin/website/about" aria-current={!isHome ? 'page' : undefined}>
+    <a href="/admin/website/about" aria-current={isAbout ? 'page' : undefined}>
       About
+    </a>
+    <a
+      href="/admin/website/global"
+      aria-current={!isHome && !isAbout ? 'page' : undefined}
+    >
+      Sosial & Footer
     </a>
   </nav>
 
@@ -87,8 +107,10 @@ const statusDate = (value: Date | null) =>
         galleryOptions={galleryOptions}
         newsOptions={newsOptions}
       />
-    ) : (
+    ) : isAbout ? (
       <AboutSiteFields content={content as AboutPageContent} />
+    ) : (
+      <SocialSiteFields content={content as GlobalSiteContent} />
     )}
     <p class="error-msg" id="website-error" role="alert" hidden></p>
     <div class="website-actions">
@@ -389,6 +411,64 @@ const statusDate = (value: Date | null) =>
   :global(.website-form textarea) {
     resize: vertical;
   }
+  :global(.social-settings-intro) {
+    max-width: 680px;
+    margin: -4px 0 4px;
+  }
+  :global(.social-settings-grid) {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+  :global(.primary-whatsapp-setting) {
+    display: grid;
+    gap: 16px;
+    padding: 18px;
+    border: 1px solid #273326;
+    background: #eef0e8;
+    box-shadow: 4px 4px 0 var(--orange);
+  }
+  :global(.primary-whatsapp-setting .social-setting-icon) {
+    background: var(--orange);
+    color: var(--ink);
+  }
+  :global(.social-settings-divider) {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 16px;
+    margin-top: 8px;
+    padding-top: 18px;
+    border-top: 1px solid var(--line);
+  }
+  :global(.social-settings-divider span) {
+    color: var(--muted);
+    font-size: 11px;
+  }
+  :global(.social-setting-card) {
+    padding: 14px;
+    border: 1px solid var(--line);
+    background: #fbfbf6;
+  }
+  :global(.social-setting-head) {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+  }
+  :global(.social-setting-head > span:last-child) {
+    display: grid;
+    gap: 2px;
+  }
+  :global(.social-setting-icon) {
+    display: grid;
+    width: 38px;
+    height: 38px;
+    flex: 0 0 auto;
+    place-items: center;
+    border-radius: 50%;
+    background: var(--ink);
+    color: #fffefa;
+  }
   :global(.website-image-pair) {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -428,7 +508,8 @@ const statusDate = (value: Date | null) =>
   }
   @media (max-width: 800px) {
     :global(.field-grid),
-    :global(.website-image-pair) {
+    :global(.website-image-pair),
+    :global(.social-settings-grid) {
       grid-template-columns: 1fr;
     }
     .website-actions {

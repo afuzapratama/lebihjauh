@@ -8,7 +8,14 @@ import '@fontsource/barlow-condensed/latin-700.css';
 import '@fontsource/barlow-condensed/latin-800.css';
 import '@fontsource/caveat/latin-700.css';
 import '../styles/global.css';
+import FloatingWhatsApp from '../components/FloatingWhatsApp.astro';
 import SiteFooter from '../components/SiteFooter.astro';
+import { whatsappUrl } from '../lib/contact-settings';
+import { getSitePageContent } from '../lib/site-content';
+import {
+  activeSocialLinks,
+  type SocialIconName,
+} from '../lib/social-platforms';
 
 interface Props {
   title?: string;
@@ -45,6 +52,35 @@ const shareImage = image ? new URL(image, siteOrigin).toString() : undefined;
 const structuredData = jsonLd
   ? JSON.stringify(jsonLd).replace(/</g, '\\u003c')
   : '';
+const isGlobalDraftPreview =
+  ['draft', 'global'].includes(Astro.url.searchParams.get('preview') ?? '') &&
+  Boolean(Astro.locals.user);
+const globalSettings = await getSitePageContent('global', isGlobalDraftPreview);
+const whatsappHref = whatsappUrl(
+  globalSettings.contact.whatsappNumber,
+  globalSettings.contact.whatsappGreeting,
+);
+const socialLinks: Array<{
+  key: SocialIconName;
+  label: string;
+  href: string;
+}> = activeSocialLinks(globalSettings.socials).map(({ key, label, href }) => ({
+  key,
+  label,
+  href,
+}));
+if (whatsappHref) {
+  const telegramIndex = socialLinks.findIndex(({ key }) => key === 'telegram');
+  socialLinks.splice(
+    telegramIndex < 0 ? socialLinks.length : telegramIndex,
+    0,
+    {
+      key: 'whatsapp',
+      label: 'WhatsApp',
+      href: whatsappHref,
+    },
+  );
+}
 ---
 
 <!doctype html>
@@ -90,7 +126,8 @@ const structuredData = jsonLd
       Langsung ke konten
     </a>
     <slot />
-    <SiteFooter />
+    <SiteFooter socialLinks={socialLinks} />
+    <FloatingWhatsApp href={whatsappHref} />
     <script>
       import '../scripts/navigation';
     </script>

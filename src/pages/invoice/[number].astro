@@ -5,7 +5,9 @@ import Icon from '../../components/Icon.astro';
 import SiteHeader from '../../components/SiteHeader.astro';
 import { getCookie, getGuestScope } from '../../lib/booking-security';
 import { getPublicInvoice } from '../../lib/booking-service';
+import { whatsappUrl } from '../../lib/contact-settings';
 import { activePaymentMethods } from '../../lib/payment-methods';
+import { getSitePageContent } from '../../lib/site-content';
 
 export const prerender = false;
 
@@ -21,6 +23,7 @@ const invoice = await getPublicInvoice(
   guest.hash,
   getCookie(Astro.request, 'lj_invoice_access'),
 );
+const globalSettings = await getSitePageContent('global');
 const paymentMethods = invoice?.canManage ? await activePaymentMethods() : [];
 const money = new Intl.NumberFormat('id-ID');
 const when = new Intl.DateTimeFormat('id-ID', {
@@ -59,10 +62,10 @@ const paymentState = invoice
       ? 'DP TERVERIFIKASI'
       : 'BELUM ADA PEMBAYARAN TERVERIFIKASI'
   : '';
-const bookingWhatsApp = process.env.BOOKING_WHATSAPP_NUMBER?.replace(/\D/g, '');
 const paymentHelpHref =
-  bookingWhatsApp && invoice
-    ? `https://wa.me/${bookingWhatsApp}?text=${encodeURIComponent(
+  globalSettings.contact.whatsappNumber && invoice
+    ? whatsappUrl(
+        globalSettings.contact.whatsappNumber,
         [
           'Halo Admin LebihJauh, saya membutuhkan bantuan terkait pembayaran booking berikut.',
           '',
@@ -72,7 +75,7 @@ const paymentHelpHref =
           '',
           'Kendala saya:',
         ].join('\n'),
-      )}`
+      )
     : null;
 ---
 

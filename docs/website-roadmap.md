@@ -176,7 +176,7 @@ dengan API fixture; bukti serta batas verifikasinya ada pada paket 4C.
 | 4I   | Revisi operasional trip          | Pickup berharga, data keselamatan, PDF, bukti pembeli, dan keuangan  |
 | 4J   | Konsolidasi Detail Open Trip     | Itinerary, jadwal, pickup, dan detail publik memakai konteks tunggal |
 | 4K   | Cek Booking Open Trip            | PIC dapat menemukan booking dan membuka invoice dengan verifikasi    |
-| 4L   | Tampilan Home & About            | Foto, kalimat, SEO, FAQ, dan konten unggulan dikelola admin          |
+| 4L   | Tampilan website                 | Home, About, sosial, footer, dan SEO dikelola admin                  |
 | 5A   | Data asli dan simulasi operasi   | Tim mencoba alur lengkap dengan materi bisnis yang benar             |
 | 5B   | Pemeriksaan rilis                | Kandidat rilis dan panduan operasi/server siap                       |
 | 5C   | Deployment                       | Website, admin, database, dan proses pendukung berjalan di server    |

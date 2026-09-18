@@ -4,6 +4,8 @@ import Icon from '../../components/Icon.astro';
 import SiteHeader from '../../components/SiteHeader.astro';
 import { getCookie, getGuestScope } from '../../lib/booking-security';
 import { getPublicInvoice } from '../../lib/booking-service';
+import { whatsappUrl } from '../../lib/contact-settings';
+import { getSitePageContent } from '../../lib/site-content';
 import { itineraryStagesFrom } from '../../lib/trip-itinerary';
 
 export const prerender = false;
@@ -19,6 +21,7 @@ const rundown = await getPublicInvoice(
   guest.hash,
   getCookie(Astro.request, 'lj_invoice_access'),
 );
+const globalSettings = await getSitePageContent('global');
 if (!rundown) Astro.response.status = 404;
 
 const when = new Intl.DateTimeFormat('id-ID', {
@@ -48,10 +51,8 @@ const snapshot = rundown?.packageSnapshot as
   | undefined;
 const stages = itineraryStagesFrom(rundown?.itineraryStages);
 const pickupStages = itineraryStagesFrom(rundown?.pickupRundownStages);
-const operationalWhatsApp = process.env.BOOKING_WHATSAPP_NUMBER?.replace(
-  /\D/g,
-  '',
-);
+const operationalWhatsApp = globalSettings.contact.whatsappNumber;
+const operationalWhatsAppHref = whatsappUrl(operationalWhatsApp);
 ---
 
 <Layout robots="noindex, nofollow">
@@ -206,12 +207,12 @@ const operationalWhatsApp = process.env.BOOKING_WHATSAPP_NUMBER?.replace(
                 <strong>{rundown.number}</strong>.
               </p>
             </div>
-            {operationalWhatsApp ? (
+            {operationalWhatsAppHref ? (
               <a
                 class="button button-dark"
-                href={`https://wa.me/${operationalWhatsApp}`}
+                href={operationalWhatsAppHref}
                 target="_blank"
-                rel="noopener"
+                rel="noopener noreferrer"
               >
                 WhatsApp {operationalWhatsApp}{' '}
                 <Icon name="arrow-up" size={12} />

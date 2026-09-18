@@ -1,0 +1,85 @@
+---
+import type { GlobalSiteContent } from '../lib/site-content';
+import { socialPlatforms } from '../lib/social-platforms';
+import SocialIcon from './SocialIcon.astro';
+
+interface Props {
+  content: GlobalSiteContent;
+}
+
+const { content } = Astro.props;
+---
+
+<section class="panel website-section social-settings">
+  <p class="eyebrow">01 / SOSIAL MEDIA & FOOTER</p>
+  <h2>Kanal promosi LebihJauh.</h2>
+  <p class="muted social-settings-intro">
+    Nomor WhatsApp utama dipakai bersama oleh seluruh website. Profil sosial
+    lain hanya muncul bila URL-nya diisi.
+  </p>
+  <div class="primary-whatsapp-setting">
+    <div class="social-setting-head">
+      <span class="social-setting-icon" aria-hidden="true">
+        <SocialIcon name="whatsapp" size={22} />
+      </span>
+      <span>
+        <strong>WhatsApp utama</strong>
+        <small>Floating chat, footer, invoice, dan rundown</small>
+      </span>
+    </div>
+    <div class="field-grid">
+      <label>
+        Nomor WhatsApp bisnis
+        <input
+          name="contact.whatsappNumber"
+          value={content.contact.whatsappNumber}
+          type="tel"
+          inputmode="tel"
+          autocomplete="tel"
+          maxlength="24"
+          placeholder="6281234567890"
+        />
+        <small>
+          Boleh diawali 08, +62, atau 62. Sistem menyimpannya dalam format 62.
+        </small>
+      </label>
+      <label>
+        Pesan pembuka floating chat <small>Opsional</small>
+        <textarea
+          name="contact.whatsappGreeting"
+          rows="3"
+          maxlength="600"
+          placeholder="Halo LebihJauh, saya ingin bertanya tentang perjalanan."
+        >{content.contact.whatsappGreeting}</textarea>
+      </label>
+    </div>
+  </div>
+  <div class="social-settings-divider">
+    <strong>Profil sosial lainnya</strong>
+    <span>Isi hanya kanal yang aktif.</span>
+  </div>
+  <div class="social-settings-grid">
+    {socialPlatforms.map((platform) => (
+      <label class="social-setting-card">
+        <span class="social-setting-head">
+          <span class="social-setting-icon" aria-hidden="true">
+            <SocialIcon name={platform.key} size={20} />
+          </span>
+          <span>
+            <strong>{platform.label}</strong>
+            <small>{platform.hint}</small>
+          </span>
+        </span>
+        <input
+          name={`socials.${platform.key}`}
+          value={content.socials[platform.key]}
+          type="url"
+          inputmode="url"
+          maxlength="600"
+          placeholder={platform.placeholder}
+          aria-label={`URL ${platform.label}`}
+        />
+      </label>
+    ))}
+  </div>
+</section>

@@ -2,6 +2,7 @@
 import Layout from '../layouts/Layout.astro';
 import Icon from '../components/Icon.astro';
 import SiteHeader from '../components/SiteHeader.astro';
+import { getSitePageContent } from '../lib/site-content';
 
 const queryText = (name: string, maxLength: number) =>
   (Astro.url.searchParams.get(name) ?? '').trim().slice(0, maxLength);
@@ -29,6 +30,8 @@ const prefill = {
 };
 const redirectedFromOpenTrip =
   Astro.url.searchParams.get('source') === 'open-trip';
+const globalSettings = await getSitePageContent('global');
+const businessWhatsApp = globalSettings.contact.whatsappNumber;
 ---
 
 <Layout
@@ -197,15 +200,17 @@ const redirectedFromOpenTrip =
               <span>Invoice dibuat hanya setelah detailnya disetujui.</span>
             </li>
           </ol>
-          <p class="booking-hold-note">
-            Butuh jawaban cepat? Setelah mengirim, kamu dapat meneruskan
-            ringkasannya ke WhatsApp kami.
-          </p>
+          {businessWhatsApp && (
+            <p class="booking-hold-note">
+              Butuh jawaban cepat? Setelah mengirim, kamu dapat meneruskan
+              ringkasannya ke WhatsApp kami.
+            </p>
+          )}
         </aside>
       </div>
     </section>
   </main>
-  <script is:inline>
+  <script define:vars={{ businessWhatsApp }} is:inline>
     const form = document.querySelector('#private-trip-form');
     const error = document.querySelector('#private-trip-error');
     const submit = document.querySelector('#private-trip-submit');
@@ -226,10 +231,13 @@ const redirectedFromOpenTrip =
         const result = await response.json();
         if (!response.ok)
           throw new Error(result.message || 'Permintaan belum dapat dikirim.');
+        const whatsappFollowUp = businessWhatsApp
+          ? `<a class="button button-dark" href="https://wa.me/${businessWhatsApp}?text=${encodeURIComponent(`Halo Admin LebihJauh, saya baru mengirim permintaan Private Trip ${result.request.number}.`)}" target="_blank" rel="noopener noreferrer">Teruskan ke WhatsApp <span>\u2197\uFE0E</span></a>`
+          : '';
         form.replaceWith(
           Object.assign(document.createElement('div'), {
             className: 'private-success',
-            innerHTML: `<p class="eyebrow"><span></span> PERMINTAAN TERSIMPAN</p><h2>Terima kasih.</h2><p>Nomor referensi <strong>${result.request.number}</strong>. Admin akan menyiapkan penawaran berdasarkan kebutuhanmu.</p><a class="button button-dark" href="https://wa.me/?text=${encodeURIComponent(`Halo Admin LebihJauh, saya baru mengirim permintaan Private Trip ${result.request.number}.`)}" target="_blank" rel="noopener">Teruskan ke WhatsApp <span>\u2197\uFE0E</span></a>`,
+            innerHTML: `<p class="eyebrow"><span></span> PERMINTAAN TERSIMPAN</p><h2>Terima kasih.</h2><p>Nomor referensi <strong>${result.request.number}</strong>. Admin akan menyiapkan penawaran berdasarkan kebutuhanmu.</p>${whatsappFollowUp}`,
           }),
         );
       } catch (cause) {

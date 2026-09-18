@@ -1,19 +1,46 @@
 ---
 import Icon from './Icon.astro';
+import SocialIcon from './SocialIcon.astro';
 import Wordmark from './Wordmark.astro';
+import type { SocialIconName } from '../lib/social-platforms';
 
 const year = new Date().getFullYear();
+interface Props {
+  socialLinks?: Array<{
+    key: SocialIconName;
+    label: string;
+    href: string;
+  }>;
+}
+const { socialLinks = [] } = Astro.props;
 ---
 
 <footer class="site-footer">
   <div class="footer-main section">
-    <div>
+    <div class="footer-brand">
       <Wordmark footer href="/" />
-      <p>
-        Rasa penasaran yang sama.
-        <br />
-        Tujuan yang berbeda. Cerita yang baru.
-      </p>
+      <div class="footer-brand-copy">
+        <p>
+          Rasa penasaran yang sama.
+          <br />
+          Tujuan yang berbeda. Cerita yang baru.
+        </p>
+        {socialLinks.length > 0 && (
+          <nav class="footer-socials" aria-label="Media sosial LebihJauh">
+            {socialLinks.map(({ key, label, href }) => (
+              <a
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label={`${label} LebihJauh (buka di tab baru)`}
+                title={label}
+              >
+                <SocialIcon name={key} size={18} />
+              </a>
+            ))}
+          </nav>
+        )}
+      </div>
     </div>
     <div class="footer-links">
       <span>JELAJAH</span>

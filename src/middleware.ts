@@ -37,10 +37,11 @@ export const onRequest = defineMiddleware(async (ctx, next) => {
     matchesRoute(pathname, prefix),
   );
 
-  // Preview draf hanya dapat dibuka oleh admin yang sedang login. Halaman publik
-  // biasa tidak membayar biaya pemeriksaan sesi ini.
+  // Preview draf halaman maupun footer global hanya dapat dibuka oleh admin.
+  // Halaman publik biasa tidak membayar biaya pemeriksaan sesi ini.
+  const previewMode = requestUrl.searchParams.get('preview');
   const isDraftPreview =
-    requestUrl.searchParams.get('preview') === 'draft' &&
+    (previewMode === 'draft' || previewMode === 'global') &&
     (pathname === '/' || pathname === '/about');
 
   if (!isProtected && !isDraftPreview) {
@@ -70,7 +71,7 @@ export const onRequest = defineMiddleware(async (ctx, next) => {
     const loginUrl = new URL('/admin/login', ctx.request.url);
     loginUrl.searchParams.set(
       'redirect',
-      `${pathname}${isDraftPreview ? '?preview=draft' : ''}`,
+      `${pathname}${isDraftPreview ? `?preview=${previewMode}` : ''}`,
     );
     return secureAdminResponse(ctx.redirect(loginUrl.toString(), 302));
   }

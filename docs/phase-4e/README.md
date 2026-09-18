@@ -84,9 +84,11 @@ Tambahkan ke `.env` lalu restart server:
 
 ```env
 BOOKING_DATA_ENCRYPTION_KEY=<64 karakter heksadesimal / 32 byte acak>
-# opsional, untuk tombol tindak lanjut dari invoice
-BOOKING_WHATSAPP_NUMBER=628xxxxxxxxxx
 ```
+
+Nomor WhatsApp operasional dikelola dari **Admin → Tampilan Website → Sosial &
+Footer**. `BOOKING_WHATSAPP_NUMBER` hanya dipakai sebagai fallback migrasi sampai
+pengaturan global pertama kali disimpan ke database.
 
 Gunakan `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`
 untuk membuat nilai kunci. Jangan menggantinya selama data booking masih aktif

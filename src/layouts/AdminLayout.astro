@@ -186,15 +186,44 @@ const upcoming: string[] = [];
                   </span>
                 </summary>
                 <div class="admin-nav-submenu">
-                  <a href="/admin/website/home">
+                  <a
+                    href="/admin/website/home"
+                    aria-current={
+                      active === 'website' &&
+                      Astro.url.pathname === '/admin/website/home'
+                        ? 'page'
+                        : undefined
+                    }
+                  >
                     <span>HOME</span>
                     <strong>Halaman Home</strong>
                     <small>Foto & kalimat utama</small>
                   </a>
-                  <a href="/admin/website/about">
+                  <a
+                    href="/admin/website/about"
+                    aria-current={
+                      active === 'website' &&
+                      Astro.url.pathname === '/admin/website/about'
+                        ? 'page'
+                        : undefined
+                    }
+                  >
                     <span>ABOUT</span>
                     <strong>Halaman About</strong>
                     <small>Cerita, nilai & foto</small>
+                  </a>
+                  <a
+                    href="/admin/website/global"
+                    aria-current={
+                      active === 'website' &&
+                      Astro.url.pathname === '/admin/website/global'
+                        ? 'page'
+                        : undefined
+                    }
+                  >
+                    <span>SOCIAL</span>
+                    <strong>Sosial & footer</strong>
+                    <small>Ikon dan tautan promosi</small>
                   </a>
                 </div>
               </details>

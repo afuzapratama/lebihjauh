@@ -984,8 +984,8 @@ export const newsArticle = pgTable(
 
 // ─── Payment verification (Phase 4F) ────────────────────────────────────────
 // Fixed website pages (Phase 4L).
-// Home dan About memiliki satu dokumen terstruktur per halaman. Draf disimpan
-// terpisah dari versi publik agar perubahan besar dapat dipratinjau lebih dulu.
+// Home, About, dan pengaturan global memiliki satu dokumen terstruktur. Draf
+// disimpan terpisah dari versi publik agar perubahan dapat dipratinjau dulu.
 export const sitePage = pgTable(
   'site_pages',
   {
@@ -1011,7 +1011,10 @@ export const sitePage = pgTable(
       .defaultNow(),
   },
   (table) => [
-    check('site_pages_key_check', sql`${table.pageKey} in ('home', 'about')`),
+    check(
+      'site_pages_key_check',
+      sql`${table.pageKey} in ('home', 'about', 'global')`,
+    ),
   ],
 );
 

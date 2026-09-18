@@ -8,6 +8,9 @@ export const prerender = false;
 const isDraftPreview =
   Astro.url.searchParams.get('preview') === 'draft' &&
   Boolean(Astro.locals.user);
+const isGlobalPreview =
+  Astro.url.searchParams.get('preview') === 'global' &&
+  Boolean(Astro.locals.user);
 const content = await getSitePageContent('about', isDraftPreview);
 const valueIcons = ['people', 'mountain', 'sun'] as const;
 ---
@@ -16,6 +19,9 @@ const valueIcons = ['people', 'mountain', 'sun'] as const;
   title={content.seo.title}
   description={content.seo.description}
   image={content.seo.shareImageUrl || undefined}
+  robots={
+    isDraftPreview || isGlobalPreview ? 'noindex, nofollow' : 'index, follow'
+  }
 >
   <SiteHeader active="about" />
 

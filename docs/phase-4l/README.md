@@ -1,11 +1,12 @@
-# Phase 4L — Pengaturan Tampilan Home & About
+# Phase 4L — Pengaturan Tampilan Website
 
 Status: **selesai diimplementasikan — 17 September 2026.**
 
 Phase ini memindahkan foto utama dan kalimat pemasaran Home/About dari source
-code ke editor admin terstruktur. Konten lama tetap menjadi fallback sampai
-admin menerbitkan versi pertama, sehingga migrasi database tidak membuat halaman
-publik kosong.
+code ke editor admin terstruktur. Pengaturan global **Sosial & Footer** juga
+menyimpan kanal promosi yang tampil di seluruh halaman. Konten lama tetap
+menjadi fallback sampai admin menerbitkan versi pertama, sehingga migrasi
+database tidak membuat halaman publik kosong.
 
 ## Alur admin
 
@@ -17,6 +18,13 @@ publik kosong.
    admin aktif.
 6. Pilih **Terbitkan halaman** untuk mengganti seluruh versi publik secara atomik.
 
+Untuk media sosial, buka **Tampilan Website → Sosial & Footer**. Isi nomor
+WhatsApp utama sekali untuk floating chat, footer, invoice, rundown, dan tindak
+lanjut Private Trip. Nomor menerima format 08, +62, atau 62 lalu disimpan dalam
+format 62. URL profil sosial lain bersifat opsional; platform kosong tidak
+dirender. Footer menampilkan ikon tanpa nama visual, tetapi setiap tautan tetap
+memiliki nama aksesibel dan tooltip.
+
 Home juga dapat mendahulukan hingga tiga Open Trip, empat foto Galeri, dan tiga
 artikel News. Jika pilihan unggulan kosong atau kontennya tidak lagi publik,
 daftar otomatis dilengkapi dari konten terbaru yang masih tersedia.
@@ -24,7 +32,7 @@ daftar otomatis dilengkapi dari konten terbaru yang masih tersedia.
 ## Penyimpanan dan keamanan
 
 - `site_pages` menyimpan `draft_content` dan `published_content` terpisah untuk
-  key `home` dan `about`.
+  key `home`, `about`, dan `global`.
 - Semua payload diperiksa server berdasarkan bentuk konten resmi. URL media dan
   sumber hanya menerima HTTPS; URL aset fallback lokal tetap didukung.
 - Upload memakai presigned URL R2 pada prefix `content/home` dan `content/about`.

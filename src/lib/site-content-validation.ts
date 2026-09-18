@@ -5,6 +5,8 @@ const optionalFields = new Set([
   'sourceUrl',
   'shareImageUrl',
   'caption',
+  'whatsappNumber',
+  'whatsappGreeting',
 ]);
 
 function cleanString(value: unknown, path: string) {
@@ -12,7 +14,8 @@ function cleanString(value: unknown, path: string) {
     throw new SiteContentInputError(`${path} harus berupa teks.`);
   const result = value.trim();
   const key = path.split('.').at(-1) ?? '';
-  if (!result && !optionalFields.has(key))
+  const isOptional = optionalFields.has(key) || path.startsWith('socials.');
+  if (!result && !isOptional)
     throw new SiteContentInputError(`${path} wajib diisi.`);
   const max = key === 'description' || key.startsWith('body') ? 2_000 : 600;
   if (result.length > max)
